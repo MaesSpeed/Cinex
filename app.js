@@ -290,6 +290,10 @@
     </svg>`,
     plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>`,
     close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg>`,
+    person: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8.1" r="3.1"/><path d="M5.4 19.2c.9-3.3 3.3-5.1 6.6-5.1s5.7 1.8 6.6 5.1"/></svg>`,
+    lock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="6" y="10.2" width="12" height="9.3" rx="2"/><path d="M8.2 10.2V8.1a3.8 3.8 0 0 1 7.6 0v2.1"/></svg>`,
+    eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.7 12S6.1 6.6 12 6.6 21.3 12 21.3 12 17.9 17.4 12 17.4 2.7 12 2.7 12z"/><circle cx="12" cy="12" r="2.35"/></svg>`,
+    eyeOff: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5.1 19.4 20.5"/><path d="M10.1 10.4a2.35 2.35 0 0 0 3.4 3.3"/><path d="M7.1 7.6C5 8.9 3.4 11.1 2.7 12c0 0 3.4 5.4 9.3 5.4 1.6 0 3-.3 4.2-.8"/><path d="M16.8 16.1c1.8-1.2 3.2-3 3.8-4.1 0 0-1.6-2.6-4.5-4.2"/></svg>`,
   };
 
   function rateIcon(id) {
@@ -950,28 +954,436 @@
     if (isDesktopNav()) setPhoneFooterOpen(true);
   }
 
-  function renderLogin() {
+  const HERO_IDS = { left: "t120", center: "t557", right: "t155" };
+
+  const loginUi = {
+    autoPlayed: false,
+    hintShown: false,
+    posters: [],
+    items: [],
+    angle: 0,
+    vel: 0,
+    mode: "idle",
+    raf: 0,
+    lastTs: 0,
+    drag: null,
+    root: null,
+    ring: null,
+    covers: null,
+    metrics: { rx: 128, rz: 74 },
+    unbind: null,
+    reduced: false,
+  };
+
+  function posterThumb(url, size) {
+    return String(url || "").replace(/\/w\d+\//, `/${size}/`);
+  }
+
+  function arrangeCarouselPosters(films) {
+    const usable = (films || []).filter((film) => film && film.poster);
+    const take = (id) => usable.find((film) => filmId(film) === id);
+    const left = take(HERO_IDS.left);
+    const center = take(HERO_IDS.center);
+    const right = take(HERO_IDS.right);
+    const rest = usable.filter((film) => {
+      const id = filmId(film);
+      return id !== HERO_IDS.left && id !== HERO_IDS.center && id !== HERO_IDS.right;
+    });
+    if (left && center && right) return [center, right, ...rest, left];
+    return usable.slice(0, 90);
+  }
+
+  function carouselMetrics(root) {
+    const w = (root && root.clientWidth) || 340;
+    const rx = Math.round(Math.min(146, Math.max(112, w * 0.41)));
+    const rz = Math.round(rx * 0.56);
+    return { rx, rz };
+  }
+
+  function setCover(el, film) {
+    if (!el) return;
+    const src = film && film.poster ? posterThumb(film.poster, "w185") : "";
+    el.style.backgroundImage = src ? `url("${src}")` : "";
+    el.title = film && film.title ? film.title : "";
+  }
+
+  function paintLoginCarousel() {
+    const n = loginUi.posters.length;
+    if (!n || !loginUi.items.length) return;
+    const { rx, rz } = loginUi.metrics;
+    const ang = (loginUi.angle * Math.PI) / 180;
+    for (let i = 0; i < n; i += 1) {
+      const t = ((i / n) * Math.PI * 2) + ang;
+      const x = Math.sin(t) * rx;
+      const z = Math.cos(t) * rz;
+      const depth = (z + rz) / (2 * rz);
+      const scale = 0.68 + (depth * 0.38);
+      const hideFront = depth > 0.91 ? 0 : 1;
+      const opacity = hideFront * (0.48 + (depth * 0.52));
+      const el = loginUi.items[i];
+      el.style.transform = `translate3d(${x.toFixed(2)}px, 0, ${z.toFixed(2)}px) scale(${scale.toFixed(3)})`;
+      el.style.opacity = String(opacity.toFixed(3));
+      el.style.zIndex = String(120 + Math.round(z));
+    }
+    const step = 360 / n;
+    let idx = Math.round(((-loginUi.angle / step) % n));
+    if (idx < 0) idx += n;
+    const at = (delta) => loginUi.posters[(idx + delta + n) % n];
+    setCover(loginUi.covers.left, at(-1));
+    setCover(loginUi.covers.center, at(0));
+    setCover(loginUi.covers.right, at(1));
+    if (loginUi.covers.center) {
+      loginUi.covers.center.classList.toggle("is-rest", loginUi.mode === "idle");
+    }
+  }
+
+  function onCarouselResize() {
+    if (!loginUi.root) return;
+    loginUi.metrics = carouselMetrics(loginUi.root);
+    paintLoginCarousel();
+  }
+
+  function maybeSwipeHint() {
+    if (loginUi.hintShown || loginUi.mode !== "idle") return;
+    try {
+      if (sessionStorage.getItem("wdq.loginSwipeHint")) {
+        loginUi.hintShown = true;
+        return;
+      }
+      sessionStorage.setItem("wdq.loginSwipeHint", "1");
+    } catch {
+      /* private mode */
+    }
+    loginUi.hintShown = true;
+    if (loginUi.reduced) return;
+    const hint = loginUi.root && loginUi.root.querySelector("[data-role=login-hint]");
+    const inner = loginUi.root && loginUi.root.querySelector(".login-carousel-inner");
+    if (hint) {
+      hint.hidden = false;
+      hint.classList.add("is-on");
+      window.setTimeout(() => {
+        hint.classList.remove("is-on");
+        hint.hidden = true;
+      }, 2200);
+    }
+    if (inner) {
+      inner.classList.add("is-hinting");
+      window.setTimeout(() => inner.classList.remove("is-hinting"), 1300);
+    }
+  }
+
+  function finishCarouselRest() {
+    loginUi.vel = 0;
+    loginUi.mode = "idle";
+    paintLoginCarousel();
+    maybeSwipeHint();
+  }
+
+  function snapLoginCarousel() {
+    const n = loginUi.posters.length;
+    if (!n) {
+      finishCarouselRest();
+      return;
+    }
+    const step = 360 / n;
+    const target = Math.round(loginUi.angle / step) * step;
+    const from = loginUi.angle;
+    if (loginUi.reduced || Math.abs(target - from) < 0.25) {
+      loginUi.angle = target;
+      finishCarouselRest();
+      return;
+    }
+    loginUi.mode = "snap";
+    const t0 = performance.now();
+    const dur = 260;
+    function stepSnap(now) {
+      if (loginUi.mode !== "snap") return;
+      const p = Math.min(1, (now - t0) / dur);
+      const e = 1 - ((1 - p) * (1 - p));
+      loginUi.angle = from + ((target - from) * e);
+      paintLoginCarousel();
+      if (p < 1) requestAnimationFrame(stepSnap);
+      else {
+        loginUi.angle = target;
+        finishCarouselRest();
+      }
+    }
+    requestAnimationFrame(stepSnap);
+  }
+
+  function ensureCoastLoop() {
+    if (loginUi.raf) return;
+    loginUi.lastTs = 0;
+    loginUi.raf = requestAnimationFrame(function loop(ts) {
+      loginUi.raf = 0;
+      if (loginUi.mode !== "coast") return;
+      if (!loginUi.lastTs) loginUi.lastTs = ts;
+      const dt = Math.min(0.034, (ts - loginUi.lastTs) / 1000);
+      loginUi.lastTs = ts;
+      const decel = 215;
+      const v = loginUi.vel;
+      if (Math.abs(v) < 10) {
+        snapLoginCarousel();
+        return;
+      }
+      const sign = v < 0 ? -1 : 1;
+      loginUi.vel = v - (sign * decel * dt);
+      if (loginUi.vel * v < 0) loginUi.vel = 0;
+      loginUi.angle += loginUi.vel * dt;
+      paintLoginCarousel();
+      if (loginUi.mode === "coast") {
+        loginUi.raf = requestAnimationFrame(loop);
+      }
+    });
+  }
+
+  function startAutoSpin() {
+    if (loginUi.reduced) {
+      loginUi.angle = 0;
+      finishCarouselRest();
+      return;
+    }
+    const start = -540;
+    const end = 0;
+    const dur = 3100;
+    const t0 = performance.now();
+    loginUi.mode = "auto";
+    loginUi.angle = start;
+    paintLoginCarousel();
+    function step(now) {
+      if (loginUi.mode !== "auto") return;
+      const p = Math.min(1, (now - t0) / dur);
+      const e = 1 - ((1 - p) ** 3);
+      loginUi.angle = start + ((end - start) * e);
+      paintLoginCarousel();
+      if (p < 1) requestAnimationFrame(step);
+      else {
+        loginUi.angle = 0;
+        finishCarouselRest();
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
+  function bindCarouselPointer(root) {
+    const onDown = (ev) => {
+      if (ev.pointerType === "mouse" && ev.button !== 0) return;
+      loginUi.mode = "drag";
+      loginUi.vel = 0;
+      loginUi.drag = {
+        id: ev.pointerId,
+        x: ev.clientX,
+        lastX: ev.clientX,
+        lastT: performance.now(),
+        samples: [],
+        moved: false,
+      };
+      if (root.setPointerCapture) root.setPointerCapture(ev.pointerId);
+    };
+    const onMove = (ev) => {
+      if (!loginUi.drag || ev.pointerId !== loginUi.drag.id) return;
+      const dx = ev.clientX - loginUi.drag.lastX;
+      if (Math.abs(ev.clientX - loginUi.drag.x) > 3) loginUi.drag.moved = true;
+      const now = performance.now();
+      loginUi.angle += dx * 0.44;
+      loginUi.drag.samples.push({ dx, dt: now - loginUi.drag.lastT, t: now });
+      if (loginUi.drag.samples.length > 7) loginUi.drag.samples.shift();
+      loginUi.drag.lastX = ev.clientX;
+      loginUi.drag.lastT = now;
+      paintLoginCarousel();
+      ev.preventDefault();
+    };
+    const onUp = (ev) => {
+      if (!loginUi.drag || ev.pointerId !== loginUi.drag.id) return;
+      const samples = loginUi.drag.samples;
+      const moved = loginUi.drag.moved;
+      loginUi.drag = null;
+      if (!moved) {
+        finishCarouselRest();
+        return;
+      }
+      const cutoff = performance.now() - 130;
+      const recent = samples.filter((s) => s.dt > 0 && s.t >= cutoff);
+      const use = recent.length ? recent : samples.filter((s) => s.dt > 0);
+      let vx = 0;
+      if (use.length) {
+        const dx = use.reduce((sum, s) => sum + s.dx, 0);
+        const dt = use.reduce((sum, s) => sum + s.dt, 0);
+        vx = dt ? (dx / dt) * 1000 : 0;
+      }
+      let vel = vx * 0.36;
+      vel = Math.max(-800, Math.min(800, vel));
+      if (Math.abs(vel) < 20) {
+        snapLoginCarousel();
+        return;
+      }
+      loginUi.vel = vel;
+      loginUi.mode = "coast";
+      ensureCoastLoop();
+    };
+    root.addEventListener("pointerdown", onDown);
+    root.addEventListener("pointermove", onMove);
+    root.addEventListener("pointerup", onUp);
+    root.addEventListener("pointercancel", onUp);
+    return () => {
+      root.removeEventListener("pointerdown", onDown);
+      root.removeEventListener("pointermove", onMove);
+      root.removeEventListener("pointerup", onUp);
+      root.removeEventListener("pointercancel", onUp);
+    };
+  }
+
+  function teardownLoginCarousel() {
+    if (loginUi.unbind) loginUi.unbind();
+    loginUi.unbind = null;
+    if (loginUi.raf) cancelAnimationFrame(loginUi.raf);
+    loginUi.raf = 0;
+    loginUi.root = null;
+    loginUi.ring = null;
+    loginUi.items = [];
+    loginUi.covers = null;
+    loginUi.drag = null;
+    loginUi.mode = "idle";
+    loginUi.vel = 0;
+    window.removeEventListener("resize", onCarouselResize);
+  }
+
+  async function mountLoginCarousel() {
+    const root = app.querySelector("[data-role=login-carousel]");
+    if (!root) return;
+    if (loginUi.root === root) return;
+    teardownLoginCarousel();
+    loginUi.root = root;
+    loginUi.reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    await loadOfflineFallback();
+    if (state.screen !== "login" || app.querySelector("[data-role=login-carousel]") !== root) return;
+    const ring = root.querySelector("[data-role=login-ring]");
+    loginUi.ring = ring;
+    loginUi.posters = arrangeCarouselPosters(offlineFilms);
+    loginUi.items = [];
+    if (ring) {
+      const frag = document.createDocumentFragment();
+      for (const film of loginUi.posters) {
+        const el = document.createElement("div");
+        el.className = "login-ring-item";
+        el.style.backgroundImage = `url("${posterThumb(film.poster, "w92")}")`;
+        frag.appendChild(el);
+        loginUi.items.push(el);
+      }
+      ring.innerHTML = "";
+      ring.appendChild(frag);
+    }
+    loginUi.covers = {
+      left: root.querySelector("[data-role=cover-left]"),
+      center: root.querySelector("[data-role=cover-center]"),
+      right: root.querySelector("[data-role=cover-right]"),
+    };
+    loginUi.metrics = carouselMetrics(root);
+    loginUi.unbind = bindCarouselPointer(root);
+    window.addEventListener("resize", onCarouselResize);
+    if (!loginUi.autoPlayed) {
+      loginUi.autoPlayed = true;
+      startAutoSpin();
+    } else {
+      loginUi.angle = 0;
+      finishCarouselRest();
+    }
+  }
+
+  function paintLoginError() {
+    const box = app.querySelector("[data-role=login-error]");
+    if (!box) return;
+    if (state.loginError) {
+      box.hidden = false;
+      box.textContent = state.loginError;
+    } else {
+      box.hidden = true;
+      box.textContent = "";
+    }
+  }
+
+  function validateLoginNameBlur() {
+    const name = state.loginName.trim();
+    if (!name) {
+      state.loginError = "Bitte einen Benutzernamen eingeben.";
+      paintLoginError();
+      return;
+    }
+    if (state.authMode === "register") {
+      const taken = users().some((u) => u.login.toLowerCase() === name.toLowerCase());
+      if (taken) {
+        state.loginError = "Dieser Login ist schon vergeben.";
+        paintLoginError();
+        return;
+      }
+    }
+    if (
+      state.loginError === "Bitte einen Benutzernamen eingeben."
+      || state.loginError === "Dieser Login ist schon vergeben."
+    ) {
+      state.loginError = "";
+      paintLoginError();
+    }
+  }
+
+  function bindLoginChrome() {
+    const form = app.querySelector("[data-role=login-form]");
+    if (!form) return;
+    form.addEventListener("focusin", () => {
+      document.body.classList.add("login-focus");
+    });
+    form.addEventListener("focusout", (ev) => {
+      if (!form.contains(ev.relatedTarget)) {
+        document.body.classList.remove("login-focus");
+      }
+    });
+  }
+
+  function renderLoginForm() {
     const register = state.authMode === "register";
     return `
-      <section class="card auth-card">
-        <h2>${register ? "Registrieren" : "Anmelden"}</h2>
-        <form data-act="auth-form">
-        <label class="field">
-          <span>Login</span>
-          <input data-act="login-name" name="login" autocomplete="username" value="${escapeHtml(state.loginName)}">
+      <form class="login-form" data-act="auth-form" data-role="login-form">
+        <label class="login-field">
+          <span class="login-field-icon">${ICONS.person}</span>
+          <input data-act="login-name" name="login" autocomplete="username" placeholder="Benutzername" value="${escapeHtml(state.loginName)}" enterkeyhint="next">
         </label>
-        <label class="field">
-          <span>Passwort</span>
-          <input data-act="login-pass" name="password" type="password" autocomplete="${register ? "new-password" : "current-password"}" value="${escapeHtml(state.loginPass)}">
+        <label class="login-field">
+          <span class="login-field-icon">${ICONS.lock}</span>
+          <input data-act="login-pass" name="password" type="password" autocomplete="${register ? "new-password" : "current-password"}" placeholder="Passwort" value="${escapeHtml(state.loginPass)}" enterkeyhint="go">
+          <button type="button" class="login-eye" data-act="toggle-pass" aria-label="Passwort anzeigen" aria-pressed="false">${ICONS.eye}</button>
         </label>
-        ${state.loginError ? `<p class="error">${escapeHtml(state.loginError)}</p>` : ""}
-        <button type="submit" class="btn btn-primary" data-act="auth-submit" style="margin-top:14px">
-          ${register ? "Konto anlegen" : "Anmelden"}
-        </button>
-        </form>
-        <button type="button" class="btn btn-ghost auth-switch" data-act="auth-toggle">
-          ${register ? "Schon ein Konto? Anmelden" : "Neu hier? Registrieren"}
-        </button>
+        <p class="error" data-role="login-error"${state.loginError ? "" : " hidden"}>${escapeHtml(state.loginError)}</p>
+        <div class="login-actions">
+          <button type="submit" class="btn btn-primary login-submit" data-act="auth-submit">
+            ${register ? "Konto anlegen" : "Anmelden"}
+          </button>
+          <button type="button" class="login-alt" data-act="auth-toggle">
+            ${register ? "Anmelden" : "Registrieren"}
+          </button>
+        </div>
+      </form>
+    `;
+  }
+
+  function renderLogin() {
+    return `
+      <section class="login-screen">
+        <div class="login-carousel" data-role="login-carousel" aria-hidden="true">
+          <div class="login-carousel-inner">
+            <div class="login-carousel-stage">
+              <div class="login-carousel-ring" data-role="login-ring"></div>
+            </div>
+            <div class="login-carousel-front">
+              <div class="login-cover login-cover-side login-cover-left" data-role="cover-left"></div>
+              <div class="login-cover login-cover-center" data-role="cover-center"></div>
+              <div class="login-cover login-cover-side login-cover-right" data-role="cover-right"></div>
+            </div>
+          </div>
+          <div class="login-swipe-hint" data-role="login-hint" hidden>
+            <span class="login-swipe-arrows"></span>
+          </div>
+        </div>
+        ${renderLoginForm()}
       </section>
     `;
   }
@@ -1400,7 +1812,24 @@
   function render() {
     updateHeader();
     updateFooter();
-    if (state.screen === "login") app.innerHTML = renderLogin();
+    const onLogin = state.screen === "login";
+    document.body.classList.toggle("on-login", onLogin);
+    if (!onLogin) {
+      document.body.classList.remove("login-focus");
+      teardownLoginCarousel();
+    }
+    if (onLogin) {
+      const existing = app.querySelector(".login-screen");
+      if (existing && loginUi.root) {
+        const form = existing.querySelector("[data-role=login-form]");
+        if (form) form.outerHTML = renderLoginForm();
+        bindLoginChrome();
+      } else {
+        app.innerHTML = renderLogin();
+        bindLoginChrome();
+        mountLoginCarousel();
+      }
+    }
     else if (state.screen === "profiles") app.innerHTML = renderProfiles();
     else if (state.screen === "profile-add") app.innerHTML = renderProfileAdd();
     else if (state.screen === "home") app.innerHTML = renderHome();
@@ -1538,6 +1967,16 @@
     if (!t) return;
     const act = t.dataset.act;
 
+    if (act === "toggle-pass") {
+      const input = app.querySelector("[data-act=login-pass]");
+      if (!input) return;
+      const show = input.type === "password";
+      input.type = show ? "text" : "password";
+      t.setAttribute("aria-label", show ? "Passwort verbergen" : "Passwort anzeigen");
+      t.setAttribute("aria-pressed", show ? "true" : "false");
+      t.innerHTML = show ? ICONS.eyeOff : ICONS.eye;
+      return;
+    }
     if (act === "auth-toggle") {
       state.authMode = state.authMode === "login" ? "register" : "login";
       state.loginError = "";
@@ -1811,10 +2250,23 @@
     }
   });
 
+  app.addEventListener("blur", (event) => {
+    const t = event.target;
+    if (!t || !t.dataset || t.dataset.act !== "login-name") return;
+    state.loginName = t.value;
+    validateLoginNameBlur();
+  }, true);
+
   app.addEventListener("input", (event) => {
     const t = event.target;
     const act = t.dataset.act;
-    if (act === "login-name") state.loginName = t.value;
+    if (act === "login-name") {
+      state.loginName = t.value;
+      if (state.loginError) {
+        state.loginError = "";
+        paintLoginError();
+      }
+    }
     if (act === "login-pass") state.loginPass = t.value;
     if (act === "add-name") state.addName = t.value;
     if (act === "tag-name") state.newTagName = t.value;
