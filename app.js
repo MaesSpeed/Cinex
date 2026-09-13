@@ -999,9 +999,12 @@
     if (!arranged.length) return arranged;
     if (arranged.length >= target) return arranged.slice(0, target);
     const packed = arranged.slice();
+    const mid = arranged.slice(2, Math.max(2, arranged.length - 1));
+    const extras = mid.length ? mid : arranged;
     let i = 0;
+    const insertAt = Math.max(2, packed.length - 1);
     while (packed.length < target) {
-      packed.push(arranged[i % arranged.length]);
+      packed.splice(insertAt + i, 0, extras[i % extras.length]);
       i += 1;
     }
     return packed;
@@ -1045,7 +1048,7 @@
       if (facing < hide - fade) vis = 0;
       else if (facing < hide) vis = (facing - (hide - fade)) / fade;
       const el = loginUi.items[i];
-      el.style.transform = `translate(-50%, -50%) rotateY(${deg.toFixed(2)}deg) translateZ(${radius}px)`;
+      el.style.transform = `translate(-50%, -50%) rotateY(${deg.toFixed(2)}deg) translateZ(${radius}px) rotateY(${(-deg).toFixed(2)}deg)`;
       el.style.opacity = vis.toFixed(3);
       el.style.zIndex = String(10 + Math.round((180 - facing) / 4));
     }

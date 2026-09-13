@@ -844,7 +844,6 @@ body.on-login #app {
   perspective: 820px;
   -webkit-perspective: 820px;
   perspective-origin: 50% 52%;
-  transform-style: preserve-3d;
 }
 
 .login-carousel-stage {
@@ -872,8 +871,8 @@ body.on-login #app {
   position: absolute;
   left: 0;
   top: 0;
-  width: 22px;
-  height: 33px;
+  width: 24px;
+  height: 36px;
   border-radius: 3px;
   background-color: #24486c;
   background-size: cover;
@@ -895,6 +894,7 @@ body.on-login #app {
   justify-content: center;
   z-index: 4;
   pointer-events: none;
+  isolation: isolate;
 }
 
 .login-cover {
@@ -921,8 +921,8 @@ body.on-login #app {
   height: 117px;
   z-index: 2;
   box-shadow:
-    0 0 10px 3px rgba(0, 102, 179, 0.26),
-    0 0 22px 8px rgba(0, 102, 179, 0.12),
+    0 0 10px 3px rgba(0, 102, 179, 0.3),
+    0 0 22px 8px rgba(0, 102, 179, 0.16),
     0 6px 14px rgba(16, 32, 48, 0.26);
 }
 
@@ -933,32 +933,32 @@ body.on-login #app {
 @keyframes login-pulse {
   0%, 100% {
     box-shadow:
-      0 0 8px 2px rgba(0, 102, 179, 0.2),
+      0 0 8px 2px rgba(0, 102, 179, 0.22),
       0 0 18px 6px rgba(0, 102, 179, 0.1),
       0 6px 14px rgba(16, 32, 48, 0.26);
   }
-  22% {
+  20% {
     box-shadow:
-      0 0 12px 3px rgba(0, 102, 179, 0.32),
-      0 0 26px 9px rgba(0, 102, 179, 0.16),
+      0 0 14px 4px rgba(0, 102, 179, 0.4),
+      0 0 26px 10px rgba(0, 102, 179, 0.2),
       0 6px 14px rgba(16, 32, 48, 0.26);
   }
-  48% {
+  45% {
     box-shadow:
-      0 0 18px 5px rgba(0, 102, 179, 0.48),
-      0 0 38px 14px rgba(0, 102, 179, 0.26),
+      0 0 20px 6px rgba(0, 102, 179, 0.58),
+      0 0 36px 14px rgba(0, 102, 179, 0.3),
       0 6px 16px rgba(16, 32, 48, 0.26);
   }
-  62% {
+  58% {
     box-shadow:
-      0 0 20px 6px rgba(0, 102, 179, 0.56),
-      0 0 44px 16px rgba(0, 102, 179, 0.3),
+      0 0 24px 8px rgba(0, 102, 179, 0.7),
+      0 0 42px 16px rgba(0, 102, 179, 0.38),
       0 6px 16px rgba(16, 32, 48, 0.26);
   }
-  80% {
+  78% {
     box-shadow:
-      0 0 13px 3px rgba(0, 102, 179, 0.34),
-      0 0 26px 9px rgba(0, 102, 179, 0.16),
+      0 0 14px 4px rgba(0, 102, 179, 0.38),
+      0 0 26px 10px rgba(0, 102, 179, 0.18),
       0 6px 14px rgba(16, 32, 48, 0.26);
   }
 }
