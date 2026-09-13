@@ -122,8 +122,16 @@
     const src = posterUrl(film);
     const color = (film && film.color) || "#1d4f91";
     return src
-      ? `background-color:${color};background-image:url("${src}")`
+      ? `background-color:${color};background-image:url("${src}");background-size:cover;background-position:center`
       : `background-color:${color}`;
+  }
+
+  function posterTile(film) {
+    const src = posterUrl(film);
+    const img = src
+      ? `<img src="${escapeHtml(src)}" alt="" width="185" height="278" referrerpolicy="no-referrer">`
+      : "";
+    return `<div class="poster" style="${posterStyle(film)}" role="img" aria-label="">${img}</div>`;
   }
 
   const AVATARS = {
@@ -776,7 +784,7 @@
       return `
         <article class="card film-card">
           <div class="film-top">
-            <div class="poster" style="${posterStyle(film)}" role="img" aria-label=""></div>
+            ${posterTile(film)}
             <div class="film-meta">
               <h3 class="film-title">${escapeHtml(film.title)}</h3>
               <div class="meta">${escapeHtml(meta)}</div>
@@ -828,7 +836,7 @@
           ${opts.actions || ""}
           ${unrated || opts.rates ? renderRates(film, true) : ""}
         </div>
-        <div class="poster" style="${posterStyle(film)}"></div>
+        ${posterTile(film)}
       </article>
     `;
   }
