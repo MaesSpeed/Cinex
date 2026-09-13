@@ -321,7 +321,7 @@
     authMode: "login",
     user: null,
     profile: null,
-    catalog: cloneFilms(FILMS),
+    catalog: [],
     filtersOpen: false,
     filters: { dauerOn: false, dauer: 120, genres: [], tags: [] },
     currentPicks: [],
@@ -685,7 +685,7 @@
   function pickThree(excludeIds) {
     const picks = pickFilms(3, excludeIds);
     if (picks.length >= 3) return picks.slice(0, 3);
-    const extras = cloneFilms(FILMS);
+    const extras = cloneFilms(offlineFilms);
     for (const film of extras.concat(cloneFilms(state.catalog))) {
       if (picks.some((x) => filmId(x) === filmId(film))) continue;
       picks.push(film);
@@ -698,6 +698,8 @@
 
   let discoverKey = "";
   let discoverLoading = false;
+  let discoverWaiters = [];
+  let catalogInFlight = null;
 
   function currentDiscoverKey() {
     return JSON.stringify({
@@ -751,7 +753,10 @@
       state.discoverPage = 0;
       state.discoverTotalPages = 1;
     }
-    if (discoverLoading) return state.catalogLive;
+    if (discoverLoading) {
+      await new Promise((resolve) => discoverWaiters.push(resolve));
+      return state.catalogLive;
+    }
     discoverLoading = true;
     try {
       let pages = 0;
@@ -771,6 +776,8 @@
       }
     } finally {
       discoverLoading = false;
+      const waiting = discoverWaiters.splice(0);
+      for (const resolve of waiting) resolve();
     }
     return state.catalogLive;
   }
@@ -789,15 +796,23 @@
   }
 
   async function loadCatalog() {
-    await loadOfflineFallback();
-    const live = await ensureDiscoverPool(80);
-    if (!live) {
-      state.catalog = cloneFilms(offlineFilms);
-      state.catalogLive = false;
+    if (catalogInFlight) return catalogInFlight;
+    catalogInFlight = (async () => {
+      await loadOfflineFallback();
+      const live = await ensureDiscoverPool(80);
+      if (!live && !state.catalogLive) {
+        if (!state.catalog.length) state.catalog = cloneFilms(offlineFilms);
+        state.catalogLive = false;
+      }
+      mergeKnownIntoCatalog();
+      rebuildGenres();
+      renderGenrePicks();
+    })();
+    try {
+      await catalogInFlight;
+    } finally {
+      catalogInFlight = null;
     }
-    mergeKnownIntoCatalog();
-    rebuildGenres();
-    renderGenrePicks();
   }
 
   function anyFilterOn() {
