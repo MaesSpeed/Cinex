@@ -28,10 +28,34 @@
     { id: "nicht-gut", label: "Nicht gut" },
   ];
 
-  const TAG_COLORS = [
-    "#0066B3", "#2e7d32", "#ef6c00", "#8e24aa", "#00838f",
-    "#c62828", "#5d4037", "#37474f",
+  const EMOJI_AVATARS = [
+    { id: "cowboy", emoji: "🤠" },
+    { id: "monster", emoji: "👾" },
+    { id: "pumpkin", emoji: "🎃" },
+    { id: "robot", emoji: "🤖" },
+    { id: "fox", emoji: "🦊" },
+    { id: "penguin", emoji: "🐧" },
+    { id: "frog", emoji: "🐸" },
+    { id: "dino", emoji: "🦕" },
+    { id: "ghost", emoji: "👻" },
+    { id: "alien", emoji: "👽" },
+    { id: "ninja", emoji: "🥷" },
+    { id: "sloth", emoji: "🦥" },
+    { id: "octopus", emoji: "🐙" },
+    { id: "dragon", emoji: "🐲" },
+    { id: "moai", emoji: "🗿" },
   ];
+
+  const LEGACY_AVATAR_TO_EMOJI = {
+    av1: "cowboy",
+    av2: "monster",
+    av3: "frog",
+    av4: "robot",
+    av5: "fox",
+    av6: "ghost",
+    av7: "alien",
+    av8: "moai",
+  };
 
   const TMDB_GENRE_NAMES = {
     28: "Action",
@@ -306,6 +330,7 @@
     plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>`,
     close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg>`,
     chipX: `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 3l6 6M9 3 3 9"/></svg>`,
+    jump: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.2 3.2H3.8A1.6 1.6 0 0 0 2.2 4.8v7.4A1.6 1.6 0 0 0 3.8 13.8h7.4a1.6 1.6 0 0 0 1.6-1.6V9.8"/><path d="M8.6 7.4 13.8 2.2M9.8 2.2h4v4"/></svg>`,
     person: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8.1" r="3.1"/><path d="M5.4 19.2c.9-3.3 3.3-5.1 6.6-5.1s5.7 1.8 6.6 5.1"/></svg>`,
     lock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="6" y="10.2" width="12" height="9.3" rx="2"/><path d="M8.2 10.2V8.1a3.8 3.8 0 0 1 7.6 0v2.1"/></svg>`,
     eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.7 12S6.1 6.6 12 6.6 21.3 12 21.3 12 17.9 17.4 12 17.4 2.7 12 2.7 12z"/><circle cx="12" cy="12" r="2.35"/></svg>`,
@@ -362,12 +387,15 @@
     seenOnlyUnrated: false,
     chosen: null,
     addName: "",
-    addAvatar: "av1",
+    addAvatar: "cowboy",
     loginName: "",
     loginPass: "",
     loginError: "",
     newTagName: "",
     newTagColor: "#0066B3",
+    tagEditId: null,
+    editTagName: "",
+    editTagColor: "#0066B3",
   };
 
   const app = document.getElementById("app");
@@ -601,6 +629,159 @@
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  }
+
+  function hexToRgb(hex) {
+    const raw = String(hex || "").replace("#", "");
+    const full = raw.length === 3 ? raw.split("").map((c) => c + c).join("") : raw;
+    const n = parseInt(full, 16);
+    if (!Number.isFinite(n) || full.length !== 6) return { r: 0, g: 102, b: 179 };
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  }
+
+  function rgbToHsl(r, g, b) {
+    const rr = r / 255;
+    const gg = g / 255;
+    const bb = b / 255;
+    const max = Math.max(rr, gg, bb);
+    const min = Math.min(rr, gg, bb);
+    let h = 0;
+    let s = 0;
+    const l = (max + min) / 2;
+    const d = max - min;
+    if (d) {
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      if (max === rr) h = (gg - bb) / d + (gg < bb ? 6 : 0);
+      else if (max === gg) h = (bb - rr) / d + 2;
+      else h = (rr - gg) / d + 4;
+      h *= 60;
+    }
+    return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
+  }
+
+  function hexToHsl(hex) {
+    const { r, g, b } = hexToRgb(hex);
+    return rgbToHsl(r, g, b);
+  }
+
+  function hslToHex(h, s, l) {
+    const sat = s / 100;
+    const light = l / 100;
+    const a = sat * Math.min(light, 1 - light);
+    const f = (n) => {
+      const k = (n + h / 30) % 12;
+      const color = light - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+      return Math.round(255 * color).toString(16).padStart(2, "0");
+    };
+    return `#${f(0)}${f(8)}${f(4)}`;
+  }
+
+  function clampTagName(name) {
+    return String(name || "").trim().slice(0, 10);
+  }
+
+  function avatarById(id) {
+    const mapped = LEGACY_AVATAR_TO_EMOJI[id] || id;
+    return EMOJI_AVATARS.find((row) => row.id === mapped) || null;
+  }
+
+  function avatarMarkup(id) {
+    const emoji = avatarById(id);
+    if (emoji) return `<span class="avatar avatar-emoji" aria-hidden="true">${emoji.emoji}</span>`;
+    if (AVATARS[id]) return `<span class="avatar">${AVATARS[id]}</span>`;
+    return `<span class="avatar avatar-emoji" aria-hidden="true">${EMOJI_AVATARS[0].emoji}</span>`;
+  }
+
+  function countFilmsWithTag(tagId) {
+    const map = filmTags();
+    let n = 0;
+    for (const ids of Object.values(map)) {
+      if ((ids || []).includes(tagId)) n += 1;
+    }
+    return n;
+  }
+
+  function sortedTags() {
+    return customTags().slice().sort((a, b) => {
+      const diff = countFilmsWithTag(b.id) - countFilmsWithTag(a.id);
+      if (diff) return diff;
+      return String(a.name).localeCompare(b.name, "de", { sensitivity: "base" });
+    });
+  }
+
+  function tagPillHtml(tag) {
+    const name = String(tag && tag.name ? tag.name : "").slice(0, 10);
+    const color = (tag && tag.color) || "#0066B3";
+    return `<span class="tag-pill" style="--tag-color:${escapeHtml(color)}">${escapeHtml(name)}</span>`;
+  }
+
+  function colorSpectrumHtml(scope, hex) {
+    const hsl = hexToHsl(hex || "#0066B3");
+    const sat = Math.max(25, hsl.s || 100);
+    return `
+      <div class="color-spectrum" data-spectrum="${scope}">
+        <input class="spectrum-slider spectrum-hue" data-act="spectrum-hue" data-scope="${scope}" type="range" min="0" max="360" value="${hsl.h}" aria-label="Farbton">
+        <input class="spectrum-slider spectrum-sat" data-act="spectrum-sat" data-scope="${scope}" type="range" min="25" max="100" value="${sat}" style="--hue:${hsl.h}" aria-label="Sättigung">
+      </div>
+    `;
+  }
+
+  function onSpectrumInput(el) {
+    const scope = el.dataset.scope;
+    const root = scope === "add" ? modalEl : app;
+    const hueEl = root.querySelector(`[data-act=spectrum-hue][data-scope="${scope}"]`);
+    const satEl = root.querySelector(`[data-act=spectrum-sat][data-scope="${scope}"]`);
+    if (!hueEl || !satEl) return;
+    const hue = Number(hueEl.value);
+    const sat = Number(satEl.value);
+    const prev = hexToHsl(scope === "edit" ? state.editTagColor : state.newTagColor);
+    const light = prev.l >= 22 && prev.l <= 58 ? prev.l : 35;
+    const hex = hslToHex(hue, sat, light);
+    satEl.style.setProperty("--hue", String(hue));
+    if (scope === "add") {
+      state.newTagColor = hex;
+      return;
+    }
+    state.editTagColor = hex;
+    const pill = app.querySelector(`[data-tag-card="${state.tagEditId}"] .tag-pill`);
+    if (pill) pill.style.setProperty("--tag-color", hex);
+  }
+
+  let tagWaveTimer = 0;
+  let tagWaveTimeouts = [];
+
+  function clearTagWave() {
+    window.clearInterval(tagWaveTimer);
+    tagWaveTimer = 0;
+    tagWaveTimeouts.forEach((id) => window.clearTimeout(id));
+    tagWaveTimeouts = [];
+    app.querySelectorAll(".tag-manage-card.is-waving").forEach((card) => {
+      card.classList.remove("is-waving");
+    });
+  }
+
+  function runTagWave() {
+    if (state.screen !== "tags") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const cards = [...app.querySelectorAll("[data-tag-card]")];
+    cards.forEach((card, i) => {
+      const startId = window.setTimeout(() => {
+        card.classList.remove("is-waving");
+        void card.offsetWidth;
+        card.classList.add("is-waving");
+        const doneId = window.setTimeout(() => card.classList.remove("is-waving"), 1000);
+        tagWaveTimeouts.push(doneId);
+      }, i * 240);
+      tagWaveTimeouts.push(startId);
+    });
+  }
+
+  function scheduleTagWave() {
+    clearTagWave();
+    if (state.screen !== "tags") return;
+    const first = window.setTimeout(runTagWave, 320);
+    tagWaveTimeouts.push(first);
+    tagWaveTimer = window.setInterval(runTagWave, 6000);
   }
 
   function showSnack(text) {
@@ -915,8 +1096,8 @@
     return `
       <div class="filter-chips" data-chip-row="${key}">
         ${chips}
-        <button type="button" class="chip chip-more" data-act="filter-more" data-key="${key}" hidden>Mehr</button>
       </div>
+      <button type="button" class="chip-more" data-act="filter-more" data-key="${key}" hidden>mehr</button>
     `;
   }
 
@@ -924,8 +1105,9 @@
     if (state.screen !== "home" || !state.filtersOpen) return;
     app.querySelectorAll("[data-chip-row]").forEach((row) => {
       const key = row.dataset.chipRow;
-      const moreBtn = row.querySelector("[data-act=filter-more]");
-      const chips = [...row.querySelectorAll(".chip:not(.chip-more)")];
+      const card = row.closest(".filter-card");
+      const moreBtn = card ? card.querySelector("[data-act=filter-more]") : null;
+      const chips = [...row.querySelectorAll(".chip")];
       chips.forEach((chip) => { chip.hidden = false; });
       if (state.filterMore[key]) {
         row.classList.add("is-expanded");
@@ -963,10 +1145,13 @@
   function openConfirm(opts) {
     const extra = opts.extra || "";
     const idAttr = opts.id ? ` data-id="${escapeHtml(opts.id)}"` : "";
+    const body = opts.html
+      ? opts.html
+      : (opts.text ? `<p class="hint">${opts.text}</p>` : "");
     openModal(`
-      <div class="card modal-card">
+      <div class="card modal-card${opts.center ? " is-center" : ""}">
         <h2>${escapeHtml(opts.title)}</h2>
-        ${opts.text ? `<p class="hint">${opts.text}</p>` : ""}
+        ${body}
         ${extra}
         <div class="modal-actions">
           <button type="button" class="btn btn-primary btn-confirm" data-act="${escapeHtml(opts.confirmAct)}"${idAttr}>${escapeHtml(opts.confirmLabel)}</button>
@@ -974,6 +1159,69 @@
         </div>
       </div>
     `);
+  }
+
+  function openAddTagModal() {
+    state.newTagName = "";
+    state.newTagColor = "#0066B3";
+    openModal(`
+      <div class="card modal-card is-center tag-add-modal">
+        <h2>Tag hinzufügen</h2>
+        <input class="glow-input" data-act="tag-name" maxlength="10" placeholder="Tagname (max. 10 Zeichen)" value="" aria-label="Tagname">
+        ${colorSpectrumHtml("add", state.newTagColor)}
+        <div class="modal-actions">
+          <button type="button" class="btn btn-primary btn-confirm" data-act="tag-add-save">speichern</button>
+          <button type="button" class="btn btn-ghost" data-act="modal-close">Abbrechen</button>
+        </div>
+      </div>
+    `);
+  }
+
+  function askDeleteTag(id) {
+    const tag = customTags().find((t) => t.id === id);
+    if (!tag) return;
+    const n = countFilmsWithTag(id);
+    const html = n > 0
+      ? `<p class="hint hint-with-pill">Es gibt mit ${tagPillHtml(tag)} getaggte Filme. Willst Du wirklich löschen?</p>`
+      : `<p class="hint hint-with-pill">Willst Du ${tagPillHtml(tag)} wirklich löschen?</p>`;
+    openConfirm({
+      title: "Wirklich löschen?",
+      html,
+      confirmLabel: "löschen",
+      confirmAct: "delete-tag",
+      id,
+      center: true,
+    });
+  }
+
+  function saveNewTag() {
+    const name = clampTagName(state.newTagName);
+    if (!name) return;
+    const list = customTags();
+    list.push({ id: `tag-${Date.now()}`, name, color: state.newTagColor || "#0066B3" });
+    saveTags(list);
+    state.newTagName = "";
+    closeModal();
+    render();
+  }
+
+  function saveEditedTag() {
+    const id = state.tagEditId;
+    const name = clampTagName(state.editTagName);
+    if (!id || !name) return;
+    saveTags(customTags().map((tag) => (
+      tag.id === id ? { ...tag, name, color: state.editTagColor || tag.color } : tag
+    )));
+    state.tagEditId = null;
+    render();
+  }
+
+  function jumpToExactTag(id) {
+    state.listTab = "tags";
+    state.tagFilter = [id];
+    state.screen = "lists";
+    state.tagEditId = null;
+    render();
   }
 
   function askLogout() {
@@ -1041,6 +1289,9 @@
     }
     if (state.screen === "home") {
       items.push(`<button type="button" class="icon-btn" data-act="switch" aria-label="Account wechseln" title="Account wechseln">${ICONS.switch}</button>`);
+      items.push(`<button type="button" class="icon-btn" data-act="logout" aria-label="Ausloggen" title="Ausloggen">${ICONS.logout}</button>`);
+    }
+    if (state.screen === "profiles") {
       items.push(`<button type="button" class="icon-btn" data-act="logout" aria-label="Ausloggen" title="Ausloggen">${ICONS.logout}</button>`);
     }
     headerActions.innerHTML = items.join("");
@@ -1585,7 +1836,7 @@
   function renderProfiles() {
     const rows = profilesOf(state.user.id).map((p) => `
       <div class="card menu-card">
-        <button type="button" class="avatar" data-act="pick-profile" data-id="${p.id}" aria-label="${escapeHtml(p.name)}">${AVATARS[p.avatar] || AVATARS.av1}</button>
+        <button type="button" class="avatar-hit" data-act="pick-profile" data-id="${p.id}" aria-label="${escapeHtml(p.name)}">${avatarMarkup(p.avatar)}</button>
         <button type="button" data-act="pick-profile" data-id="${p.id}" style="all:unset;cursor:pointer">
           <strong>${escapeHtml(p.name)}</strong>
         </button>
@@ -1593,11 +1844,11 @@
       </div>
     `).join("");
     return `
-      <h2 class="screen-title">Wer schaut</h2>
+      <h2 class="screen-title home-title">Wer schaut</h2>
       <section class="stack">
         ${rows}
-        <button type="button" class="card menu-card" data-act="add-profile">
-          <span class="menu-icon" style="background:#e8edf2;color:#0066B3">${ICONS.plus}</span>
+        <button type="button" class="card menu-card add-entity" data-act="add-profile">
+          <span class="plus-circle">${ICONS.plus}</span>
           <strong>Profil hinzufügen</strong>
           <span></span>
         </button>
@@ -1606,21 +1857,18 @@
   }
 
   function renderProfileAdd() {
-    const picks = Object.keys(AVATARS).map((id) => `
-      <button type="button" class="avatar-pick" data-act="add-avatar" data-id="${id}" aria-pressed="${state.addAvatar === id}">
-        <span class="avatar">${AVATARS[id]}</span>
+    const picks = EMOJI_AVATARS.map((av) => `
+      <button type="button" class="avatar-pick" data-act="add-avatar" data-id="${av.id}" aria-pressed="${state.addAvatar === av.id}" aria-label="${av.id}">
+        <span aria-hidden="true">${av.emoji}</span>
       </button>
     `).join("");
     return `
-      <h2 class="screen-title">Profil hinzufügen</h2>
-      <section class="card auth-card">
-        <label class="field">
-          <span>Name</span>
-          <input data-act="add-name" value="${escapeHtml(state.addName)}" maxlength="40">
-        </label>
-        <p class="hint">Avatar wählen</p>
+      <h2 class="screen-title home-title">Profil hinzufügen</h2>
+      <section class="card auth-card profile-add-card">
+        <input class="glow-input" data-act="add-name" value="${escapeHtml(state.addName)}" maxlength="40" placeholder="Name" aria-label="Name">
+        <p class="hint avatar-pick-label">Avatar wählen</p>
         <div class="avatar-grid">${picks}</div>
-        <button type="button" class="btn btn-primary" data-act="save-profile" style="margin-top:16px">Speichern</button>
+        <button type="button" class="btn btn-primary btn-save-center" data-act="save-profile">speichern</button>
       </section>
     `;
   }
@@ -1675,7 +1923,7 @@
           ${renderOverflowChips("tags", tagItems)}
         </div>
         <div class="card filter-card">
-          <span class="filter-label">Streaming</span>
+          <span class="filter-label">Stream</span>
           ${renderOverflowChips("streaming", streamItems)}
         </div>
       </div>
@@ -1960,7 +2208,12 @@
       })
       : [];
     const rows = films.map((film) => renderListRow(film, {})).join("");
+    const exactTag = selected.length === 1 ? tags.find((t) => t.id === selected[0]) : null;
+    const exactHint = exactTag
+      ? `<p class="hint hint-with-pill" style="margin-top:12px">Genau dieser Tag: ${tagPillHtml(exactTag)}</p>`
+      : "";
     return `
+      ${exactHint}
       <div class="suggest-chips" style="margin-top:12px">${chips || `<span class="hint">Noch keine eigenen Tags</span>`}</div>
       <section class="stack">${selected.length ? (rows || `<p class="hint">Keine Filme mit genau diesen Tags.</p>`) : `<p class="hint">Tags wählen, um Filme zu sehen.</p>`}</section>
     `;
@@ -1989,28 +2242,50 @@
   }
 
   function renderTagsManage() {
-    const tags = customTags();
-    const rows = tags.map((t) => `
-      <div class="card menu-card">
-        <span class="tag-pill" style="background:${t.color}">${escapeHtml(t.name)}</span>
-        <span></span>
-        <button type="button" class="menu-side danger" data-act="ask-delete-tag" data-id="${t.id}" aria-label="Tag löschen">×</button>
-      </div>
-    `).join("");
-    const swatches = TAG_COLORS.map((c) => `
-      <button type="button" class="swatch" data-act="tag-color" data-color="${c}" aria-pressed="${state.newTagColor === c}" style="background:${c}"></button>
-    `).join("");
+    const tags = sortedTags();
+    const rows = tags.map((t) => {
+      const n = countFilmsWithTag(t.id);
+      const editing = state.tagEditId === t.id;
+      const countLabel = n === 1 ? "1 Film getaggt" : `${n} Filme getaggt`;
+      const pill = editing
+        ? tagPillHtml({ ...t, name: clampTagName(state.editTagName) || t.name, color: state.editTagColor || t.color })
+        : tagPillHtml(t);
+      return `
+        <article class="card tag-manage-card" data-tag-card="${t.id}">
+          <div class="tag-manage-row">
+            ${pill}
+            <button type="button" class="tag-count" data-act="tag-jump" data-id="${t.id}">
+              <span>${escapeHtml(countLabel)}</span>
+              ${ICONS.jump}
+            </button>
+            <button type="button" class="tag-edit-toggle" data-act="${editing ? "tag-edit-close" : "tag-edit-open"}" data-id="${t.id}">
+              ${editing ? "fertig" : "bearbeiten"}
+            </button>
+          </div>
+          ${editing ? `
+            <div class="tag-manage-editor">
+              <label class="field">
+                <span>Name</span>
+                <input class="glow-input" data-act="edit-tag-name" maxlength="10" value="${escapeHtml(state.editTagName)}" placeholder="Tagname (max. 10 Zeichen)" aria-label="Tagname">
+              </label>
+              ${colorSpectrumHtml("edit", state.editTagColor || t.color)}
+              <div class="tag-edit-actions">
+                <button type="button" class="btn btn-danger-soft" data-act="ask-delete-tag" data-id="${t.id}">löschen</button>
+                <button type="button" class="btn btn-primary" data-act="tag-edit-save" data-id="${t.id}">speichern</button>
+              </div>
+            </div>
+          ` : ""}
+        </article>
+      `;
+    }).join("");
     return `
-      <h2 class="screen-title">Tags verwalten</h2>
+      <h2 class="screen-title home-title">Tags verwalten</h2>
       <section class="stack">${rows || `<p class="hint">Noch keine eigenen Tags.</p>`}</section>
-      <section class="card auth-card plus-row">
-        <label class="field">
-          <span>Neuer Tag</span>
-          <input data-act="tag-name" value="${escapeHtml(state.newTagName)}" maxlength="24" placeholder="Name">
-        </label>
-        <div class="color-row" style="margin-top:10px">${swatches}</div>
-        <button type="button" class="btn btn-primary" data-act="tag-add" style="margin-top:12px">Plus: Tag anlegen</button>
-      </section>
+      <button type="button" class="card menu-card add-entity" data-act="tag-add-open">
+        <span class="plus-circle">${ICONS.plus}</span>
+        <strong>Tag hinzufügen</strong>
+        <span></span>
+      </button>
     `;
   }
 
@@ -2056,12 +2331,15 @@
     else if (state.screen === "lists") app.innerHTML = renderLists();
     else if (state.screen === "tags") app.innerHTML = renderTagsManage();
     else if (state.screen === "done") app.innerHTML = renderDone();
+    if (state.screen === "tags") scheduleTagWave();
+    else clearTagWave();
     scheduleFooterSync();
   }
 
   function goBack() {
     if (state.screen === "profile-add") state.screen = "profiles";
     else if (state.screen === "suggest" || state.screen === "lists" || state.screen === "tags" || state.screen === "done") {
+      if (state.screen === "tags") state.tagEditId = null;
       state.screen = "home";
     }
     render();
@@ -2219,7 +2497,7 @@
     }
     if (act === "add-profile") {
       state.addName = "";
-      state.addAvatar = "av1";
+      state.addAvatar = "cowboy";
       state.screen = "profile-add";
       render();
       return;
@@ -2332,6 +2610,7 @@
       return;
     }
     if (act === "tags") {
+      state.tagEditId = null;
       state.screen = "tags";
       render();
       return;
@@ -2369,6 +2648,7 @@
       state.sessionBlocked.add(filmId(film));
       await replacePick(film.id);
       render();
+      showSnack(`${film.title} ist jetzt in der engeren Auswahl`);
       return;
     }
     if (act === "unshort") {
@@ -2449,29 +2729,38 @@
       render();
       return;
     }
-    if (act === "tag-color") {
-      state.newTagColor = t.dataset.color;
+    if (act === "tag-add-open") {
+      openAddTagModal();
+      return;
+    }
+    if (act === "tag-add-save") {
+      saveNewTag();
+      return;
+    }
+    if (act === "tag-edit-open") {
+      const tag = customTags().find((x) => x.id === t.dataset.id);
+      if (!tag) return;
+      state.tagEditId = tag.id;
+      state.editTagName = tag.name;
+      state.editTagColor = tag.color;
       render();
       return;
     }
-    if (act === "tag-add") {
-      const name = state.newTagName.trim();
-      if (!name) return;
-      const list = customTags();
-      list.push({ id: `tag-${Date.now()}`, name, color: state.newTagColor });
-      saveTags(list);
-      state.newTagName = "";
+    if (act === "tag-edit-close") {
+      state.tagEditId = null;
       render();
+      return;
+    }
+    if (act === "tag-edit-save") {
+      saveEditedTag();
+      return;
+    }
+    if (act === "tag-jump") {
+      jumpToExactTag(t.dataset.id);
       return;
     }
     if (act === "ask-delete-tag") {
-      openConfirm({
-        title: "Tag löschen",
-        text: "Bist du dir wirklich sicher, dass der Tag weg muss?",
-        confirmLabel: "Löschen",
-        confirmAct: "delete-tag",
-        id: t.dataset.id,
-      });
+      askDeleteTag(t.dataset.id);
       return;
     }
   });
@@ -2510,7 +2799,13 @@
     }
     if (act === "login-pass") state.loginPass = t.value;
     if (act === "add-name") state.addName = t.value;
-    if (act === "tag-name") state.newTagName = t.value;
+    if (act === "tag-name") state.newTagName = t.value.slice(0, 10);
+    if (act === "edit-tag-name") {
+      state.editTagName = t.value.slice(0, 10);
+      const pill = t.closest("[data-tag-card]") && t.closest("[data-tag-card]").querySelector(".tag-pill");
+      if (pill) pill.textContent = clampTagName(t.value) || pill.textContent;
+    }
+    if (act === "spectrum-hue" || act === "spectrum-sat") onSpectrumInput(t);
     if (act === "search") {
       state.search = t.value;
       scheduleTitleSearch(t.value);
@@ -2538,6 +2833,13 @@
     if (t.dataset.act === "logout") {
       askLogout();
     }
+  });
+
+  modalEl.addEventListener("input", (event) => {
+    const t = event.target;
+    const act = t && t.dataset ? t.dataset.act : "";
+    if (act === "tag-name") state.newTagName = t.value.slice(0, 10);
+    if (act === "spectrum-hue" || act === "spectrum-sat") onSpectrumInput(t);
   });
 
   modalEl.addEventListener("click", (event) => {
@@ -2568,6 +2870,10 @@
       render();
       return;
     }
+    if (t.dataset.act === "tag-add-save") {
+      saveNewTag();
+      return;
+    }
     if (t.dataset.act === "delete-tag") {
       const id = t.dataset.id;
       saveTags(customTags().filter((x) => x.id !== id));
@@ -2578,6 +2884,7 @@
       saveFilmTags(map);
       state.filters.tags = state.filters.tags.filter((x) => x !== id);
       state.tagFilter = state.tagFilter.filter((x) => x !== id);
+      if (state.tagEditId === id) state.tagEditId = null;
       closeModal();
       render();
       return;
@@ -2611,6 +2918,7 @@
       return;
     }
     if (nav === "tags") {
+      state.tagEditId = null;
       state.screen = "tags";
       render();
     }
