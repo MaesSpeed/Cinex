@@ -1684,7 +1684,7 @@
         <h2 class="screen-title home-title">Hauptmenü</h2>
         <article class="${heroClass}">
           <div class="suggest-hero-row">
-            <button type="button" class="menu-icon cover-btn" data-act="suggest" aria-hidden="true">${coversMarkup()}</button>
+            <button type="button" class="cover-btn" data-act="suggest" aria-hidden="true">${coversMarkup()}</button>
             <button type="button" class="suggest-hero-copy" data-act="suggest">
               <strong>Filmvorschläge</strong>
               ${state.filtersOpen ? "" : `<span class="menu-sub">Direkt auf drei Karten</span>`}
