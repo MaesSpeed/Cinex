@@ -997,17 +997,17 @@
   function carouselMetrics(root) {
     const w = (root && root.clientWidth) || 340;
     const compact = document.body.classList.contains("login-focus");
-    const rx = Math.round(Math.min(w * 0.455, (w / 2) - 10) * (compact ? 0.66 : 1));
-    const rise = Math.round(rx * (compact ? 0.62 : 0.74));
+    const rx = Math.round(Math.min(w * 0.46, (w / 2) - 8) * (compact ? 0.66 : 1));
+    const rise = Math.round(rx * (compact ? 0.56 : 0.64));
     return { rx, rise };
   }
 
   function ringSpecs(metrics) {
     const { rx, rise } = metrics;
     return [
-      { rx, rise, hide: 0.935 },
-      { rx: rx * 0.8, rise: rise * 0.84, hide: 0.92 },
-      { rx: rx * 0.64, rise: rise * 0.72, hide: 0.9 },
+      { rx, rise, hide: 0.94 },
+      { rx: rx * 0.88, rise: rise * 0.9, hide: 0.93 },
+      { rx: rx * 0.76, rise: rise * 0.8, hide: 0.915 },
     ];
   }
 
@@ -1023,13 +1023,13 @@
     if (!n || !loginUi.items.length) return;
     const specs = ringSpecs(loginUi.metrics);
     const ang = (loginUi.angle * Math.PI) / 180;
-    const groups = loginUi.groups;
+    const groups = loginUi.groups.length ? loginUi.groups : [loginUi.items];
     for (let g = 0; g < groups.length; g += 1) {
       const spec = specs[g] || specs[0];
       const items = groups[g];
       const count = items.length;
       for (let i = 0; i < count; i += 1) {
-        const t = ((i / count) * Math.PI * 2) + ang;
+        const t = ((i / count) * Math.PI * 2) + ang + (g * 0.09);
         const x = Math.sin(t) * spec.rx;
         const y = -((1 - Math.cos(t)) / 2) * spec.rise;
         const depth = (Math.cos(t) + 1) / 2;
@@ -1300,6 +1300,11 @@
       }
       ring.innerHTML = "";
       ring.appendChild(frag);
+      for (const film of loginUi.posters) {
+        const img = new Image();
+        img.referrerPolicy = "no-referrer";
+        img.src = posterThumb(film.poster, "w185");
+      }
     }
     loginUi.covers = {
       left: root.querySelector("[data-role=cover-left]"),
