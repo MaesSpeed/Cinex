@@ -427,10 +427,12 @@
 
   function showSnack(text) {
     snackbar.hidden = false;
+    document.body.classList.add("snack-on");
     snackbar.innerHTML = `<span aria-hidden="true">✓</span><span>${escapeHtml(text)}</span>`;
     window.clearTimeout(showSnack.tid);
     showSnack.tid = window.setTimeout(() => {
       snackbar.hidden = true;
+      document.body.classList.remove("snack-on");
     }, 2600);
   }
 
@@ -626,6 +628,9 @@
     headerActions.innerHTML = items.join("");
   }
 
+  let phoneFooterLocked = false;
+  let lastScrollY = window.scrollY;
+
   function setPhoneFooterOpen(open) {
     if (isDesktopNav()) {
       footer.classList.add("is-visible");
@@ -636,6 +641,36 @@
     document.body.classList.toggle("footer-open", open);
   }
 
+  function contentOverflows() {
+    const header = document.querySelector(".site-header");
+    const headerH = header ? header.offsetHeight : 0;
+    const contentH = app ? app.scrollHeight : 0;
+    return headerH + contentH > window.innerHeight + 8;
+  }
+
+  function syncPhoneFooter(opts) {
+    const reset = !!(opts && opts.reset);
+    if (!state.profile || footer.hidden) {
+      phoneFooterLocked = false;
+      return;
+    }
+    if (isDesktopNav()) {
+      phoneFooterLocked = false;
+      setPhoneFooterOpen(true);
+      return;
+    }
+    phoneFooterLocked = !contentOverflows();
+    if (phoneFooterLocked) setPhoneFooterOpen(true);
+    else if (reset) setPhoneFooterOpen(false);
+  }
+
+  function scheduleFooterSync(opts) {
+    window.requestAnimationFrame(() => {
+      syncPhoneFooter(opts);
+      lastScrollY = window.scrollY;
+    });
+  }
+
   function updateFooter() {
     const show = !!(state.user && state.profile);
     footer.hidden = !show;
@@ -643,6 +678,7 @@
     if (!show) {
       footer.classList.remove("is-visible");
       document.body.classList.remove("footer-open");
+      phoneFooterLocked = false;
       return;
     }
     const current = (
@@ -1049,6 +1085,7 @@
     else if (state.screen === "lists") app.innerHTML = renderLists();
     else if (state.screen === "tags") app.innerHTML = renderTagsManage();
     else if (state.screen === "done") app.innerHTML = renderDone();
+    scheduleFooterSync();
   }
 
   function goBack() {
@@ -1107,7 +1144,7 @@
     state.currentPicks = pickThree();
     state.screen = "suggest";
     render();
-    setPhoneFooterOpen(false);
+    scheduleFooterSync({ reset: true });
   }
 
   function skipCurrent() {
@@ -1535,11 +1572,10 @@
     }
   });
 
-  let lastScrollY = window.scrollY;
   let lastTouchY = null;
 
   function onScrollDir(delta) {
-    if (!state.profile || footer.hidden || isDesktopNav()) return;
+    if (!state.profile || footer.hidden || isDesktopNav() || phoneFooterLocked) return;
     if (delta < -6) setPhoneFooterOpen(true);
     else if (delta > 6) setPhoneFooterOpen(false);
   }
@@ -1563,10 +1599,10 @@
   }, { passive: true });
 
   desktopNavMq.addEventListener("change", () => {
-    if (!state.profile || footer.hidden) return;
-    if (isDesktopNav()) setPhoneFooterOpen(true);
-    else setPhoneFooterOpen(state.screen !== "suggest");
+    scheduleFooterSync({ reset: !isDesktopNav() });
   });
+
+  window.addEventListener("resize", () => scheduleFooterSync());
 
   seedIfNeeded();
   restoreSession();

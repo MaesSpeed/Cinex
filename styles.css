@@ -39,7 +39,8 @@ body.has-footer.footer-open {
   padding-bottom: calc(72px + var(--safe-bottom));
 }
 
-body.has-footer.footer-open .snackbar {
+body.has-footer.footer-open .snackbar,
+.site-footer.is-visible ~ .snackbar:not([hidden]) {
   bottom: calc(72px + var(--safe-bottom));
 }
 
