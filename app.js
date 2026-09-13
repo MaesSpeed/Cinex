@@ -2,8 +2,23 @@
   "use strict";
 
   const GENRE_CHIPS = [
-    "Action", "Komödie", "Drama", "Thriller", "Horror", "Sci-Fi",
+    "Komödie", "Action", "Drama", "Thriller", "Horror", "Sci-Fi",
     "Fantasy", "Animation", "Krimi", "Abenteuer", "Romanze", "Doku",
+  ];
+
+  const STREAMING_CHIPS = [
+    { id: "netflix", label: "Netflix" },
+    { id: "prime", label: "Prime" },
+    { id: "disney", label: "Disney+" },
+    { id: "apple", label: "Apple TV+" },
+    { id: "wow", label: "WOW" },
+    { id: "paramount", label: "Paramount+" },
+  ];
+
+  const HERO_COVERS = [
+    { tmdb: 155, src: "https://image.tmdb.org/t/p/w185/qJ2tW6WMUDux911r6m7haRef0WH.jpg" },
+    { tmdb: 27205, src: "https://image.tmdb.org/t/p/w185/oYu4f6tE5z9PQ6aRthYx3ce2GwA.jpg" },
+    { tmdb: 157336, src: "https://image.tmdb.org/t/p/w185/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg" },
   ];
 
   const RATE_KEYS = [
@@ -269,8 +284,8 @@
   const ICONS = {
     back: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 5 8 12l7 7"/></svg>`,
     switch: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M3 19c.6-3 2.6-5 5-5s4.4 2 5 5M11 19c.6-3 2.6-5 5-5s4.4 2 5 5"/></svg>`,
-    logout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 7V5a2 2 0 0 1 2-2h7v18h-7a2 2 0 0 1-2-2v-2"/><path d="M15 12H4m0 0 3-3m-3 3 3 3"/></svg>`,
-    filter: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5h16l-6.5 8.2V19l-3 1.2v-7L4 5z"/></svg>`,
+    logout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3.2v8.2"/><path d="M7.05 5.7a8 8 0 1 0 9.9 0"/></svg>`,
+    filter: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 4.8h16.8l-6.2 7.6v5.3L9.8 20v-7.6L3.6 4.8z"/></svg>`,
     covers: `<svg viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <rect width="52" height="52" rx="14" fill="#102030"/>
       <rect x="8" y="12" width="18" height="26" rx="3" fill="#4d7fa8"/>
@@ -290,6 +305,7 @@
     </svg>`,
     plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>`,
     close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg>`,
+    chipX: `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 3l6 6M9 3 3 9"/></svg>`,
     person: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8.1" r="3.1"/><path d="M5.4 19.2c.9-3.3 3.3-5.1 6.6-5.1s5.7 1.8 6.6 5.1"/></svg>`,
     lock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="6" y="10.2" width="12" height="9.3" rx="2"/><path d="M8.2 10.2V8.1a3.8 3.8 0 0 1 7.6 0v2.1"/></svg>`,
     eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.7 12S6.1 6.6 12 6.6 21.3 12 21.3 12 17.9 17.4 12 17.4 2.7 12 2.7 12z"/><circle cx="12" cy="12" r="2.35"/></svg>`,
@@ -327,7 +343,9 @@
     profile: null,
     catalog: [],
     filtersOpen: false,
-    filters: { dauerOn: false, dauer: 120, genres: [], tags: [] },
+    filters: { dauerOn: false, dauer: 120, genres: [], tags: [], streaming: [] },
+    filterMore: { genre: false, tags: false, streaming: false },
+    shinePaused: false,
     currentPicks: [],
     shortlist: [],
     sessionBlocked: new Set(),
@@ -638,6 +656,13 @@
       const match = state.filters.tags.some((t) => have.includes(t));
       score += match ? 2 : -0.2;
     }
+    if (state.filters.streaming.length) {
+      const have = Array.isArray(film.providers) ? film.providers : film.streaming;
+      if (Array.isArray(have) && have.length) {
+        const match = state.filters.streaming.some((id) => have.includes(id));
+        score += match ? 1.6 : -0.15;
+      }
+    }
     score += Math.random() * 0.85;
     return score;
   }
@@ -822,19 +847,151 @@
   function anyFilterOn() {
     return state.filters.dauerOn
       || state.filters.genres.length > 0
-      || state.filters.tags.length > 0;
+      || state.filters.tags.length > 0
+      || state.filters.streaming.length > 0;
   }
 
-  function filterSummary() {
-    const bits = [];
-    if (state.filters.dauerOn) bits.push(`${state.filters.dauer} Min.`);
-    bits.push(...state.filters.genres);
+  function dauerFill(value) {
+    return ((Number(value) - 60) / 150) * 100;
+  }
+
+  function dauerLabel(value) {
+    return `${Number(value) || 0} min`;
+  }
+
+  function coversMarkup() {
+    const tiles = HERO_COVERS.map((row, index) => {
+      const known = findFilm(`t${row.tmdb}`);
+      const src = (known && known.poster) || row.src;
+      return `<img class="cover-stack-tile" style="--i:${index}" src="${escapeHtml(src)}" alt="" width="56" height="84" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">`;
+    });
+    return `<span class="cover-stack" aria-hidden="true">${ICONS.covers}${tiles.join("")}</span>`;
+  }
+
+  function filterChipRows() {
     const tags = customTags();
+    const chips = [];
+    if (state.filters.dauerOn) {
+      chips.push({ kind: "dauer", id: "dauer", label: dauerLabel(state.filters.dauer) });
+    }
+    for (const genre of state.filters.genres) {
+      chips.push({ kind: "genre", id: genre, label: genre });
+    }
     for (const id of state.filters.tags) {
       const tag = tags.find((t) => t.id === id);
-      if (tag) bits.push(tag.name);
+      if (tag) chips.push({ kind: "tag", id, label: tag.name });
     }
-    return bits.join(" · ");
+    for (const id of state.filters.streaming) {
+      const row = STREAMING_CHIPS.find((s) => s.id === id);
+      if (row) chips.push({ kind: "streaming", id, label: row.label });
+    }
+    return chips;
+  }
+
+  function renderActiveFilterChips() {
+    const chips = filterChipRows();
+    if (!chips.length) return "";
+    const items = chips.map((chip) => `
+      <span class="active-chip">
+        <span>${escapeHtml(chip.label)}</span>
+        <button type="button" class="active-chip-x" data-act="remove-filter" data-kind="${escapeHtml(chip.kind)}" data-id="${escapeHtml(chip.id)}" aria-label="${escapeHtml(chip.label)} entfernen">${ICONS.chipX}</button>
+      </span>
+    `).join("");
+    return `
+      <div class="active-chip-row">
+        <button type="button" class="chip-clear-all" data-act="ask-clear-filters" aria-label="Alle Filter löschen" title="Alle Filter löschen">×</button>
+        ${items}
+      </div>
+    `;
+  }
+
+  function renderOverflowChips(key, items) {
+    if (!items.length) {
+      return `<span class="hint filter-empty">${key === "tags" ? "Noch keine eigenen Tags" : ""}</span>`;
+    }
+    const chips = items.map((item) => (
+      `<button type="button" class="chip" data-act="${item.act}" ${item.attrs} aria-pressed="${item.on}">${escapeHtml(item.label)}</button>`
+    )).join("");
+    return `
+      <div class="filter-chips" data-chip-row="${key}">
+        ${chips}
+        <button type="button" class="chip chip-more" data-act="filter-more" data-key="${key}" hidden>Mehr</button>
+      </div>
+    `;
+  }
+
+  function paintChipOverflow() {
+    if (state.screen !== "home" || !state.filtersOpen) return;
+    app.querySelectorAll("[data-chip-row]").forEach((row) => {
+      const key = row.dataset.chipRow;
+      const moreBtn = row.querySelector("[data-act=filter-more]");
+      const chips = [...row.querySelectorAll(".chip:not(.chip-more)")];
+      chips.forEach((chip) => { chip.hidden = false; });
+      if (state.filterMore[key]) {
+        row.classList.add("is-expanded");
+        if (moreBtn) moreBtn.hidden = true;
+        return;
+      }
+      row.classList.remove("is-expanded");
+      if (!moreBtn) return;
+      moreBtn.hidden = false;
+      const overflows = () => row.scrollWidth > row.clientWidth + 1;
+      if (!overflows()) {
+        moreBtn.hidden = true;
+        return;
+      }
+      for (let i = chips.length - 1; i >= 0; i -= 1) {
+        chips[i].hidden = true;
+        if (!overflows()) break;
+      }
+      if (chips.every((chip) => chip.hidden) && chips[0]) chips[0].hidden = false;
+    });
+  }
+
+  function clearAllFilters() {
+    state.filters.dauerOn = false;
+    state.filters.genres = [];
+    state.filters.tags = [];
+    state.filters.streaming = [];
+  }
+
+  function showDauerTip(on) {
+    const tip = app.querySelector("[data-role=dauer-tip]");
+    if (tip) tip.hidden = !on;
+  }
+
+  function openConfirm(opts) {
+    const extra = opts.extra || "";
+    const idAttr = opts.id ? ` data-id="${escapeHtml(opts.id)}"` : "";
+    openModal(`
+      <div class="card modal-card">
+        <h2>${escapeHtml(opts.title)}</h2>
+        ${opts.text ? `<p class="hint">${opts.text}</p>` : ""}
+        ${extra}
+        <div class="modal-actions">
+          <button type="button" class="btn btn-primary btn-confirm" data-act="${escapeHtml(opts.confirmAct)}"${idAttr}>${escapeHtml(opts.confirmLabel)}</button>
+          <button type="button" class="btn btn-ghost" data-act="modal-close">Abbrechen</button>
+        </div>
+      </div>
+    `);
+  }
+
+  function askLogout() {
+    openConfirm({
+      title: "Ausloggen?",
+      text: "Wirklich abmelden?",
+      confirmLabel: "Ausloggen",
+      confirmAct: "confirm-logout",
+    });
+  }
+
+  function doLogout() {
+    closeModal();
+    state.user = null;
+    state.profile = null;
+    state.screen = "login";
+    persistSession();
+    render();
   }
 
   function burstConfetti() {
@@ -1467,61 +1624,82 @@
   }
 
   function renderHome() {
-    const fill = ((state.filters.dauer - 60) / 150) * 100;
+    const fill = dauerFill(state.filters.dauer);
     const tags = customTags();
-    const genreChips = genrePicks.map((g) => `
-      <button type="button" class="chip" data-act="genre" data-genre="${escapeHtml(g)}" aria-pressed="${state.filters.genres.includes(g)}">${escapeHtml(g)}</button>
-    `).join("");
-    const tagChips = tags.length
-      ? tags.map((t) => `
-          <button type="button" class="chip" data-act="filter-tag" data-id="${t.id}" aria-pressed="${state.filters.tags.includes(t.id)}">${escapeHtml(t.name)}</button>
-        `).join("")
-      : `<span class="hint">Noch keine eigenen Tags</span>`;
+    const genreItems = genrePicks.map((g) => ({
+      act: "genre",
+      attrs: `data-genre="${escapeHtml(g)}"`,
+      label: g,
+      on: state.filters.genres.includes(g),
+    }));
+    const tagItems = tags.map((t) => ({
+      act: "filter-tag",
+      attrs: `data-id="${t.id}"`,
+      label: t.name,
+      on: state.filters.tags.includes(t.id),
+    }));
+    const streamItems = STREAMING_CHIPS.map((s) => ({
+      act: "filter-stream",
+      attrs: `data-id="${s.id}"`,
+      label: s.label,
+      on: state.filters.streaming.includes(s.id),
+    }));
+    const shine = state.filtersOpen && !state.shinePaused;
+    const heroClass = [
+      "card suggest-hero",
+      state.filtersOpen ? "is-open" : "",
+      shine ? "is-shining" : "",
+      state.filtersOpen && state.shinePaused ? "is-paused" : "",
+    ].filter(Boolean).join(" ");
     const filters = state.filtersOpen ? `
-      <div class="filters">
-        <div class="filter-row">
+      <div class="filter-stack">
+        <div class="card filter-card is-dauer">
           <span class="filter-label">Dauer</span>
-          <div class="filter-values">
-            <input class="filigree${state.filters.dauerOn ? "" : " idle"}" data-act="dauer" type="range" min="60" max="210" step="5" value="${state.filters.dauer}" style="--fill:${fill}%">
-            <button type="button" class="chip${state.filters.dauerOn ? " on" : ""}" data-act="toggle-dauer">${state.filters.dauer} Min.</button>
+          <div class="dauer-controls">
+            <input class="filigree${state.filters.dauerOn ? "" : " idle"}" data-act="dauer" type="range" min="60" max="210" step="5" value="${state.filters.dauer}" style="--fill:${fill}%" aria-label="Maximale Dauer">
+            <span class="dauer-value" data-role="dauer-value">${dauerLabel(state.filters.dauer)}</span>
+            <div class="dauer-tip" data-role="dauer-tip" hidden>
+              <span>60</span>
+              <span>180/210</span>
+            </div>
           </div>
         </div>
-        <div class="filter-row">
+        <div class="card filter-card">
           <span class="filter-label">Genre</span>
-          <div class="filter-values">${genreChips}</div>
+          ${renderOverflowChips("genre", genreItems)}
         </div>
-        <div class="filter-row">
-          <span class="filter-label">Tag</span>
-          <div class="filter-values">${tagChips}</div>
+        <div class="card filter-card">
+          <span class="filter-label">Tags</span>
+          ${renderOverflowChips("tags", tagItems)}
         </div>
-        <div class="filter-row">
+        <div class="card filter-card">
           <span class="filter-label">Streaming</span>
-          <div class="filter-values"><span class="chip soon">Platzhalter</span></div>
-        </div>
-        <div class="filter-row">
-          <span class="filter-label">nur kostenlos</span>
-          <div class="filter-values"><span class="chip soon">Platzhalter</span></div>
+          ${renderOverflowChips("streaming", streamItems)}
         </div>
       </div>
     ` : "";
-    const summary = anyFilterOn()
-      ? `<p class="filter-summary">${escapeHtml(filterSummary())}</p>`
-      : "";
+    const chips = !state.filtersOpen && anyFilterOn() ? renderActiveFilterChips() : "";
     return `
-      <h2 class="screen-title">Hauptmenü</h2>
-      <section class="stack">
-        <article class="card menu-card wide-filter">
-          <button type="button" class="menu-icon" data-act="suggest" aria-hidden="true">${ICONS.covers}</button>
-          <button type="button" data-act="suggest" style="all:unset;cursor:pointer">
-            <strong>Filme vorschlagen</strong>
-          </button>
-          <button type="button" class="menu-side${anyFilterOn() ? " on" : ""}" data-act="toggle-filters" aria-pressed="${state.filtersOpen}" aria-label="Filter" title="Filter">${ICONS.filter}</button>
-          ${summary}
-          ${filters}
+      <section class="home-screen">
+        <h2 class="screen-title home-title">Hauptmenü</h2>
+        <article class="${heroClass}">
+          <div class="suggest-hero-row">
+            <button type="button" class="cover-btn" data-act="suggest" aria-hidden="true">${coversMarkup()}</button>
+            <button type="button" class="suggest-hero-copy" data-act="suggest">
+              <strong>Filmvorschläge</strong>
+              ${state.filtersOpen ? "" : `<span class="menu-sub">Direkt auf drei Karten</span>`}
+            </button>
+            <button type="button" class="menu-side filter-funnel${anyFilterOn() || state.filtersOpen ? " on" : ""}" data-act="toggle-filters" aria-pressed="${state.filtersOpen}" aria-label="Filter" title="Filter">${ICONS.filter}</button>
+          </div>
+          ${chips}
         </article>
+        ${filters}
         <button type="button" class="card menu-card" data-act="lists">
           <span class="menu-icon">${ICONS.lists}</span>
-          <strong>Meine Filmlisten</strong>
+          <span class="menu-copy">
+            <strong>Meine Filmlisten</strong>
+            <span class="menu-sub">Vorgemerkt, Noten, Tags</span>
+          </span>
           <span></span>
         </button>
         <button type="button" class="card menu-card" data-act="tags">
@@ -1849,6 +2027,7 @@
     updateFooter();
     const onLogin = state.screen === "login";
     document.body.classList.toggle("on-login", onLogin);
+    document.body.classList.toggle("on-home", state.screen === "home");
     if (!onLogin) {
       document.body.classList.remove("login-focus");
       teardownLoginCarousel();
@@ -1867,7 +2046,10 @@
     }
     else if (state.screen === "profiles") app.innerHTML = renderProfiles();
     else if (state.screen === "profile-add") app.innerHTML = renderProfileAdd();
-    else if (state.screen === "home") app.innerHTML = renderHome();
+    else if (state.screen === "home") {
+      app.innerHTML = renderHome();
+      window.requestAnimationFrame(paintChipOverflow);
+    }
     else if (state.screen === "suggest") app.innerHTML = renderSuggest();
     else if (state.screen === "lists") app.innerHTML = renderLists();
     else if (state.screen === "tags") app.innerHTML = renderTagsManage();
@@ -2057,17 +2239,14 @@
     }
     if (act === "ask-delete-profile") {
       const id = t.dataset.id;
-      openModal(`
-        <div class="card modal-card">
-          <h2>Profil löschen</h2>
-          <p class="hint">Bitte das Passwort von ${escapeHtml(state.user.login)} bestätigen.</p>
-          <label class="field"><span>Passwort</span><input data-act="del-pass" type="password"></label>
-          <div class="modal-actions">
-            <button type="button" class="btn" data-act="modal-close">Abbrechen</button>
-            <button type="button" class="btn btn-primary" data-act="delete-profile" data-id="${id}">Löschen</button>
-          </div>
-        </div>
-      `);
+      openConfirm({
+        title: "Profil löschen",
+        text: `Bitte das Passwort von ${escapeHtml(state.user.login)} bestätigen.`,
+        extra: `<label class="field"><span>Passwort</span><input data-act="del-pass" type="password"></label>`,
+        confirmLabel: "Löschen",
+        confirmAct: "delete-profile",
+        id,
+      });
       return;
     }
     if (act === "modal-close") {
@@ -2076,12 +2255,34 @@
     }
     if (act === "toggle-filters") {
       state.filtersOpen = !state.filtersOpen;
+      if (state.filtersOpen) state.shinePaused = false;
+      else state.filterMore = { genre: false, tags: false, streaming: false };
       render();
       return;
     }
-    if (act === "toggle-dauer") {
-      state.filters.dauerOn = !state.filters.dauerOn;
+    if (act === "filter-more") {
+      const key = t.dataset.key;
+      if (key) state.filterMore[key] = true;
       render();
+      return;
+    }
+    if (act === "remove-filter") {
+      const kind = t.dataset.kind;
+      const id = t.dataset.id;
+      if (kind === "dauer") state.filters.dauerOn = false;
+      if (kind === "genre") state.filters.genres = state.filters.genres.filter((x) => x !== id);
+      if (kind === "tag") state.filters.tags = state.filters.tags.filter((x) => x !== id);
+      if (kind === "streaming") state.filters.streaming = state.filters.streaming.filter((x) => x !== id);
+      render();
+      return;
+    }
+    if (act === "ask-clear-filters") {
+      openConfirm({
+        title: "Filter löschen?",
+        text: "Alle aktiven Filter wirklich entfernen?",
+        confirmLabel: "Löschen",
+        confirmAct: "clear-filters",
+      });
       return;
     }
     if (act === "genre") {
@@ -2104,7 +2305,18 @@
       render();
       return;
     }
+    if (act === "filter-stream") {
+      const id = t.dataset.id;
+      if (state.filters.streaming.includes(id)) {
+        state.filters.streaming = state.filters.streaming.filter((x) => x !== id);
+      } else {
+        state.filters.streaming.push(id);
+      }
+      render();
+      return;
+    }
     if (act === "suggest") {
+      if (state.filtersOpen) state.shinePaused = true;
       await startSuggestions();
       return;
     }
@@ -2134,11 +2346,7 @@
       return;
     }
     if (act === "logout") {
-      state.user = null;
-      state.profile = null;
-      state.screen = "login";
-      persistSession();
-      render();
+      askLogout();
       return;
     }
     if (act === "rate") {
@@ -2255,17 +2463,13 @@
       return;
     }
     if (act === "ask-delete-tag") {
-      const id = t.dataset.id;
-      openModal(`
-        <div class="card modal-card">
-          <h2>Tag löschen</h2>
-          <p>Bist du dir wirklich sicher, dass der Tag weg muss?</p>
-          <div class="modal-actions">
-            <button type="button" class="btn" data-act="modal-close">Abbrechen</button>
-            <button type="button" class="btn btn-primary" data-act="delete-tag" data-id="${id}">Löschen</button>
-          </div>
-        </div>
-      `);
+      openConfirm({
+        title: "Tag löschen",
+        text: "Bist du dir wirklich sicher, dass der Tag weg muss?",
+        confirmLabel: "Löschen",
+        confirmAct: "delete-tag",
+        id: t.dataset.id,
+      });
       return;
     }
   });
@@ -2312,16 +2516,10 @@
     if (act === "dauer") {
       state.filters.dauer = Number(t.value);
       state.filters.dauerOn = true;
-      t.style.setProperty("--fill", `${((state.filters.dauer - 60) / 150) * 100}%`);
+      t.style.setProperty("--fill", `${dauerFill(state.filters.dauer)}%`);
       t.classList.remove("idle");
-      const chip = t.parentElement.querySelector("[data-act=toggle-dauer]");
-      if (chip) {
-        chip.textContent = `${state.filters.dauer} Min.`;
-        chip.classList.add("on");
-      }
-      const sum = app.querySelector(".filter-summary");
-      if (sum) sum.textContent = filterSummary();
-      else render();
+      const value = t.parentElement.querySelector("[data-role=dauer-value]");
+      if (value) value.textContent = dauerLabel(state.filters.dauer);
     }
   });
 
@@ -2336,11 +2534,7 @@
       render();
     }
     if (t.dataset.act === "logout") {
-      state.user = null;
-      state.profile = null;
-      state.screen = "login";
-      persistSession();
-      render();
+      askLogout();
     }
   });
 
@@ -2382,6 +2576,16 @@
       saveFilmTags(map);
       state.filters.tags = state.filters.tags.filter((x) => x !== id);
       state.tagFilter = state.tagFilter.filter((x) => x !== id);
+      closeModal();
+      render();
+      return;
+    }
+    if (t.dataset.act === "confirm-logout") {
+      doLogout();
+      return;
+    }
+    if (t.dataset.act === "clear-filters") {
+      clearAllFilters();
       closeModal();
       render();
     }
@@ -2440,7 +2644,29 @@
     scheduleFooterSync({ reset: !isDesktopNav() });
   });
 
-  window.addEventListener("resize", () => scheduleFooterSync());
+  window.addEventListener("resize", () => {
+    scheduleFooterSync();
+    paintChipOverflow();
+  });
+
+  app.addEventListener("pointerdown", (event) => {
+    const t = event.target;
+    if (t && t.dataset && t.dataset.act === "dauer") showDauerTip(true);
+    const hero = event.target.closest(".suggest-hero");
+    if (hero && state.filtersOpen && !event.target.closest("[data-act=toggle-filters]")) {
+      state.shinePaused = true;
+      hero.classList.remove("is-shining");
+      hero.classList.add("is-paused");
+    }
+  });
+
+  app.addEventListener("pointerup", (event) => {
+    if (event.target && event.target.dataset && event.target.dataset.act === "dauer") showDauerTip(false);
+  });
+
+  app.addEventListener("pointercancel", (event) => {
+    if (event.target && event.target.dataset && event.target.dataset.act === "dauer") showDauerTip(false);
+  });
 
   seedIfNeeded();
   restoreSession();
