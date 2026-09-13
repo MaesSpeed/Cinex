@@ -1118,7 +1118,6 @@
     hintShown: false,
     posters: [],
     items: [],
-    groups: [],
     angle: 0,
     vel: 0,
     mode: "idle",
@@ -1128,7 +1127,7 @@
     root: null,
     ring: null,
     covers: null,
-    metrics: { rx: 128, rise: 76 },
+    metrics: { radius: 126, tilt: -20, hide: 48 },
     unbind: null,
     reduced: false,
   };
@@ -1148,24 +1147,38 @@
       return id !== HERO_IDS.left && id !== HERO_IDS.center && id !== HERO_IDS.right;
     });
     if (left && center && right) return [center, right, ...rest, left];
-    return usable.slice(0, 90);
+    return usable.slice();
   }
 
-  function carouselMetrics(root) {
-    const w = (root && root.clientWidth) || 340;
+  function packCarouselPosters(films) {
+    const arranged = arrangeCarouselPosters(films);
+    const target = 96;
+    if (!arranged.length) return arranged;
+    if (arranged.length >= target) return arranged.slice(0, target);
+    const packed = arranged.slice();
+    const mid = arranged.slice(2, Math.max(2, arranged.length - 1));
+    const extras = mid.length ? mid : arranged;
+    let i = 0;
+    const insertAt = Math.max(2, packed.length - 1);
+    while (packed.length < target) {
+      packed.splice(insertAt + i, 0, extras[i % extras.length]);
+      i += 1;
+    }
+    return packed;
+  }
+
+  function carouselMetrics() {
     const compact = document.body.classList.contains("login-focus");
-    const rx = Math.round(Math.min(w * 0.46, (w / 2) - 8) * (compact ? 0.66 : 1));
-    const rise = Math.round(rx * (compact ? 0.56 : 0.64));
-    return { rx, rise };
+    return {
+      radius: compact ? 82 : 126,
+      tilt: compact ? -16 : -20,
+      hide: compact ? 42 : 48,
+    };
   }
 
-  function ringSpecs(metrics) {
-    const { rx, rise } = metrics;
-    return [
-      { rx, rise, hide: 0.94 },
-      { rx: rx * 0.88, rise: rise * 0.9, hide: 0.93 },
-      { rx: rx * 0.76, rise: rise * 0.8, hide: 0.915 },
-    ];
+  function wrapDeg(deg) {
+    const x = ((deg % 360) + 360) % 360;
+    return x > 180 ? x - 360 : x;
   }
 
   function setCover(el, film) {
@@ -1176,33 +1189,33 @@
   }
 
   function paintLoginCarousel() {
-    const n = loginUi.posters.length;
-    if (!n || !loginUi.items.length) return;
-    const specs = ringSpecs(loginUi.metrics);
-    const ang = (loginUi.angle * Math.PI) / 180;
-    const groups = loginUi.groups.length ? loginUi.groups : [loginUi.items];
-    for (let g = 0; g < groups.length; g += 1) {
-      const spec = specs[g] || specs[0];
-      const items = groups[g];
-      const count = items.length;
-      for (let i = 0; i < count; i += 1) {
-        const t = ((i / count) * Math.PI * 2) + ang + (g * 0.09);
-        const x = Math.sin(t) * spec.rx;
-        const y = -((1 - Math.cos(t)) / 2) * spec.rise;
-        const depth = (Math.cos(t) + 1) / 2;
-        const scale = 0.46 + (depth * 0.54);
-        const hideFront = depth > spec.hide ? 0 : 1;
-        const opacity = hideFront * (0.62 + (depth * 0.38));
-        const el = items[i];
-        el.style.transform = `translate(-50%, -50%) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${scale.toFixed(3)})`;
-        el.style.opacity = String(opacity.toFixed(3));
-        el.style.zIndex = String(20 + g + Math.round(depth * 80));
-      }
-    }
+    const n = loginUi.items.length;
+    if (!n) return;
+    const { radius, tilt, hide } = loginUi.metrics;
+    const spin = loginUi.angle;
     const step = 360 / n;
-    let idx = Math.round(((-loginUi.angle / step) % n));
-    if (idx < 0) idx += n;
-    const at = (delta) => loginUi.posters[(idx + delta + n) % n];
+    const fade = 10;
+    if (loginUi.ring) {
+      loginUi.ring.style.transform = `rotateX(${tilt}deg)`;
+    }
+    for (let i = 0; i < n; i += 1) {
+      const deg = (i * step) + spin;
+      const facing = Math.abs(wrapDeg(deg));
+      let vis = 1;
+      if (facing < hide - fade) vis = 0;
+      else if (facing < hide) vis = (facing - (hide - fade)) / fade;
+      const el = loginUi.items[i];
+      el.style.transform = `translate(-50%, -50%) rotateY(${deg.toFixed(2)}deg) translateZ(${radius}px) rotateY(${(-deg).toFixed(2)}deg)`;
+      el.style.opacity = vis.toFixed(3);
+      el.style.zIndex = String(10 + Math.round((180 - facing) / 4));
+    }
+    const posters = loginUi.posters;
+    const pCount = posters.length;
+    if (!pCount || !loginUi.covers) return;
+    const pStep = 360 / pCount;
+    let idx = Math.round(((-loginUi.angle / pStep) % pCount));
+    if (idx < 0) idx += pCount;
+    const at = (delta) => posters[(idx + delta + pCount) % pCount];
     setCover(loginUi.covers.left, at(-1));
     setCover(loginUi.covers.center, at(0));
     setCover(loginUi.covers.right, at(1));
@@ -1213,7 +1226,7 @@
 
   function onCarouselResize() {
     if (!loginUi.root) return;
-    loginUi.metrics = carouselMetrics(loginUi.root);
+    loginUi.metrics = carouselMetrics();
     paintLoginCarousel();
   }
 
@@ -1415,7 +1428,6 @@
     loginUi.root = null;
     loginUi.ring = null;
     loginUi.items = [];
-    loginUi.groups = [];
     loginUi.covers = null;
     loginUi.drag = null;
     loginUi.mode = "idle";
@@ -1434,26 +1446,16 @@
     if (state.screen !== "login" || app.querySelector("[data-role=login-carousel]") !== root) return;
     const ring = root.querySelector("[data-role=login-ring]");
     loginUi.ring = ring;
-    loginUi.posters = arrangeCarouselPosters(offlineFilms);
+    loginUi.posters = packCarouselPosters(offlineFilms);
     loginUi.items = [];
-    loginUi.groups = [];
     if (ring) {
-      const all = loginUi.posters;
-      const n0 = Math.round(all.length * 0.44);
-      const n1 = Math.round(all.length * 0.32);
-      const slices = [all.slice(0, n0), all.slice(n0, n0 + n1), all.slice(n0 + n1)];
       const frag = document.createDocumentFragment();
-      for (const slice of slices) {
-        const group = [];
-        for (const film of slice) {
-          const el = document.createElement("div");
-          el.className = "login-ring-item";
-          el.style.backgroundImage = `url("${posterThumb(film.poster, "w92")}")`;
-          frag.appendChild(el);
-          loginUi.items.push(el);
-          group.push(el);
-        }
-        loginUi.groups.push(group);
+      for (const film of loginUi.posters) {
+        const el = document.createElement("div");
+        el.className = "login-ring-item";
+        el.style.backgroundImage = `url("${posterThumb(film.poster, "w92")}")`;
+        frag.appendChild(el);
+        loginUi.items.push(el);
       }
       ring.innerHTML = "";
       ring.appendChild(frag);
@@ -1468,7 +1470,7 @@
       center: root.querySelector("[data-role=cover-center]"),
       right: root.querySelector("[data-role=cover-right]"),
     };
-    loginUi.metrics = carouselMetrics(root);
+    loginUi.metrics = carouselMetrics();
     loginUi.unbind = bindCarouselPointer(root);
     window.addEventListener("resize", onCarouselResize);
     if (!loginUi.autoPlayed) {

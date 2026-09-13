@@ -1157,15 +1157,19 @@ body.on-login #app {
   position: relative;
   height: 100%;
   transform-origin: 50% 100%;
+  perspective: 820px;
+  -webkit-perspective: 820px;
+  perspective-origin: 50% 52%;
 }
 
 .login-carousel-stage {
   position: absolute;
   left: 50%;
-  bottom: 60px;
+  bottom: 74px;
   width: 0;
   height: 0;
   z-index: 1;
+  transform-style: preserve-3d;
   transition: bottom 0.28s ease;
 }
 
@@ -1175,20 +1179,23 @@ body.on-login #app {
   top: 0;
   width: 0;
   height: 0;
+  transform: rotateX(-20deg);
+  transform-style: preserve-3d;
 }
 
 .login-ring-item {
   position: absolute;
   left: 0;
   top: 0;
-  width: 26px;
-  height: 39px;
+  width: 24px;
+  height: 36px;
   border-radius: 3px;
   background-color: #24486c;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  box-shadow: 0 1px 3px rgba(16, 32, 48, 0.28);
+  box-shadow: 0 1px 2px rgba(16, 32, 48, 0.3);
+  backface-visibility: visible;
   transition: width 0.28s ease, height 0.28s ease;
 }
 
@@ -1203,6 +1210,7 @@ body.on-login #app {
   justify-content: center;
   z-index: 4;
   pointer-events: none;
+  isolation: isolate;
 }
 
 .login-cover {
@@ -1228,28 +1236,46 @@ body.on-login #app {
   width: 78px;
   height: 117px;
   z-index: 2;
-  outline: 2px solid var(--blue);
-  outline-offset: 0;
   box-shadow:
-    0 0 0 2px var(--blue),
-    0 6px 14px rgba(16, 32, 48, 0.28);
+    0 0 10px 3px rgba(0, 102, 179, 0.3),
+    0 0 22px 8px rgba(0, 102, 179, 0.16),
+    0 6px 14px rgba(16, 32, 48, 0.26);
 }
 
 .login-cover-center.is-rest {
-  animation: login-pulse 2.7s ease-in-out infinite;
+  animation: login-pulse 3.5s ease-in-out infinite;
 }
 
 @keyframes login-pulse {
   0%, 100% {
     box-shadow:
-      0 0 0 2px var(--blue),
-      0 6px 14px rgba(16, 32, 48, 0.28);
+      0 0 8px 2px rgba(0, 102, 179, 0.22),
+      0 0 18px 6px rgba(0, 102, 179, 0.1),
+      0 6px 14px rgba(16, 32, 48, 0.26);
   }
-  50% {
+  20% {
     box-shadow:
-      0 0 0 3px var(--blue),
-      0 -2px 16px rgba(0, 102, 179, 0.42),
-      0 6px 14px rgba(16, 32, 48, 0.28);
+      0 0 14px 4px rgba(0, 102, 179, 0.4),
+      0 0 26px 10px rgba(0, 102, 179, 0.2),
+      0 6px 14px rgba(16, 32, 48, 0.26);
+  }
+  45% {
+    box-shadow:
+      0 0 20px 6px rgba(0, 102, 179, 0.58),
+      0 0 36px 14px rgba(0, 102, 179, 0.3),
+      0 6px 16px rgba(16, 32, 48, 0.26);
+  }
+  58% {
+    box-shadow:
+      0 0 24px 8px rgba(0, 102, 179, 0.7),
+      0 0 42px 16px rgba(0, 102, 179, 0.38),
+      0 6px 16px rgba(16, 32, 48, 0.26);
+  }
+  78% {
+    box-shadow:
+      0 0 14px 4px rgba(0, 102, 179, 0.38),
+      0 0 26px 10px rgba(0, 102, 179, 0.18),
+      0 6px 14px rgba(16, 32, 48, 0.26);
   }
 }
 
@@ -1351,6 +1377,7 @@ body.on-login #app {
 .login-actions {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 16px;
   margin-top: 16px;
 }
@@ -1379,7 +1406,7 @@ body.login-focus .login-carousel {
   margin-bottom: 8px;
 }
 
-body.login-focus .login-carousel-stage { bottom: 34px; }
+body.login-focus .login-carousel-stage { bottom: 42px; }
 
 body.login-focus .login-carousel-front { height: 68px; }
 
