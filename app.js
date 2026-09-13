@@ -1182,8 +1182,8 @@
     if (!tag) return;
     const n = countFilmsWithTag(id);
     const html = n > 0
-      ? `<p class="hint hint-with-pill"><span>Es gibt mit</span>${tagPillHtml(tag)}<span>getaggte Filme. Willst Du wirklich löschen?</span></p>`
-      : `<p class="hint hint-with-pill"><span>Willst Du</span>${tagPillHtml(tag)}<span>wirklich löschen?</span></p>`;
+      ? `<p class="hint hint-with-pill">Es gibt mit ${tagPillHtml(tag)} getaggte Filme. Willst Du wirklich löschen?</p>`
+      : `<p class="hint hint-with-pill">Willst Du ${tagPillHtml(tag)} wirklich löschen?</p>`;
     openConfirm({
       title: "Wirklich löschen?",
       html,
@@ -2210,7 +2210,7 @@
     const rows = films.map((film) => renderListRow(film, {})).join("");
     const exactTag = selected.length === 1 ? tags.find((t) => t.id === selected[0]) : null;
     const exactHint = exactTag
-      ? `<p class="hint hint-with-pill" style="margin-top:12px"><span>Genau dieser Tag:</span>${tagPillHtml(exactTag)}</p>`
+      ? `<p class="hint hint-with-pill" style="margin-top:12px">Genau dieser Tag: ${tagPillHtml(exactTag)}</p>`
       : "";
     return `
       ${exactHint}
