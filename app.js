@@ -1,38 +1,21 @@
 (() => {
   "use strict";
 
-  window.TMDB_KEY = window.TMDB_KEY || "";
-
-  const GENRE_DE = {
-    28: "Action",
-    12: "Abenteuer",
-    16: "Animation",
-    35: "Komödie",
-    80: "Krimi",
-    99: "Doku",
-    18: "Drama",
-    10751: "Familie",
-    14: "Fantasy",
-    36: "Historie",
-    27: "Horror",
-    10402: "Musik",
-    9648: "Mystery",
-    10749: "Romanze",
-    878: "Sci-Fi",
-    10770: "TV",
-    53: "Thriller",
-    10752: "Krieg",
-    37: "Western",
-  };
-
   const GENRE_CHIPS = [
     "Action", "Komödie", "Drama", "Thriller", "Horror", "Sci-Fi",
     "Fantasy", "Animation", "Krimi", "Abenteuer", "Romanze", "Doku",
   ];
 
-  const NOTE_COLORS = [
-    "#d32f2f", "#e53935", "#ef6c00", "#f9a825", "#c0ca33",
-    "#9ccc65", "#66bb6a", "#43a047", "#2e7d32", "#1b5e20",
+  const RATE_KEYS = [
+    { id: "sehr-gut", label: "Sehr gut" },
+    { id: "gut", label: "Gut" },
+    { id: "ok", label: "Ok" },
+    { id: "nicht-gut", label: "Nicht gut" },
+  ];
+
+  const TAG_COLORS = [
+    "#0066B3", "#2e7d32", "#ef6c00", "#8e24aa", "#00838f",
+    "#c62828", "#5d4037", "#37474f",
   ];
 
   const FILMS = [
@@ -49,40 +32,20 @@
     f(671, "Harry Potter und der Stein der Weisen", ["Fantasy", "Abenteuer"], 152, 7.6),
     f(862, "Toy Story", ["Animation", "Komödie"], 81, 8.0),
     f(129, "Chihiros Reise ins Zauberland", ["Animation", "Fantasy"], 125, 8.5),
-    f(475557, "Joker", ["Drama", "Krimi"], 122, 8.2),
-    f(313369, "La La Land", ["Musik", "Romanze"], 128, 8.0),
-    f(244786, "Whiplash", ["Drama", "Musik"], 107, 8.5),
-    f(76341, "Mad Max: Fury Road", ["Action", "Abenteuer"], 120, 7.6),
-    f(68718, "Django Unchained", ["Western", "Drama"], 165, 8.2),
-    f(16869, "Inglourious Basterds", ["Krieg", "Drama"], 153, 8.2),
     f(155, "The Dark Knight", ["Action", "Krimi"], 152, 8.5),
     f(550, "Fight Club", ["Drama", "Thriller"], 139, 8.4),
-    f(769, "GoodFellas", ["Krimi", "Drama"], 145, 8.5),
-    f(424, "Schindlers Liste", ["Drama", "Historie"], 195, 8.6),
-    f(98, "Gladiator", ["Action", "Drama"], 155, 8.2),
     f(278, "Die Verurteilten", ["Drama"], 142, 8.7),
-    f(105, "Zurück in die Zukunft", ["Sci-Fi", "Komödie"], 116, 8.3),
-    f(329, "Jurassic Park", ["Abenteuer", "Sci-Fi"], 127, 8.0),
-    f(274, "Das Schweigen der Lämmer", ["Thriller", "Krimi"], 118, 8.3),
-    f(194, "Die fabelhafte Welt der Amélie", ["Komödie", "Romanze"], 122, 7.9),
-    f(49047, "Gravity", ["Sci-Fi", "Thriller"], 91, 7.7),
-    f(354912, "Coco – Lebendiger als das Leben", ["Animation", "Familie"], 105, 8.2),
-    f(419430, "Get Out", ["Horror", "Thriller"], 104, 7.7),
-    f(545611, "Everything Everywhere All at Once", ["Sci-Fi", "Komödie"], 139, 7.8),
     f(872585, "Oppenheimer", ["Drama", "Historie"], 180, 8.1),
-    f(346698, "Barbie", ["Komödie", "Fantasy"], 114, 7.0),
-    f(438631, "Dune", ["Sci-Fi", "Abenteuer"], 155, 7.8),
     f(569094, "Spider-Man: Across the Spider-Verse", ["Animation", "Action"], 140, 8.4),
-    f(120467, "Grand Budapest Hotel", ["Komödie", "Drama"], 99, 8.1),
-    f(152601, "Her", ["Drama", "Romanze"], 126, 8.0),
-    f(329865, "Arrival", ["Sci-Fi", "Drama"], 116, 7.6),
+    f(693134, "Dune: Part Two", ["Sci-Fi", "Abenteuer"], 166, 8.1),
+    f(361743, "Top Gun: Maverick", ["Action"], 131, 8.2),
   ];
 
   let genrePicks = GENRE_CHIPS.slice();
 
   function f(id, title, genres, runtime, vote_average) {
     return {
-      id,
+      id: `t${id}`,
       tmdb: id,
       title,
       genre: genres[0] || "Film",
@@ -92,8 +55,7 @@
       rating: vote_average,
       vote_average,
       poster: "",
-      poster_path: null,
-      color: colorFromTitle(title),
+      color: "#1d4f91",
     };
   }
 
@@ -105,7 +67,7 @@
 
   function normalizeFilm(raw) {
     const tmdbNum = Number(raw.tmdb != null ? raw.tmdb : String(raw.id).replace(/^t/i, ""));
-    const id = Number.isFinite(tmdbNum) ? tmdbNum : raw.id;
+    const id = raw.id != null ? String(raw.id) : (Number.isFinite(tmdbNum) ? `t${tmdbNum}` : "");
     const genres = filmGenres(raw);
     const minutes = Number(raw.minutes != null ? raw.minutes : raw.runtime) || 0;
     const rating = Number(raw.rating != null ? raw.rating : raw.vote_average) || 0;
@@ -125,7 +87,6 @@
       rating,
       vote_average: rating,
       poster,
-      poster_path: raw.poster_path || null,
       color: raw.color || "#1d4f91",
     };
   }
@@ -153,125 +114,327 @@
     if (state.screen === "home" || state.screen === "suggest") render();
   }
 
-  function colorFromTitle(title) {
-    let h = 0;
-    for (let i = 0; i < title.length; i += 1) {
-      h = (h * 31 + title.charCodeAt(i)) >>> 0;
-    }
-    return `hsl(${h % 360} 42% 44%)`;
-  }
-
-  function tmdbKey() {
-    const fromWindow = String(window.TMDB_KEY || "").trim();
-    if (fromWindow) return fromWindow;
-    return String(localStorage.getItem("wdq.tmdbKey") || "").trim();
-  }
-
   function posterUrl(film) {
-    if (film.poster) return film.poster;
-    if (!film.poster_path) return "";
-    const path = film.poster_path.startsWith("/") ? film.poster_path : `/${film.poster_path}`;
-    return `https://image.tmdb.org/t/p/w185${path}`;
+    return film && film.poster ? film.poster : "";
+  }
+
+  function posterStyle(film) {
+    const src = posterUrl(film);
+    const color = (film && film.color) || "#1d4f91";
+    return src
+      ? `background-color:${color};background-image:url("${src}")`
+      : `background-color:${color}`;
   }
 
   const AVATARS = {
-    a1: `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <rect width="120" height="120" fill="#12324a"/>
-      <ellipse cx="58" cy="64" rx="34" ry="22" fill="#f08a2a"/>
-      <path d="M28 64c8-10 16-8 22 0 8-11 16-9 24 1 7-10 14-8 20 0" fill="none" stroke="#f6e6c8" stroke-width="5" stroke-linecap="round"/>
-      <path d="M86 58c12-10 22-4 26 10-10 2-20 1-26-4z" fill="#2aa39a"/>
-      <path d="M40 42c6-16 22-20 28-8-10 2-18 6-28 8z" fill="#e36b1c"/>
+    av1: svgFace("#12324a", "#f08a2a"),
+    av2: svgBot("#1b2833"),
+    av3: svgFace("#1a3a2a", "#66bb6a"),
+    av4: svgBot("#2a1b33"),
+    av5: svgFace("#3a1a24", "#ef6c00"),
+    av6: svgBot("#102030"),
+    av7: svgFace("#1d4f91", "#90caf9"),
+    av8: svgBot("#37474f"),
+  };
+
+  function svgFace(bg, skin) {
+    return `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect width="120" height="120" fill="${bg}"/>
+      <ellipse cx="58" cy="64" rx="34" ry="22" fill="${skin}"/>
       <circle cx="40" cy="58" r="7" fill="#fff"/>
       <circle cx="42" cy="58" r="3.2" fill="#1a2430"/>
       <path d="M34 70c6 5 14 5 18 1" fill="none" stroke="#7a3a12" stroke-width="2" stroke-linecap="round"/>
-    </svg>`,
-    a2: `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <rect width="120" height="120" fill="#1b2833"/>
+    </svg>`;
+  }
+
+  function svgBot(bg) {
+    return `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect width="120" height="120" fill="${bg}"/>
       <rect x="56" y="18" width="8" height="16" rx="2" fill="#8ad0ff"/>
       <circle cx="60" cy="16" r="6" fill="#0066B3"/>
       <rect x="28" y="34" width="64" height="64" rx="10" fill="#d7e3ee" stroke="#0066B3" stroke-width="4"/>
       <rect x="40" y="50" width="16" height="16" fill="#0066B3"/>
       <rect x="64" y="50" width="16" height="16" fill="#0066B3"/>
       <rect x="42" y="76" width="36" height="8" fill="#5b6b7a"/>
-      <rect x="46" y="78" width="6" height="4" fill="#c5d5e6"/>
-      <rect x="56" y="78" width="6" height="4" fill="#c5d5e6"/>
-      <rect x="66" y="78" width="6" height="4" fill="#c5d5e6"/>
+    </svg>`;
+  }
+
+  const ICONS = {
+    back: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 5 8 12l7 7"/></svg>`,
+    switch: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M3 19c.6-3 2.6-5 5-5s4.4 2 5 5M11 19c.6-3 2.6-5 5-5s4.4 2 5 5"/></svg>`,
+    logout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 7V5a2 2 0 0 1 2-2h7v18h-7a2 2 0 0 1-2-2v-2"/><path d="M15 12H4m0 0 3-3m-3 3 3 3"/></svg>`,
+    filter: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5h16l-6.5 8.2V19l-3 1.2v-7L4 5z"/></svg>`,
+    covers: `<svg viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect width="52" height="52" rx="14" fill="#102030"/>
+      <rect x="8" y="12" width="18" height="26" rx="3" fill="#4d7fa8"/>
+      <rect x="17" y="10" width="18" height="28" rx="3" fill="#7ebce0"/>
+      <rect x="26" y="8" width="18" height="30" rx="3" fill="#0066B3"/>
     </svg>`,
+    lists: `<svg viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect width="52" height="52" rx="14" fill="#102030"/>
+      <rect x="12" y="14" width="28" height="4" rx="2" fill="#7ebce0"/>
+      <rect x="12" y="24" width="28" height="4" rx="2" fill="#0066B3"/>
+      <rect x="12" y="34" width="18" height="4" rx="2" fill="#c5e4f6"/>
+    </svg>`,
+    tags: `<svg viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect width="52" height="52" rx="14" fill="#102030"/>
+      <path d="M14 28 28 14h10v10L24 38z" fill="#0066B3"/>
+      <circle cx="35" cy="19" r="2.2" fill="#fff"/>
+    </svg>`,
+    plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>`,
+    close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg>`,
   };
 
-  const NAMES = { a1: "Account 1", a2: "Account 2" };
+  function rateIcon(id) {
+    if (id === "sehr-gut") {
+      return `<svg viewBox="0 0 36 22" aria-hidden="true">
+        <g fill="#2e7d32">${thumb(2, 2)}${thumb(12, 2)}</g>
+      </svg>`;
+    }
+    if (id === "gut") {
+      return `<svg viewBox="0 0 36 22" aria-hidden="true"><g fill="#81c784">${thumb(8, 2)}</g></svg>`;
+    }
+    if (id === "ok") {
+      return `<svg viewBox="0 0 36 22" aria-hidden="true">
+        <g fill="#f4c430" transform="translate(18 11) rotate(-90) translate(-10 -9)">${thumb(2, 2)}</g>
+      </svg>`;
+    }
+    return `<svg viewBox="0 0 36 22" aria-hidden="true">
+      <g fill="#e53935" transform="translate(18 11) rotate(180) translate(-10 -9)">${thumb(2, 2)}</g>
+    </svg>`;
+  }
+
+  function thumb(x, y) {
+    return `<path d="M${x + 7} ${y + 8}v-4.2c0-1.4.8-2.4 2-2.4s2 1 2 2.4V8h4.2c1.2 0 2 .9 1.8 2l-.8 5.2c-.2 1.1-1.1 1.8-2.2 1.8H${x + 7}z"/>
+      <rect x="${x}" y="${y + 8}" width="6.2" height="9" rx="1.2"/>`;
+  }
 
   const state = {
-    account: null,
-    screen: "accounts",
-    catalog: FILMS.map((x) => normalizeFilm(x)),
-    filters: {
-      dauerOn: false,
-      dauer: 120,
-      genreOn: false,
-      genres: [],
-    },
+    screen: "login",
+    authMode: "login",
+    user: null,
+    profile: null,
+    catalog: cloneFilms(FILMS),
+    filtersOpen: false,
+    filters: { dauerOn: false, dauer: 120, genres: [], tags: [] },
     currentPicks: [],
     shortlist: [],
     sessionBlocked: new Set(),
     sessionSkip: new Set(),
-    coinSpinning: false,
-    coinWinner: null,
-    coinLeftovers: [],
-    preFlipPicks: null,
-    preFlipShortlist: null,
+    listTab: "watch",
+    search: "",
+    ratedFilter: "sehr-gut",
+    tagFilter: [],
+    seenOnlyUnrated: false,
     chosen: null,
-    providers: null,
-    tmdbKeyDraft: "",
+    addName: "",
+    addAvatar: "av1",
+    loginName: "",
+    loginPass: "",
+    loginError: "",
+    newTagName: "",
+    newTagColor: "#0066B3",
   };
 
   const app = document.getElementById("app");
-  const accountChip = document.getElementById("account-chip");
+  const headerActions = document.getElementById("header-actions");
+  const snackbar = document.getElementById("snackbar");
+  const modalEl = document.getElementById("modal");
   const confettiCanvas = document.getElementById("confetti");
   const ctx = confettiCanvas.getContext("2d");
 
-  function store(suffix) {
-    return `wdq.${state.account}.${suffix}`;
+  function loadJson(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function saveJson(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+
+  function users() {
+    return loadJson("wdq.users", []);
+  }
+
+  function saveUsers(list) {
+    saveJson("wdq.users", list);
+  }
+
+  function profilesOf(userId) {
+    return loadJson(`wdq.profiles.${userId}`, []);
+  }
+
+  function saveProfiles(userId, list) {
+    saveJson(`wdq.profiles.${userId}`, list);
+  }
+
+  function pkey(suffix) {
+    return `wdq.p.${state.user.id}.${state.profile.id}.${suffix}`;
   }
 
   function ratings() {
-    try {
-      return JSON.parse(localStorage.getItem(store("ratings")) || "{}");
-    } catch {
-      return {};
-    }
+    return loadJson(pkey("ratings"), {});
   }
 
   function setRating(id, value) {
     const all = ratings();
     all[String(id)] = value;
-    localStorage.setItem(store("ratings"), JSON.stringify(all));
+    saveJson(pkey("ratings"), all);
+  }
+
+  function watchlist() {
+    return loadJson(pkey("watchlist"), []);
+  }
+
+  function saveWatchlist(list) {
+    saveJson(pkey("watchlist"), list);
   }
 
   function history() {
-    try {
-      return JSON.parse(localStorage.getItem(store("history")) || "[]");
-    } catch {
-      return [];
+    return loadJson(pkey("history"), []);
+  }
+
+  function saveHistory(list) {
+    saveJson(pkey("history"), list);
+  }
+
+  function customTags() {
+    return loadJson(pkey("tags"), []);
+  }
+
+  function saveTags(list) {
+    saveJson(pkey("tags"), list);
+  }
+
+  function filmTags() {
+    return loadJson(pkey("filmTags"), {});
+  }
+
+  function saveFilmTags(map) {
+    saveJson(pkey("filmTags"), map);
+  }
+
+  function tagsFor(filmId) {
+    return filmTags()[String(filmId)] || [];
+  }
+
+  function seedIfNeeded() {
+    const list = users();
+    if (list.some((u) => u.login.toLowerCase() === "test")) return;
+    list.push({ id: "u-test", login: "Test", password: "1234" });
+    saveUsers(list);
+    const profiles = [
+      { id: "tester", name: "Tester", avatar: "av1" },
+      { id: "user1", name: "User No 1", avatar: "av2" },
+      { id: "bot", name: "Bot - Apptesti", avatar: "av3" },
+    ];
+    saveProfiles("u-test", profiles);
+    const tags = [
+      { id: "tag-omma", name: "Omma", color: "#ef6c00" },
+      { id: "tag-kumpel", name: "Kumpel", color: "#0066B3" },
+      { id: "tag-relax", name: "entspannen", color: "#2e7d32" },
+    ];
+    const prefix = "wdq.p.u-test.tester.";
+    saveJson(`${prefix}tags`, tags);
+    saveJson(`${prefix}watchlist`, [
+      { id: "t27205", at: Date.now() - 4000 },
+      { id: "t862", at: Date.now() - 2000 },
+    ]);
+    saveJson(`${prefix}filmTags`, { t862: ["tag-omma"] });
+    saveJson(`${prefix}history`, [
+      { id: "t693134", title: "Dune: Part Two", at: Date.now() - 8000 },
+      { id: "t361743", title: "Top Gun: Maverick", at: Date.now() - 6000 },
+      { id: "t550", title: "Fight Club", at: Date.now() - 4000 },
+      { id: "t680", title: "Pulp Fiction", at: Date.now() - 2000 },
+    ]);
+    saveJson("wdq.p.u-test.user1.tags", tags);
+    saveJson("wdq.p.u-test.bot.tags", tags);
+  }
+
+  function restoreSession() {
+    const session = loadJson("wdq.session", null);
+    if (!session) return;
+    const user = users().find((u) => u.id === session.userId);
+    if (!user) return;
+    state.user = user;
+    const profile = profilesOf(user.id).find((p) => p.id === session.profileId) || null;
+    state.profile = profile;
+    state.screen = profile ? "home" : "profiles";
+  }
+
+  function persistSession() {
+    if (!state.user) {
+      localStorage.removeItem("wdq.session");
+      return;
     }
+    saveJson("wdq.session", {
+      userId: state.user.id,
+      profileId: state.profile ? state.profile.id : null,
+    });
   }
 
-  function addHistory(film) {
-    const rows = history();
-    rows.unshift({ id: film.id, title: film.title, at: Date.now() });
-    localStorage.setItem(store("history"), JSON.stringify(rows.slice(0, 200)));
+  function filmId(value) {
+    if (value && typeof value === "object") return String(value.id);
+    return String(value);
   }
 
-  function resetSession() {
+  function findFilm(id) {
+    const sid = String(id);
+    const num = Number(String(id).replace(/^t/i, ""));
+    return (
+      state.currentPicks.find((f) => filmId(f) === sid)
+      || state.shortlist.find((f) => filmId(f) === sid)
+      || state.catalog.find((f) => filmId(f) === sid || String(f.tmdb) === sid || Number(f.tmdb) === num)
+      || null
+    );
+  }
+
+  function fmtDuration(min) {
+    const m = Number(min) || 0;
+    if (m >= 60) {
+      const h = Math.floor(m / 60);
+      const r = m % 60;
+      return r ? `${h} Std., ${r} Min.` : `${h} Std.`;
+    }
+    return `${m} Min.`;
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function showSnack(text) {
+    snackbar.hidden = false;
+    snackbar.innerHTML = `<span aria-hidden="true">✓</span><span>${escapeHtml(text)}</span>`;
+    window.clearTimeout(showSnack.tid);
+    showSnack.tid = window.setTimeout(() => {
+      snackbar.hidden = true;
+    }, 2600);
+  }
+
+  function closeModal() {
+    modalEl.hidden = true;
+    modalEl.innerHTML = "";
+  }
+
+  function openModal(html) {
+    modalEl.hidden = false;
+    modalEl.innerHTML = html;
+  }
+
+  function resetSessionPicks() {
     state.sessionBlocked = new Set();
     state.sessionSkip = new Set();
     state.shortlist = [];
     state.currentPicks = [];
-    state.coinWinner = null;
-    state.coinLeftovers = [];
-    state.preFlipPicks = null;
-    state.preFlipShortlist = null;
-    state.coinSpinning = false;
   }
 
   function shuffle(list) {
@@ -290,39 +453,33 @@
       if (over > 0) score -= ((over / 25) ** 1.15) * 0.55;
       else score += Math.min(0.55, (state.filters.dauer - film.runtime) / 90);
     }
-    if (state.filters.genreOn && state.filters.genres.length) {
+    if (state.filters.genres.length) {
       const match = filmGenres(film).some((g) => state.filters.genres.includes(g));
       score += match ? 2.2 : -0.45;
+    }
+    if (state.filters.tags.length) {
+      const have = tagsFor(film.id);
+      const match = state.filters.tags.some((t) => have.includes(t));
+      score += match ? 2 : -0.2;
     }
     score += Math.random() * 0.85;
     return score;
   }
 
   function buildPool(excludeIds) {
-    const exclude = new Set((excludeIds || []).map(Number));
-    const usable = (film) => !exclude.has(Number(film.id));
-
+    const exclude = new Set((excludeIds || []).map(filmId));
+    const usable = (film) => !exclude.has(filmId(film));
     let pool = state.catalog.filter((film) => (
       usable(film)
-      && !state.sessionBlocked.has(Number(film.id))
-      && !state.sessionSkip.has(Number(film.id))
+      && !state.sessionBlocked.has(filmId(film))
+      && !state.sessionSkip.has(filmId(film))
     ));
-
     if (pool.length < 3) {
       state.sessionSkip.clear();
-      pool = state.catalog.filter((film) => (
-        usable(film) && !state.sessionBlocked.has(Number(film.id))
-      ));
+      pool = state.catalog.filter((film) => usable(film) && !state.sessionBlocked.has(filmId(film)));
     }
-
-    if (pool.length < 3) {
-      pool = shuffle(state.catalog.filter(usable));
-    }
-
-    if (pool.length < 3) {
-      pool = shuffle(state.catalog.slice());
-    }
-
+    if (pool.length < 3) pool = shuffle(state.catalog.filter(usable));
+    if (pool.length < 3) pool = shuffle(state.catalog.slice());
     return pool;
   }
 
@@ -331,25 +488,22 @@
     const ranked = pool
       .map((film) => ({ film, score: scoreFilm(film) }))
       .sort((a, b) => b.score - a.score);
-
     const out = [];
     const used = new Set();
     for (const row of ranked) {
-      const id = Number(row.film.id);
+      const id = filmId(row.film);
       if (used.has(id)) continue;
       used.add(id);
       out.push(row.film);
       if (out.length >= count) break;
     }
-
     if (out.length < count) {
       for (const film of shuffle(state.catalog)) {
-        if (out.some((x) => Number(x.id) === Number(film.id))) continue;
+        if (out.some((x) => filmId(x) === filmId(film))) continue;
         out.push(film);
         if (out.length >= count) break;
       }
     }
-
     if (!out.length && state.catalog.length) {
       return shuffle(state.catalog).slice(0, Math.max(count, 1));
     }
@@ -361,32 +515,13 @@
     if (picks.length >= 3) return picks.slice(0, 3);
     const extras = cloneFilms(FILMS);
     for (const film of extras.concat(cloneFilms(state.catalog))) {
-      if (picks.some((x) => Number(x.id) === Number(film.id))) continue;
+      if (picks.some((x) => filmId(x) === filmId(film))) continue;
       picks.push(film);
       if (picks.length >= 3) break;
     }
     if (!picks.length && extras.length) return extras.slice(0, 3);
-    while (picks.length && picks.length < 3) {
-      picks.push(picks[picks.length % picks.length]);
-    }
+    while (picks.length && picks.length < 3) picks.push(picks[0]);
     return picks.slice(0, 3);
-  }
-
-  function skipCurrentPicks() {
-    for (const film of state.currentPicks) {
-      state.sessionSkip.add(Number(film.id));
-    }
-  }
-
-  function replacePick(oldId) {
-    const exclude = state.currentPicks
-      .concat(state.shortlist)
-      .map((film) => Number(film.id));
-    const next = pickFilms(1, exclude)[0];
-    state.currentPicks = state.currentPicks.map((film) => (
-      Number(film.id) === Number(oldId) ? (next || film) : film
-    ));
-    hydrateVisible();
   }
 
   async function loadCatalog() {
@@ -407,59 +542,22 @@
     state.catalog = cloneFilms(FILMS);
   }
 
-  async function hydrateVisible() {
-    const key = tmdbKey();
-    if (!key) return;
-    const need = state.currentPicks.filter((film) => !film.runtime);
-    await Promise.all(need.map(async (film) => {
-      try {
-        const url = `https://api.themoviedb.org/3/movie/${film.id}?api_key=${encodeURIComponent(key)}&language=de-DE`;
-        const res = await fetch(url);
-        if (!res.ok) return;
-        const data = await res.json();
-        film.runtime = data.runtime || film.runtime;
-        if (data.runtime) film.minutes = data.runtime;
-        if (data.poster_path) {
-          film.poster_path = data.poster_path;
-          film.poster = `https://image.tmdb.org/t/p/w185${data.poster_path}`;
-        }
-        if (data.title) film.title = data.title;
-      } catch {
-        /* offline / rate limit */
-      }
-    }));
-    if (state.screen === "suggest") render();
+  function anyFilterOn() {
+    return state.filters.dauerOn
+      || state.filters.genres.length > 0
+      || state.filters.tags.length > 0;
   }
 
-  async function loadProviders(film) {
-    const key = tmdbKey();
-    if (!key) {
-      return {
-        note: "Kein TMDB-Schlüssel hinterlegt. Anbieter können nicht geladen werden – es werden keine Dienste wie Netflix erfunden. Lege auf themoviedb.org einen API-Schlüssel an und speichere ihn als localStorage.wdq.tmdbKey.",
-        stream: [],
-        rent: [],
-        buy: [],
-      };
+  function filterSummary() {
+    const bits = [];
+    if (state.filters.dauerOn) bits.push(`${state.filters.dauer} Min.`);
+    bits.push(...state.filters.genres);
+    const tags = customTags();
+    for (const id of state.filters.tags) {
+      const tag = tags.find((t) => t.id === id);
+      if (tag) bits.push(tag.name);
     }
-    try {
-      const url = `https://api.themoviedb.org/3/movie/${film.id}/watch/providers?api_key=${encodeURIComponent(key)}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("providers");
-      const data = await res.json();
-      const de = data.results && data.results.DE;
-      if (!de) {
-        return { note: "TMDB listet für Deutschland keine Anbieter zu diesem Titel.", stream: [], rent: [], buy: [] };
-      }
-      const names = (arr) => (arr || []).map((p) => p.provider_name).filter(Boolean);
-      return {
-        note: "",
-        stream: names(de.flatrate),
-        rent: names(de.rent),
-        buy: names(de.buy),
-      };
-    } catch {
-      return { note: "Anbieter konnten gerade nicht geladen werden.", stream: [], rent: [], buy: [] };
-    }
+    return bits.join(" · ");
   }
 
   function burstConfetti() {
@@ -468,7 +566,7 @@
     const { innerWidth: w, innerHeight: h } = window;
     confettiCanvas.width = w;
     confettiCanvas.height = h;
-    for (let i = 0; i < 110; i += 1) {
+    for (let i = 0; i < 90; i += 1) {
       parts.push({
         x: w * 0.5 + (Math.random() - 0.5) * 80,
         y: h * 0.28,
@@ -496,284 +594,502 @@
         ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
         ctx.restore();
       }
-      if (t < 1300) requestAnimationFrame(frame);
+      if (t < 1200) requestAnimationFrame(frame);
       else ctx.clearRect(0, 0, w, h);
     }
     requestAnimationFrame(frame);
   }
 
-  function flashButton(el) {
-    if (!el) return;
-    el.classList.add("flash");
-    setTimeout(() => el.classList.remove("flash"), 280);
-  }
-
-  function fmtVote(value) {
-    const n = Number(value || 0);
-    return n.toFixed(1).replace(".", ",");
-  }
-
-  function uniqueById(films) {
-    const out = [];
-    const seen = new Set();
-    for (const film of films) {
-      const id = Number(film.id);
-      if (seen.has(id)) continue;
-      seen.add(id);
-      out.push(film);
+  function updateHeader() {
+    const items = [];
+    if (["suggest", "lists", "tags", "done", "profile-add"].includes(state.screen)) {
+      items.push(`<button type="button" class="icon-btn" data-act="back" aria-label="Zurück" title="Zurück">${ICONS.back}</button>`);
     }
-    return out;
-  }
-
-  function updateChip() {
-    if (!state.account) {
-      accountChip.hidden = true;
-      accountChip.innerHTML = "";
-      return;
+    if (state.screen === "home") {
+      items.push(`<button type="button" class="icon-btn" data-act="switch" aria-label="Account wechseln" title="Account wechseln">${ICONS.switch}</button>`);
+      items.push(`<button type="button" class="icon-btn" data-act="logout" aria-label="Ausloggen" title="Ausloggen">${ICONS.logout}</button>`);
     }
-    accountChip.hidden = false;
-    accountChip.innerHTML = AVATARS[state.account];
-    accountChip.title = `${NAMES[state.account]} – Konto wechseln`;
+    headerActions.innerHTML = items.join("");
   }
 
-  function renderAccounts() {
+  function renderLogin() {
+    const register = state.authMode === "register";
     return `
-      <section class="accounts">
-        <button type="button" class="card account-card" data-act="account" data-id="a1">
-          <span class="avatar">${AVATARS.a1}</span>
-          <strong>Account 1</strong>
+      <section class="card auth-card">
+        <h2>${register ? "Registrieren" : "Anmelden"}</h2>
+        <label class="field">
+          <span>Login</span>
+          <input data-act="login-name" autocomplete="username" value="${escapeHtml(state.loginName)}">
+        </label>
+        <label class="field">
+          <span>Passwort</span>
+          <input data-act="login-pass" type="password" autocomplete="${register ? "new-password" : "current-password"}" value="${escapeHtml(state.loginPass)}">
+        </label>
+        ${state.loginError ? `<p class="error">${escapeHtml(state.loginError)}</p>` : ""}
+        <button type="button" class="btn btn-primary" data-act="auth-submit" style="margin-top:14px">
+          ${register ? "Konto anlegen" : "Anmelden"}
         </button>
-        <button type="button" class="card account-card" data-act="account" data-id="a2">
-          <span class="avatar">${AVATARS.a2}</span>
-          <strong>Account 2</strong>
+        <button type="button" class="btn btn-ghost auth-switch" data-act="auth-toggle">
+          ${register ? "Schon ein Konto? Anmelden" : "Neu hier? Registrieren"}
         </button>
+      </section>
+    `;
+  }
+
+  function renderProfiles() {
+    const rows = profilesOf(state.user.id).map((p) => `
+      <div class="card menu-card">
+        <button type="button" class="avatar" data-act="pick-profile" data-id="${p.id}" aria-label="${escapeHtml(p.name)}">${AVATARS[p.avatar] || AVATARS.av1}</button>
+        <button type="button" data-act="pick-profile" data-id="${p.id}" style="all:unset;cursor:pointer">
+          <strong>${escapeHtml(p.name)}</strong>
+        </button>
+        <button type="button" class="menu-side danger" data-act="ask-delete-profile" data-id="${p.id}" aria-label="Profil löschen" title="Löschen">×</button>
+      </div>
+    `).join("");
+    return `
+      <h2 class="screen-title">Wer schaut</h2>
+      <section class="stack">
+        ${rows}
+        <button type="button" class="card menu-card" data-act="add-profile">
+          <span class="menu-icon" style="background:#e8edf2;color:#0066B3">${ICONS.plus}</span>
+          <strong>Profil hinzufügen</strong>
+          <span></span>
+        </button>
+      </section>
+    `;
+  }
+
+  function renderProfileAdd() {
+    const picks = Object.keys(AVATARS).map((id) => `
+      <button type="button" class="avatar-pick" data-act="add-avatar" data-id="${id}" aria-pressed="${state.addAvatar === id}">
+        <span class="avatar">${AVATARS[id]}</span>
+      </button>
+    `).join("");
+    return `
+      <h2 class="screen-title">Profil hinzufügen</h2>
+      <section class="card auth-card">
+        <label class="field">
+          <span>Name</span>
+          <input data-act="add-name" value="${escapeHtml(state.addName)}" maxlength="40">
+        </label>
+        <p class="hint">Avatar wählen</p>
+        <div class="avatar-grid">${picks}</div>
+        <button type="button" class="btn btn-primary" data-act="save-profile" style="margin-top:16px">Speichern</button>
       </section>
     `;
   }
 
   function renderHome() {
-    const fill = ((state.filters.dauer - 60) / (210 - 60)) * 100;
-    const chips = genrePicks.map((g) => `
-      <button type="button" class="chip" data-act="genre" data-genre="${g}" aria-pressed="${state.filters.genres.includes(g)}">${g}</button>
+    const fill = ((state.filters.dauer - 60) / 150) * 100;
+    const tags = customTags();
+    const genreChips = genrePicks.map((g) => `
+      <button type="button" class="chip" data-act="genre" data-genre="${escapeHtml(g)}" aria-pressed="${state.filters.genres.includes(g)}">${escapeHtml(g)}</button>
     `).join("");
+    const tagChips = tags.length
+      ? tags.map((t) => `
+          <button type="button" class="chip" data-act="filter-tag" data-id="${t.id}" aria-pressed="${state.filters.tags.includes(t.id)}">${escapeHtml(t.name)}</button>
+        `).join("")
+      : `<span class="hint">Noch keine eigenen Tags</span>`;
+    const filters = state.filtersOpen ? `
+      <div class="filters">
+        <div class="filter-row">
+          <span class="filter-label">Dauer</span>
+          <div class="filter-values">
+            <input class="filigree${state.filters.dauerOn ? "" : " idle"}" data-act="dauer" type="range" min="60" max="210" step="5" value="${state.filters.dauer}" style="--fill:${fill}%">
+            <button type="button" class="chip${state.filters.dauerOn ? " on" : ""}" data-act="toggle-dauer">${state.filters.dauer} Min.</button>
+          </div>
+        </div>
+        <div class="filter-row">
+          <span class="filter-label">Genre</span>
+          <div class="filter-values">${genreChips}</div>
+        </div>
+        <div class="filter-row">
+          <span class="filter-label">Tag</span>
+          <div class="filter-values">${tagChips}</div>
+        </div>
+        <div class="filter-row">
+          <span class="filter-label">Streaming</span>
+          <div class="filter-values"><span class="chip soon">Platzhalter</span></div>
+        </div>
+        <div class="filter-row">
+          <span class="filter-label">nur kostenlos</span>
+          <div class="filter-values"><span class="chip soon">Platzhalter</span></div>
+        </div>
+      </div>
+    ` : "";
+    const summary = anyFilterOn()
+      ? `<p class="filter-summary">${escapeHtml(filterSummary())}</p>`
+      : "";
     return `
+      <h2 class="screen-title">Hauptmenü</h2>
       <section class="stack">
-        <article class="card card-pad">
-          <div class="row">
-            <h2 class="filter-title">Dauer</h2>
-            <button type="button" class="toggle" data-act="toggle-dauer" aria-pressed="${state.filters.dauerOn}" aria-label="Dauerfilter"></button>
-          </div>
-          <div class="slider-wrap">
-            <div class="slider-meta">
-              <span>Richtwert, keine harte Grenze</span>
-              <strong>${state.filters.dauer} Min</strong>
-            </div>
-            <input class="filigree" data-act="dauer" type="range" min="60" max="210" step="5" value="${state.filters.dauer}" style="--fill:${fill}%">
-            <div class="ticks">${"<i></i>".repeat(13)}</div>
-          </div>
+        <article class="card menu-card wide-filter">
+          <button type="button" class="menu-icon" data-act="suggest" aria-hidden="true">${ICONS.covers}</button>
+          <button type="button" data-act="suggest" style="all:unset;cursor:pointer">
+            <strong>Filme vorschlagen</strong>
+          </button>
+          <button type="button" class="menu-side${anyFilterOn() ? " on" : ""}" data-act="toggle-filters" aria-pressed="${state.filtersOpen}" aria-label="Filter" title="Filter">${ICONS.filter}</button>
+          ${summary}
+          ${filters}
         </article>
-        <article class="card card-pad">
-          <div class="row">
-            <h2 class="filter-title">Genre</h2>
-            <button type="button" class="toggle" data-act="toggle-genre" aria-pressed="${state.filters.genreOn}" aria-label="Genrefilter"></button>
-          </div>
-          <p class="hint">Weiche Vorliebe, kein Ausschluss.</p>
-          <div class="chips">${chips}</div>
-        </article>
-        <article class="card card-pad card-disabled">
-          <div class="row">
-            <h2 class="filter-title">Streaming</h2>
-            <span class="soon">demnächst</span>
-          </div>
-        </article>
-        <article class="card card-pad card-disabled">
-          <div class="row">
-            <h2 class="filter-title">nur kostenlos</h2>
-            <span class="soon">demnächst</span>
-          </div>
-        </article>
-        <button type="button" class="btn btn-primary home-cta" data-act="suggest">Filme vorschlagen</button>
-        <details class="settings card card-pad">
-          <summary>TMDB-Schlüssel (optional)</summary>
-          <p class="hint">Poster und Anbieter von themoviedb.org. Wird als localStorage <code>wdq.tmdbKey</code> gespeichert.</p>
-          <input type="text" data-act="tmdb-input" placeholder="API-Key (v3)" value="${escapeHtml(tmdbKey() || state.tmdbKeyDraft)}" autocomplete="off" spellcheck="false">
-          <button type="button" class="btn btn-ghost" data-act="save-tmdb" style="margin-top:10px;width:100%">Schlüssel speichern</button>
-        </details>
+        <button type="button" class="card menu-card" data-act="lists">
+          <span class="menu-icon">${ICONS.lists}</span>
+          <strong>Meine Filmlisten</strong>
+          <span></span>
+        </button>
+        <button type="button" class="card menu-card" data-act="tags">
+          <span class="menu-icon">${ICONS.tags}</span>
+          <strong>Tags verwalten</strong>
+          <span></span>
+        </button>
       </section>
+    `;
+  }
+
+  function renderRates(film, always) {
+    const mine = ratings()[filmId(film)];
+    return `
+      <div class="rates">
+        ${RATE_KEYS.map((r) => `
+          <button type="button" class="rate${mine === r.id ? " sel" : ""}" data-act="rate" data-id="${escapeHtml(filmId(film))}" data-n="${r.id}" title="${r.label}" aria-label="${r.label}">
+            ${rateIcon(r.id)}
+          </button>
+        `).join("")}
+      </div>
     `;
   }
 
   function renderSuggest() {
     const labels = state.shortlist.map((film) => `
-      <button type="button" class="short-label" data-act="unshort" data-id="${film.id}">
+      <button type="button" class="short-label" data-act="unshort" data-id="${escapeHtml(filmId(film))}">
         <span class="x">×</span>${escapeHtml(film.title)}
       </button>
     `).join("");
-    const cards = state.currentPicks.map((film) => renderCard(film)).join("");
+    const cards = state.currentPicks.map((film) => {
+      const tagNames = tagsFor(film.id).map((id) => {
+        const tag = customTags().find((t) => t.id === id);
+        return tag ? tag.name : "";
+      }).filter(Boolean);
+      const meta = [fmtDuration(film.runtime || film.minutes), film.genre].concat(tagNames).join(" · ");
+      return `
+        <article class="card film-card">
+          <div class="film-top">
+            <div class="poster" style="${posterStyle(film)}" role="img" aria-label=""></div>
+            <div class="film-meta">
+              <h3 class="film-title">${escapeHtml(film.title)}</h3>
+              <div class="meta">${escapeHtml(meta)}</div>
+              ${renderRates(film, true)}
+            </div>
+          </div>
+          <div class="card-actions">
+            <button type="button" class="btn btn-compact" data-act="richtung" data-id="${escapeHtml(filmId(film))}">Die Richtung stimmt</button>
+            <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Film wählen</button>
+            <button type="button" class="btn btn-compact" data-act="engere" data-id="${escapeHtml(filmId(film))}">Engere Auswahl</button>
+            <button type="button" class="btn btn-compact btn-ghost" data-act="watch-add" data-id="${escapeHtml(filmId(film))}">→ Vorgemerkt</button>
+          </div>
+        </article>
+      `;
+    }).join("");
     return `
-      <div class="suggest-bar">
-        <button type="button" class="btn btn-compact" data-act="back">Zurück</button>
-        <button type="button" class="btn btn-compact" data-act="reroll">Neu würfeln</button>
-        <button type="button" class="btn btn-compact btn-ghost" data-act="coin">Münzwurf</button>
+      <div class="suggest-wrap">
+        <div class="shortlist">${labels}</div>
+        <section class="film-col">${cards}</section>
       </div>
-      <div class="shortlist">${labels}</div>
-      <section class="film-grid">${cards}</section>
     `;
   }
 
-  function renderCard(film) {
-    const mine = ratings()[String(film.id)];
-    const notes = NOTE_COLORS.map((color, i) => {
-      const n = i + 1;
-      return `<button type="button" class="note${Number(mine) === n ? " sel" : ""}" data-act="rate" data-id="${film.id}" data-n="${n}" style="background:${color}">${n}</button>`;
-    }).join("");
-    const src = posterUrl(film);
-    const color = film.color || colorFromTitle(film.title);
-    const posterStyle = src
-      ? `background-color:${color};background-image:url("${src}")`
-      : `background-color:${color}`;
-    const genre = film.genre || (film.genres && film.genres[0]) || "Film";
-    const runtime = film.runtime || film.minutes ? `${film.runtime || film.minutes} Min` : "Dauer folgt";
+  function unratedCount() {
+    const all = ratings();
+    return history().filter((row) => !all[String(row.id)]).length;
+  }
+
+  function watchlistFilms() {
+    return watchlist()
+      .map((row) => findFilm(row.id))
+      .filter(Boolean);
+  }
+
+  function renderListRow(film, opts) {
+    const tagNames = tagsFor(film.id).map((id) => {
+      const tag = customTags().find((t) => t.id === id);
+      return tag ? tag.name : "";
+    }).filter(Boolean);
+    if (opts.gesehen) tagNames.unshift("gesehen");
+    const extra = opts.extra || "";
+    const meta = [fmtDuration(film.runtime || film.minutes), film.genre].concat(tagNames).concat(extra).filter(Boolean).join(" · ");
+    const unrated = opts.unrated;
     return `
-      <article class="card film-card" data-card="${film.id}">
-        <div class="poster" style="${posterStyle}" role="img" aria-label=""></div>
-        <h3 class="film-title">${escapeHtml(film.title)}</h3>
-        <div class="meta">
-          <span class="genre-pill">${escapeHtml(genre)}</span>
-          <span>${runtime}</span>
+      <article class="card row-card${unrated ? " unrated" : ""}">
+        <div class="row-copy">
+          <h3>${escapeHtml(film.title)}</h3>
+          <p>${escapeHtml(meta)}</p>
+          ${opts.actions || ""}
+          ${unrated || opts.rates ? renderRates(film, true) : ""}
         </div>
-        <div class="public-rating">${fmtVote(film.vote_average)} <span class="muted">(öffentlich)</span></div>
-        <p class="note-label">Deine Note</p>
-        <div class="notes">${notes}</div>
-        <div class="card-actions">
-          <button type="button" class="btn" data-act="richtung" data-id="${film.id}">Die Richtung stimmt</button>
-          <button type="button" class="btn btn-primary" data-act="choose" data-id="${film.id}">Film wählen</button>
-          <button type="button" class="btn btn-ghost" data-act="engere" data-id="${film.id}">Engere Auswahl</button>
-        </div>
+        <div class="poster" style="${posterStyle(film)}"></div>
       </article>
     `;
   }
 
-  function renderCoin() {
-    const title = state.coinSpinning
-      ? ""
-      : `<div class="winner-title">${escapeHtml(state.coinWinner ? state.coinWinner.title : "")}</div>
-         <button type="button" class="btn btn-primary" data-act="confirm-coin">bestätigen</button>`;
-    const leftovers = state.coinSpinning
-      ? ""
-      : state.coinLeftovers.map((film) => `
-          <div class="card leftover">
-            <strong>${escapeHtml(film.title)}</strong>
-            <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${film.id}">Film wählen</button>
-          </div>
-        `).join("");
+  function renderLists() {
+    const badge = unratedCount();
+    const tabs = [
+      ["watch", "Vorgemerkt"],
+      ["rated", "Bewertete"],
+      ["tags", "Tags"],
+      ["seen", "Angesehen"],
+    ].map(([id, label]) => `
+      <button type="button" class="tab" data-act="list-tab" data-id="${id}" aria-selected="${state.listTab === id}">
+        ${label}${id === "seen" && badge ? `<span class="badge">${badge}</span>` : ""}
+      </button>
+    `).join("");
     return `
-      <section class="coin-screen">
-        <div class="suggest-bar">
-          <button type="button" class="btn btn-compact" data-act="back-coin">Zurück</button>
-        </div>
-        <button type="button" class="coin${state.coinSpinning ? " spin" : ""}" data-act="confirm-coin" aria-label="Münze bestätigen">WDQ</button>
-        ${title}
-        <div class="leftovers">${leftovers}</div>
+      <div class="tabs">${tabs}</div>
+      ${state.listTab === "watch" ? renderWatchTab() : ""}
+      ${state.listTab === "rated" ? renderRatedTab() : ""}
+      ${state.listTab === "tags" ? renderTagsTab() : ""}
+      ${state.listTab === "seen" ? renderSeenTab() : ""}
+    `;
+  }
+
+  function renderFilmTagChips(film) {
+    const have = tagsFor(film.id);
+    return customTags().map((t) => `
+      <button type="button" class="chip" data-act="film-tag" data-id="${escapeHtml(filmId(film))}" data-tag="${t.id}" aria-pressed="${have.includes(t.id)}">${escapeHtml(t.name)}</button>
+    `).join("");
+  }
+
+  function renderWatchTab() {
+    const q = state.search.trim().toLowerCase();
+    const listed = watchlistFilms();
+    const listedMatch = q
+      ? listed.filter((f) => f.title.toLowerCase().includes(q))
+      : [];
+    const chips = q
+      ? state.catalog
+        .filter((f) => f.title.toLowerCase().includes(q))
+        .filter((f) => !listed.some((x) => filmId(x) === filmId(f)))
+        .slice(0, 8)
+      : [];
+    const rest = q
+      ? listed.filter((f) => !listedMatch.some((x) => filmId(x) === filmId(f)))
+      : listed;
+    const ordered = listedMatch.concat(rest);
+    const rows = ordered.map((film) => {
+      const already = q && film.title.toLowerCase().includes(q);
+      return renderListRow(film, {
+        extra: already ? "schon vorgemerkt" : "",
+        actions: `
+          <div class="row-actions">
+            <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Anschauen</button>
+            <button type="button" class="btn btn-compact" data-act="watch-remove" data-id="${escapeHtml(filmId(film))}">Streichen</button>
+            ${renderFilmTagChips(film)}
+          </div>
+        `,
+      });
+    }).join("");
+    return `
+      <div class="search-wrap">
+        <input data-act="search" placeholder="Film suchen" value="${escapeHtml(state.search)}">
+        ${state.search ? `<button type="button" class="search-clear" data-act="search-clear" aria-label="Suche leeren">${ICONS.close}</button>` : ""}
+      </div>
+      <div class="suggest-chips">
+        ${chips.map((f) => `<button type="button" class="chip" data-act="watch-add" data-id="${escapeHtml(filmId(f))}">${escapeHtml(f.title)}</button>`).join("")}
+      </div>
+      <section class="stack">${rows || `<p class="hint">Noch nichts vorgemerkt.</p>`}</section>
+    `;
+  }
+
+  function renderRatedTab() {
+    const all = ratings();
+    const chips = RATE_KEYS.map((r) => `
+      <button type="button" class="chip" data-act="rated-filter" data-id="${r.id}" aria-pressed="${state.ratedFilter === r.id}">${r.label}</button>
+    `).join("");
+    const films = state.catalog.filter((f) => all[filmId(f)] === state.ratedFilter);
+    const rows = films.map((film) => renderListRow(film, { rates: true })).join("");
+    return `
+      <div class="suggest-chips" style="margin-top:12px">${chips}</div>
+      <section class="stack">${rows || `<p class="hint">Keine Filme mit dieser Bewertung.</p>`}</section>
+    `;
+  }
+
+  function renderTagsTab() {
+    const tags = customTags();
+    const chips = tags.map((t) => `
+      <button type="button" class="chip" data-act="tag-filter" data-id="${t.id}" aria-pressed="${state.tagFilter.includes(t.id)}">${escapeHtml(t.name)}</button>
+    `).join("");
+    const selected = state.tagFilter.slice().sort();
+    const map = filmTags();
+    const films = selected.length
+      ? state.catalog.filter((f) => {
+        const have = (map[filmId(f)] || []).slice().sort();
+        return have.length === selected.length && have.every((id, i) => id === selected[i]);
+      })
+      : [];
+    const rows = films.map((film) => renderListRow(film, {})).join("");
+    return `
+      <div class="suggest-chips" style="margin-top:12px">${chips || `<span class="hint">Noch keine eigenen Tags</span>`}</div>
+      <section class="stack">${selected.length ? (rows || `<p class="hint">Keine Filme mit genau diesen Tags.</p>`) : `<p class="hint">Tags wählen, um Filme zu sehen.</p>`}</section>
+    `;
+  }
+
+  function renderSeenTab() {
+    const all = ratings();
+    let rows = history().slice().sort((a, b) => b.at - a.at);
+    if (state.seenOnlyUnrated) rows = rows.filter((row) => !all[String(row.id)]);
+    const cards = rows.map((row) => {
+      const film = findFilm(row.id) || { id: row.id, title: row.title, genre: "Film", minutes: 0, poster: "", color: "#1d4f91" };
+      const unrated = !all[String(row.id)];
+      return renderListRow(film, {
+        gesehen: true,
+        unrated,
+        extra: unrated ? "noch keine Note" : RATE_KEYS.find((r) => r.id === all[String(row.id)])?.label,
+      });
+    }).join("");
+    return `
+      <div class="suggest-chips" style="margin-top:12px">
+        <button type="button" class="chip" data-act="seen-unrated" aria-pressed="${state.seenOnlyUnrated}">nur unbewertet</button>
+        <button type="button" class="chip" data-act="seen-all" aria-pressed="${!state.seenOnlyUnrated}">alle</button>
+      </div>
+      <section class="stack">${cards || `<p class="hint">Noch keine gesehenen Filme.</p>`}</section>
+    `;
+  }
+
+  function renderTagsManage() {
+    const tags = customTags();
+    const rows = tags.map((t) => `
+      <div class="card menu-card">
+        <span class="tag-pill" style="background:${t.color}">${escapeHtml(t.name)}</span>
+        <span></span>
+        <button type="button" class="menu-side danger" data-act="ask-delete-tag" data-id="${t.id}" aria-label="Tag löschen">×</button>
+      </div>
+    `).join("");
+    const swatches = TAG_COLORS.map((c) => `
+      <button type="button" class="swatch" data-act="tag-color" data-color="${c}" aria-pressed="${state.newTagColor === c}" style="background:${c}"></button>
+    `).join("");
+    return `
+      <h2 class="screen-title">Tags verwalten</h2>
+      <section class="stack">${rows || `<p class="hint">Noch keine eigenen Tags.</p>`}</section>
+      <section class="card auth-card plus-row">
+        <label class="field">
+          <span>Neuer Tag</span>
+          <input data-act="tag-name" value="${escapeHtml(state.newTagName)}" maxlength="24" placeholder="Name">
+        </label>
+        <div class="color-row" style="margin-top:10px">${swatches}</div>
+        <button type="button" class="btn btn-primary" data-act="tag-add" style="margin-top:12px">Plus: Tag anlegen</button>
       </section>
     `;
   }
 
   function renderDone() {
-    const p = state.providers || { stream: [], rent: [], buy: [], note: "Anbieter werden geladen …" };
-    const block = (label, items) => `
-      <article class="card card-pad">
-        <h3>${label}</h3>
-        ${items.length ? `<ul>${items.map((n) => `<li>${escapeHtml(n)}</li>`).join("")}</ul>` : `<p class="hint">Keine Einträge</p>`}
-      </article>
-    `;
     return `
-      <section class="done-hero card card-pad">
+      <section class="card done-hero">
         <h2>Heute: ${escapeHtml(state.chosen ? state.chosen.title : "")}</h2>
-        ${p.note ? `<p class="hint">${escapeHtml(p.note)}</p>` : ""}
+        <p class="hint">Liegt unter Angesehen. Standard-Tag: gesehen.</p>
       </section>
-      <section class="providers">
-        ${block("Stream", p.stream)}
-        ${block("Leihen", p.rent)}
-        ${block("Kaufen", p.buy)}
-      </section>
-      <button type="button" class="btn btn-primary home-cta" data-act="new-round">Neue Runde</button>
+      <button type="button" class="btn btn-primary" data-act="new-round" style="margin-top:16px">Neue Runde</button>
     `;
-  }
-
-  function escapeHtml(value) {
-    return String(value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
   }
 
   function render() {
-    updateChip();
-    if (state.screen === "accounts") app.innerHTML = renderAccounts();
+    updateHeader();
+    if (state.screen === "login") app.innerHTML = renderLogin();
+    else if (state.screen === "profiles") app.innerHTML = renderProfiles();
+    else if (state.screen === "profile-add") app.innerHTML = renderProfileAdd();
     else if (state.screen === "home") app.innerHTML = renderHome();
     else if (state.screen === "suggest") app.innerHTML = renderSuggest();
-    else if (state.screen === "coin") app.innerHTML = renderCoin();
+    else if (state.screen === "lists") app.innerHTML = renderLists();
+    else if (state.screen === "tags") app.innerHTML = renderTagsManage();
     else if (state.screen === "done") app.innerHTML = renderDone();
   }
 
-  function findFilm(id) {
-    const nid = Number(id);
-    return (
-      state.currentPicks.find((f) => Number(f.id) === nid)
-      || state.shortlist.find((f) => Number(f.id) === nid)
-      || state.coinLeftovers.find((f) => Number(f.id) === nid)
-      || (state.coinWinner && Number(state.coinWinner.id) === nid ? state.coinWinner : null)
-      || state.catalog.find((f) => Number(f.id) === nid)
-    );
+  function goBack() {
+    if (state.screen === "profile-add") state.screen = "profiles";
+    else if (state.screen === "suggest" || state.screen === "lists" || state.screen === "tags" || state.screen === "done") {
+      state.screen = "home";
+    }
+    render();
   }
 
-  async function chooseFilm(film) {
-    if (!film) return;
-    addHistory(film);
-    state.chosen = film;
-    resetSession();
-    state.screen = "done";
-    state.providers = { stream: [], rent: [], buy: [], note: "Anbieter werden geladen …" };
-    render();
-    burstConfetti();
-    state.providers = await loadProviders(film);
+  function submitAuth() {
+    const login = state.loginName.trim();
+    const password = state.loginPass;
+    if (!login || !password) {
+      state.loginError = "Bitte Login und Passwort eingeben.";
+      render();
+      return;
+    }
+    const list = users();
+    if (state.authMode === "register") {
+      if (list.some((u) => u.login.toLowerCase() === login.toLowerCase())) {
+        state.loginError = "Dieser Login ist schon vergeben.";
+        render();
+        return;
+      }
+      const user = { id: `u-${Date.now()}`, login, password };
+      list.push(user);
+      saveUsers(list);
+      state.user = user;
+      state.profile = null;
+      state.screen = "profiles";
+      state.loginError = "";
+      persistSession();
+      render();
+      return;
+    }
+    const user = list.find((u) => u.login.toLowerCase() === login.toLowerCase() && u.password === password);
+    if (!user) {
+      state.loginError = "Login oder Passwort stimmt nicht.";
+      render();
+      return;
+    }
+    state.user = user;
+    state.profile = null;
+    state.screen = "profiles";
+    state.loginError = "";
+    persistSession();
     render();
   }
 
   function startSuggestions() {
     state.currentPicks = pickThree();
-    if (state.currentPicks.length < 1) {
-      state.currentPicks = pickThree();
-    }
     state.screen = "suggest";
     render();
-    hydrateVisible();
   }
 
-  async function onSuggestClick(btn) {
-    flashButton(btn);
-    burstConfetti();
-    await loadCatalog();
-    startSuggestions();
+  function skipCurrent() {
+    for (const film of state.currentPicks) state.sessionSkip.add(filmId(film));
   }
 
-  function startCoin() {
-    const candidates = uniqueById(state.shortlist.concat(state.currentPicks));
-    const pool = candidates.length ? candidates : pickThree();
-    state.preFlipPicks = state.currentPicks.slice();
-    state.preFlipShortlist = state.shortlist.slice();
-    const winner = pool[Math.floor(Math.random() * pool.length)];
-    state.coinWinner = winner;
-    state.coinLeftovers = pool.filter((f) => Number(f.id) !== Number(winner.id));
-    state.coinSpinning = true;
-    state.screen = "coin";
+  function replacePick(oldId) {
+    const exclude = state.currentPicks.concat(state.shortlist).map(filmId);
+    const next = pickFilms(1, exclude)[0];
+    state.currentPicks = state.currentPicks.map((film) => (
+      filmId(film) === filmId(oldId) ? (next || film) : film
+    ));
+  }
+
+  function addWatch(film) {
+    if (!film) return false;
+    const list = watchlist();
+    if (list.some((row) => String(row.id) === filmId(film))) return false;
+    list.unshift({ id: filmId(film), at: Date.now() });
+    saveWatchlist(list);
+    return true;
+  }
+
+  function chooseFilm(film) {
+    if (!film) return;
+    const hid = filmId(film);
+    const rows = history().filter((row) => String(row.id) !== hid);
+    rows.unshift({ id: hid, title: film.title, at: Date.now() });
+    saveHistory(rows.slice(0, 300));
+    saveWatchlist(watchlist().filter((row) => String(row.id) !== hid));
+    resetSessionPicks();
+    state.chosen = film;
+    state.screen = "done";
     render();
-    window.setTimeout(() => {
-      state.coinSpinning = false;
-      if (state.screen === "coin") render();
-    }, 3000);
+    burstConfetti();
   }
 
   app.addEventListener("click", async (event) => {
@@ -781,21 +1097,75 @@
     if (!t) return;
     const act = t.dataset.act;
 
-    if (act === "account") {
-      state.account = t.dataset.id;
-      resetSession();
+    if (act === "auth-toggle") {
+      state.authMode = state.authMode === "login" ? "register" : "login";
+      state.loginError = "";
+      render();
+      return;
+    }
+    if (act === "auth-submit") {
+      submitAuth();
+      return;
+    }
+    if (act === "pick-profile") {
+      const profile = profilesOf(state.user.id).find((p) => p.id === t.dataset.id);
+      if (!profile) return;
+      state.profile = profile;
+      resetSessionPicks();
       state.screen = "home";
+      persistSession();
       render();
       loadCatalog();
       return;
     }
-    if (act === "toggle-dauer") {
-      state.filters.dauerOn = !state.filters.dauerOn;
+    if (act === "add-profile") {
+      state.addName = "";
+      state.addAvatar = "av1";
+      state.screen = "profile-add";
       render();
       return;
     }
-    if (act === "toggle-genre") {
-      state.filters.genreOn = !state.filters.genreOn;
+    if (act === "add-avatar") {
+      state.addAvatar = t.dataset.id;
+      render();
+      return;
+    }
+    if (act === "save-profile") {
+      const name = state.addName.trim();
+      if (!name) return;
+      const list = profilesOf(state.user.id);
+      list.push({ id: `p-${Date.now()}`, name, avatar: state.addAvatar });
+      saveProfiles(state.user.id, list);
+      state.screen = "profiles";
+      render();
+      return;
+    }
+    if (act === "ask-delete-profile") {
+      const id = t.dataset.id;
+      openModal(`
+        <div class="card modal-card">
+          <h2>Profil löschen</h2>
+          <p class="hint">Bitte das Passwort von ${escapeHtml(state.user.login)} bestätigen.</p>
+          <label class="field"><span>Passwort</span><input data-act="del-pass" type="password"></label>
+          <div class="modal-actions">
+            <button type="button" class="btn" data-act="modal-close">Abbrechen</button>
+            <button type="button" class="btn btn-primary" data-act="delete-profile" data-id="${id}">Löschen</button>
+          </div>
+        </div>
+      `);
+      return;
+    }
+    if (act === "modal-close") {
+      closeModal();
+      return;
+    }
+    if (act === "toggle-filters") {
+      state.filtersOpen = !state.filtersOpen;
+      render();
+      return;
+    }
+    if (act === "toggle-dauer") {
+      state.filters.dauerOn = !state.filters.dauerOn;
       render();
       return;
     }
@@ -806,126 +1176,285 @@
       } else {
         state.filters.genres.push(g);
       }
-      if (!state.filters.genreOn) state.filters.genreOn = true;
+      render();
+      return;
+    }
+    if (act === "filter-tag") {
+      const id = t.dataset.id;
+      if (state.filters.tags.includes(id)) {
+        state.filters.tags = state.filters.tags.filter((x) => x !== id);
+      } else {
+        state.filters.tags.push(id);
+      }
       render();
       return;
     }
     if (act === "suggest") {
-      await onSuggestClick(t);
+      await loadCatalog();
+      startSuggestions();
       return;
     }
-    if (act === "save-tmdb") {
-      const input = app.querySelector("[data-act=tmdb-input]");
-      const value = input ? input.value.trim() : "";
-      if (value) localStorage.setItem("wdq.tmdbKey", value);
-      else localStorage.removeItem("wdq.tmdbKey");
-      await loadCatalog();
+    if (act === "lists") {
+      state.listTab = "watch";
+      state.search = "";
+      state.screen = "lists";
+      render();
+      return;
+    }
+    if (act === "tags") {
+      state.screen = "tags";
       render();
       return;
     }
     if (act === "back") {
-      skipCurrentPicks();
-      state.screen = "home";
+      goBack();
+      return;
+    }
+    if (act === "switch") {
+      state.profile = null;
+      state.screen = "profiles";
+      persistSession();
       render();
       return;
     }
-    if (act === "reroll") {
-      skipCurrentPicks();
-      state.currentPicks = pickThree();
-      render();
-      hydrateVisible();
-      return;
-    }
-    if (act === "coin") {
-      startCoin();
-      return;
-    }
-    if (act === "back-coin") {
-      state.currentPicks = state.preFlipPicks || state.currentPicks;
-      state.shortlist = state.preFlipShortlist || state.shortlist;
-      state.screen = "suggest";
-      state.coinSpinning = false;
-      render();
-      return;
-    }
-    if (act === "confirm-coin") {
-      if (state.coinSpinning) return;
-      chooseFilm(state.coinWinner);
-      return;
-    }
-    if (act === "unshort") {
-      const id = Number(t.dataset.id);
-      state.shortlist = state.shortlist.filter((f) => Number(f.id) !== id);
-      state.sessionBlocked.delete(id);
+    if (act === "logout") {
+      state.user = null;
+      state.profile = null;
+      state.screen = "login";
+      persistSession();
       render();
       return;
     }
     if (act === "rate") {
-      setRating(t.dataset.id, Number(t.dataset.n));
+      setRating(t.dataset.id, t.dataset.n);
       render();
       return;
     }
     if (act === "richtung") {
-      const film = findFilm(t.dataset.id);
-      if (!film) return;
-      state.sessionBlocked.add(Number(film.id));
-      replacePick(film.id);
+      state.sessionBlocked.add(filmId(t.dataset.id));
+      replacePick(t.dataset.id);
       render();
       return;
     }
     if (act === "engere") {
       const film = findFilm(t.dataset.id);
       if (!film) return;
-      const card = t.closest("[data-card]");
-      if (!state.shortlist.some((x) => Number(x.id) === Number(film.id))) {
-        state.shortlist.push(film);
-      }
-      state.sessionBlocked.add(Number(film.id));
-      if (card) {
-        card.classList.add("fly-up");
-        window.setTimeout(() => {
-          replacePick(film.id);
-          render();
-        }, 520);
-      } else {
-        replacePick(film.id);
+      if (!state.shortlist.some((x) => filmId(x) === filmId(film))) state.shortlist.push(film);
+      state.sessionBlocked.add(filmId(film));
+      replacePick(film.id);
+      render();
+      return;
+    }
+    if (act === "unshort") {
+      state.shortlist = state.shortlist.filter((f) => filmId(f) !== filmId(t.dataset.id));
+      state.sessionBlocked.delete(filmId(t.dataset.id));
+      render();
+      return;
+    }
+    if (act === "watch-add") {
+      const film = findFilm(t.dataset.id);
+      if (addWatch(film)) {
         render();
+        showSnack(`${film.title} ist hinzugefügt`);
       }
       return;
     }
+    if (act === "film-tag") {
+      const map = filmTags();
+      const id = String(t.dataset.id);
+      const tag = t.dataset.tag;
+      const have = new Set(map[id] || []);
+      if (have.has(tag)) have.delete(tag);
+      else have.add(tag);
+      map[id] = Array.from(have);
+      saveFilmTags(map);
+      render();
+      return;
+    }
+    if (act === "watch-remove") {
+      saveWatchlist(watchlist().filter((row) => String(row.id) !== filmId(t.dataset.id)));
+      render();
+      return;
+    }
     if (act === "choose") {
-      flashButton(t);
       chooseFilm(findFilm(t.dataset.id));
       return;
     }
     if (act === "new-round") {
-      resetSession();
+      resetSessionPicks();
       state.chosen = null;
-      state.providers = null;
       state.screen = "home";
       render();
+      return;
+    }
+    if (act === "list-tab") {
+      state.listTab = t.dataset.id;
+      render();
+      return;
+    }
+    if (act === "search-clear") {
+      state.search = "";
+      render();
+      return;
+    }
+    if (act === "rated-filter") {
+      state.ratedFilter = t.dataset.id;
+      render();
+      return;
+    }
+    if (act === "tag-filter") {
+      const id = t.dataset.id;
+      if (state.tagFilter.includes(id)) state.tagFilter = state.tagFilter.filter((x) => x !== id);
+      else state.tagFilter.push(id);
+      render();
+      return;
+    }
+    if (act === "seen-unrated") {
+      state.seenOnlyUnrated = true;
+      render();
+      return;
+    }
+    if (act === "seen-all") {
+      state.seenOnlyUnrated = false;
+      render();
+      return;
+    }
+    if (act === "tag-color") {
+      state.newTagColor = t.dataset.color;
+      render();
+      return;
+    }
+    if (act === "tag-add") {
+      const name = state.newTagName.trim();
+      if (!name) return;
+      const list = customTags();
+      list.push({ id: `tag-${Date.now()}`, name, color: state.newTagColor });
+      saveTags(list);
+      state.newTagName = "";
+      render();
+      return;
+    }
+    if (act === "ask-delete-tag") {
+      const id = t.dataset.id;
+      openModal(`
+        <div class="card modal-card">
+          <h2>Tag löschen</h2>
+          <p>Bist du dir wirklich sicher, dass der Tag weg muss?</p>
+          <div class="modal-actions">
+            <button type="button" class="btn" data-act="modal-close">Abbrechen</button>
+            <button type="button" class="btn btn-primary" data-act="delete-tag" data-id="${id}">Löschen</button>
+          </div>
+        </div>
+      `);
+      return;
+    }
+  });
+
+  app.addEventListener("keydown", (event) => {
+    const act = event.target.dataset && event.target.dataset.act;
+    if (event.key === "Enter" && (act === "login-name" || act === "login-pass")) {
+      event.preventDefault();
+      submitAuth();
     }
   });
 
   app.addEventListener("input", (event) => {
     const t = event.target;
-    if (t.dataset.act === "dauer") {
+    const act = t.dataset.act;
+    if (act === "login-name") state.loginName = t.value;
+    if (act === "login-pass") state.loginPass = t.value;
+    if (act === "add-name") state.addName = t.value;
+    if (act === "tag-name") state.newTagName = t.value;
+    if (act === "search") {
+      state.search = t.value;
+      render();
+      const query = app.querySelector("[data-act=search]");
+      if (query) {
+        query.focus();
+        const len = query.value.length;
+        query.setSelectionRange(len, len);
+      }
+    }
+    if (act === "dauer") {
       state.filters.dauer = Number(t.value);
+      state.filters.dauerOn = true;
       t.style.setProperty("--fill", `${((state.filters.dauer - 60) / 150) * 100}%`);
-      const label = t.closest(".slider-wrap")?.querySelector("strong");
-      if (label) label.textContent = `${state.filters.dauer} Min`;
+      t.classList.remove("idle");
+      const chip = t.parentElement.querySelector("[data-act=toggle-dauer]");
+      if (chip) {
+        chip.textContent = `${state.filters.dauer} Min.`;
+        chip.classList.add("on");
+      }
+      const sum = app.querySelector(".filter-summary");
+      if (sum) sum.textContent = filterSummary();
+      else render();
     }
   });
 
-  accountChip.addEventListener("click", () => {
-    state.account = null;
-    resetSession();
-    state.chosen = null;
-    state.providers = null;
-    state.screen = "accounts";
-    render();
+  headerActions.addEventListener("click", (event) => {
+    const t = event.target.closest("[data-act]");
+    if (!t) return;
+    if (t.dataset.act === "back") goBack();
+    if (t.dataset.act === "switch") {
+      state.profile = null;
+      state.screen = "profiles";
+      persistSession();
+      render();
+    }
+    if (t.dataset.act === "logout") {
+      state.user = null;
+      state.profile = null;
+      state.screen = "login";
+      persistSession();
+      render();
+    }
   });
 
+  modalEl.addEventListener("click", (event) => {
+    if (event.target === modalEl) {
+      closeModal();
+      return;
+    }
+    const t = event.target.closest("[data-act]");
+    if (!t) return;
+    if (t.dataset.act === "modal-close") {
+      closeModal();
+      return;
+    }
+    if (t.dataset.act === "delete-profile") {
+      const input = modalEl.querySelector("[data-act=del-pass]");
+      const value = input ? input.value : "";
+      if (value !== state.user.password) {
+        const hint = modalEl.querySelector(".hint");
+        if (hint) hint.textContent = "Passwort stimmt nicht.";
+        return;
+      }
+      const id = t.dataset.id;
+      saveProfiles(state.user.id, profilesOf(state.user.id).filter((p) => p.id !== id));
+      if (state.profile && state.profile.id === id) state.profile = null;
+      closeModal();
+      state.screen = "profiles";
+      persistSession();
+      render();
+      return;
+    }
+    if (t.dataset.act === "delete-tag") {
+      const id = t.dataset.id;
+      saveTags(customTags().filter((x) => x.id !== id));
+      const map = filmTags();
+      for (const key of Object.keys(map)) {
+        map[key] = (map[key] || []).filter((x) => x !== id);
+      }
+      saveFilmTags(map);
+      state.filters.tags = state.filters.tags.filter((x) => x !== id);
+      state.tagFilter = state.tagFilter.filter((x) => x !== id);
+      closeModal();
+      render();
+    }
+  });
+
+  seedIfNeeded();
+  restoreSession();
   render();
   loadCatalog();
 })();
