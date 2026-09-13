@@ -20,6 +20,20 @@
     <div id="header-actions" class="header-actions"></div>
   </header>
   <main id="app"></main>
+  <nav id="site-footer" class="site-footer" aria-label="Hauptnavigation" hidden>
+    <button type="button" data-nav="suggest" aria-label="Vorschlagen">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="7" height="14" rx="1.5" fill="currentColor" opacity=".45"/><rect x="8" y="4" width="7" height="16" rx="1.5" fill="currentColor" opacity=".7"/><rect x="13" y="3" width="8" height="18" rx="1.5" fill="currentColor"/></svg>
+      <span>Vorschlagen</span>
+    </button>
+    <button type="button" data-nav="lists" aria-label="Listen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9"/></svg>
+      <span>Listen</span>
+    </button>
+    <button type="button" data-nav="tags" aria-label="Verwalten">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 13 13 4h7v7l-9 9z"/><circle cx="16.5" cy="7.5" r="1.2" fill="currentColor"/></svg>
+      <span>Verwalten</span>
+    </button>
+  </nav>
   <div id="snackbar" class="snackbar" hidden></div>
   <div id="modal" class="modal" hidden></div>
   <canvas id="confetti" aria-hidden="true"></canvas>

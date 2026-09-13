@@ -246,10 +246,16 @@
 
   const app = document.getElementById("app");
   const headerActions = document.getElementById("header-actions");
+  const footer = document.getElementById("site-footer");
   const snackbar = document.getElementById("snackbar");
   const modalEl = document.getElementById("modal");
   const confettiCanvas = document.getElementById("confetti");
   const ctx = confettiCanvas.getContext("2d");
+  const desktopNavMq = window.matchMedia("(min-width: 768px), (hover: hover) and (pointer: fine)");
+
+  function isDesktopNav() {
+    return desktopNavMq.matches;
+  }
 
   function loadJson(key, fallback) {
     try {
@@ -618,6 +624,37 @@
       items.push(`<button type="button" class="icon-btn" data-act="logout" aria-label="Ausloggen" title="Ausloggen">${ICONS.logout}</button>`);
     }
     headerActions.innerHTML = items.join("");
+  }
+
+  function setPhoneFooterOpen(open) {
+    if (isDesktopNav()) {
+      footer.classList.add("is-visible");
+      document.body.classList.add("footer-open");
+      return;
+    }
+    footer.classList.toggle("is-visible", open);
+    document.body.classList.toggle("footer-open", open);
+  }
+
+  function updateFooter() {
+    const show = !!(state.user && state.profile);
+    footer.hidden = !show;
+    document.body.classList.toggle("has-footer", show);
+    if (!show) {
+      footer.classList.remove("is-visible");
+      document.body.classList.remove("footer-open");
+      return;
+    }
+    const current = (
+      state.screen === "suggest" ? "suggest"
+      : state.screen === "lists" ? "lists"
+      : state.screen === "tags" ? "tags"
+      : ""
+    );
+    footer.querySelectorAll("[data-nav]").forEach((btn) => {
+      btn.setAttribute("aria-current", btn.dataset.nav === current ? "page" : "false");
+    });
+    if (isDesktopNav()) setPhoneFooterOpen(true);
   }
 
   function renderLogin() {
@@ -1003,6 +1040,7 @@
 
   function render() {
     updateHeader();
+    updateFooter();
     if (state.screen === "login") app.innerHTML = renderLogin();
     else if (state.screen === "profiles") app.innerHTML = renderProfiles();
     else if (state.screen === "profile-add") app.innerHTML = renderProfileAdd();
@@ -1069,6 +1107,7 @@
     state.currentPicks = pickThree();
     state.screen = "suggest";
     render();
+    setPhoneFooterOpen(false);
   }
 
   function skipCurrent() {
@@ -1472,6 +1511,61 @@
       closeModal();
       render();
     }
+  });
+
+  footer.addEventListener("click", async (event) => {
+    const btn = event.target.closest("[data-nav]");
+    if (!btn || !state.profile) return;
+    const nav = btn.dataset.nav;
+    if (nav === "suggest") {
+      await loadCatalog();
+      startSuggestions();
+      return;
+    }
+    if (nav === "lists") {
+      state.listTab = "watch";
+      state.search = "";
+      state.screen = "lists";
+      render();
+      return;
+    }
+    if (nav === "tags") {
+      state.screen = "tags";
+      render();
+    }
+  });
+
+  let lastScrollY = window.scrollY;
+  let lastTouchY = null;
+
+  function onScrollDir(delta) {
+    if (!state.profile || footer.hidden || isDesktopNav()) return;
+    if (delta < -6) setPhoneFooterOpen(true);
+    else if (delta > 6) setPhoneFooterOpen(false);
+  }
+
+  window.addEventListener("scroll", () => {
+    const y = window.scrollY;
+    onScrollDir(y - lastScrollY);
+    lastScrollY = y;
+  }, { passive: true });
+
+  window.addEventListener("touchstart", (event) => {
+    lastTouchY = event.touches[0] ? event.touches[0].clientY : null;
+  }, { passive: true });
+
+  window.addEventListener("touchmove", (event) => {
+    if (lastTouchY == null || !event.touches[0]) return;
+    if (footer.contains(event.target)) return;
+    const y = event.touches[0].clientY;
+    onScrollDir(lastTouchY - y);
+    lastTouchY = y;
+  }, { passive: true });
+
+  desktopNavMq.addEventListener("change", () => {
+    if (!state.profile || footer.hidden) return;
+    if (isDesktopNav()) setPhoneFooterOpen(true);
+    else setPhoneFooterOpen(state.screen !== "suggest");
   });
 
   seedIfNeeded();

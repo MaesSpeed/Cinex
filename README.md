@@ -25,5 +25,6 @@ Karten zeigen echte Filmplakate aus `films.json` (TMDB-Bild-URLs, **ohne API-Sch
 3. Hauptmenü: Filme vorschlagen, Filter, Meine Filmlisten, Tags verwalten
 4. Vorschläge mit Postern, Noten-Icons und Vorgemerkt
 5. Filmlisten: Vorgemerkt, Bewertete, Tags, Angesehen
+6. Footer (genau 3): **Vorschlagen** | **Listen** | **Verwalten**. Am Desktop immer sichtbar. Am Handy zuerst zugeklappt, erscheint beim Hochscrollen, verschwindet beim Runterscrollen. Account/Logout bleiben im Header.
 
 Jeder Profilstand (Listen, Historie, Bewertungen, eigene Tags) liegt getrennt in `localStorage`.
