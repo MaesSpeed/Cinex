@@ -970,7 +970,7 @@
     root: null,
     ring: null,
     covers: null,
-    metrics: { rx: 128, rz: 74 },
+    metrics: { rx: 128, rise: 76 },
     unbind: null,
     reduced: false,
   };
@@ -995,9 +995,10 @@
 
   function carouselMetrics(root) {
     const w = (root && root.clientWidth) || 340;
-    const rx = Math.round(Math.min(146, Math.max(112, w * 0.41)));
-    const rz = Math.round(rx * 0.56);
-    return { rx, rz };
+    const compact = document.body.classList.contains("login-focus");
+    const rx = Math.round(Math.min(w * 0.47, (w / 2) - 12) * (compact ? 0.64 : 1));
+    const rise = Math.round(rx * (compact ? 0.5 : 0.6));
+    return { rx, rise };
   }
 
   function setCover(el, film) {
@@ -1010,20 +1011,20 @@
   function paintLoginCarousel() {
     const n = loginUi.posters.length;
     if (!n || !loginUi.items.length) return;
-    const { rx, rz } = loginUi.metrics;
+    const { rx, rise } = loginUi.metrics;
     const ang = (loginUi.angle * Math.PI) / 180;
     for (let i = 0; i < n; i += 1) {
       const t = ((i / n) * Math.PI * 2) + ang;
       const x = Math.sin(t) * rx;
-      const z = Math.cos(t) * rz;
-      const depth = (z + rz) / (2 * rz);
-      const scale = 0.68 + (depth * 0.38);
-      const hideFront = depth > 0.91 ? 0 : 1;
-      const opacity = hideFront * (0.48 + (depth * 0.52));
+      const y = -((1 - Math.cos(t)) / 2) * rise;
+      const depth = (Math.cos(t) + 1) / 2;
+      const scale = 0.5 + (depth * 0.52);
+      const hideFront = depth > 0.86 ? 0 : 1;
+      const opacity = hideFront * (0.58 + (depth * 0.42));
       const el = loginUi.items[i];
-      el.style.transform = `translate3d(${x.toFixed(2)}px, 0, ${z.toFixed(2)}px) scale(${scale.toFixed(3)})`;
+      el.style.transform = `translate(-50%, -50%) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${scale.toFixed(3)})`;
       el.style.opacity = String(opacity.toFixed(3));
-      el.style.zIndex = String(120 + Math.round(z));
+      el.style.zIndex = String(40 + Math.round(depth * 80));
     }
     const step = 360 / n;
     let idx = Math.round(((-loginUi.angle / step) % n));
@@ -1331,10 +1332,12 @@
     if (!form) return;
     form.addEventListener("focusin", () => {
       document.body.classList.add("login-focus");
+      onCarouselResize();
     });
     form.addEventListener("focusout", (ev) => {
       if (!form.contains(ev.relatedTarget)) {
         document.body.classList.remove("login-focus");
+        onCarouselResize();
       }
     });
   }

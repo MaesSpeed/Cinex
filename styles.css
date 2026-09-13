@@ -815,6 +815,7 @@ body.on-login {
 }
 
 body.on-login #app {
+  width: min(420px, 100%);
   padding-top: 8px;
   padding-bottom: 16px;
 }
@@ -827,8 +828,8 @@ body.on-login #app {
 
 .login-carousel {
   position: relative;
-  height: 208px;
-  margin: 0 -8px 12px;
+  height: 204px;
+  margin: 0 -10px 12px;
   overflow: hidden;
   touch-action: none;
   user-select: none;
@@ -838,24 +839,18 @@ body.on-login #app {
 
 .login-carousel-inner {
   position: relative;
-  height: 208px;
-  perspective: 780px;
-  -webkit-perspective: 780px;
-  perspective-origin: 50% 60%;
-  transform-style: preserve-3d;
+  height: 100%;
   transform-origin: 50% 100%;
-  transition: transform 0.28s ease;
 }
 
 .login-carousel-stage {
   position: absolute;
   left: 50%;
-  bottom: 66px;
+  bottom: 58px;
   width: 0;
   height: 0;
-  transform: rotateX(67deg);
-  transform-style: preserve-3d;
-  transform-origin: 0 0;
+  z-index: 1;
+  transition: bottom 0.28s ease;
 }
 
 .login-carousel-ring {
@@ -864,23 +859,21 @@ body.on-login #app {
   top: 0;
   width: 0;
   height: 0;
-  transform-style: preserve-3d;
 }
 
 .login-ring-item {
   position: absolute;
   left: 0;
   top: 0;
-  width: 15px;
-  height: 22px;
-  margin: -11px -7.5px;
-  border-radius: 2px;
+  width: 22px;
+  height: 33px;
+  border-radius: 3px;
   background-color: #24486c;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
-  backface-visibility: hidden;
+  box-shadow: 0 1px 3px rgba(16, 32, 48, 0.28);
+  transition: width 0.28s ease, height 0.28s ease;
 }
 
 .login-carousel-front {
@@ -888,7 +881,7 @@ body.on-login #app {
   left: 0;
   right: 0;
   bottom: 3px;
-  height: 116px;
+  height: 120px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -902,21 +895,22 @@ body.on-login #app {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  transition: width 0.28s ease, height 0.28s ease, margin 0.28s ease;
 }
 
 .login-cover-side {
-  width: 58px;
-  height: 87px;
+  width: 60px;
+  height: 90px;
   z-index: 1;
   box-shadow: 0 5px 12px rgba(16, 32, 48, 0.22);
 }
 
-.login-cover-left { margin-right: -17px; }
-.login-cover-right { margin-left: -17px; }
+.login-cover-left { margin-right: -16px; }
+.login-cover-right { margin-left: -16px; }
 
 .login-cover-center {
-  width: 74px;
-  height: 111px;
+  width: 78px;
+  height: 117px;
   z-index: 2;
   outline: 2px solid var(--blue);
   outline-offset: 0;
@@ -1000,8 +994,8 @@ body.on-login #app {
 .login-field input:focus {
   border-color: var(--blue);
   box-shadow:
-    0 0 0 3px rgba(0, 102, 179, 0.22),
-    0 0 16px rgba(0, 102, 179, 0.3);
+    0 0 0 3px rgba(0, 102, 179, 0.3),
+    0 0 22px rgba(0, 102, 179, 0.42);
 }
 
 .login-field-icon {
@@ -1065,19 +1059,35 @@ body.on-login #app {
 .login-screen .error { margin-top: 8px; }
 
 body.login-focus .login-carousel {
-  height: 116px;
+  height: 118px;
   margin-bottom: 8px;
 }
 
-body.login-focus .login-carousel-inner {
-  transform: scale(0.56);
+body.login-focus .login-carousel-stage { bottom: 34px; }
+
+body.login-focus .login-carousel-front { height: 68px; }
+
+body.login-focus .login-cover-side {
+  width: 34px;
+  height: 51px;
+}
+
+body.login-focus .login-cover-left { margin-right: -9px; }
+body.login-focus .login-cover-right { margin-left: -9px; }
+
+body.login-focus .login-cover-center {
+  width: 44px;
+  height: 66px;
+}
+
+body.login-focus .login-ring-item {
+  width: 13px;
+  height: 20px;
 }
 
 @media (min-width: 640px) {
-  .login-carousel,
-  .login-carousel-inner { height: 232px; }
-
-  body.login-focus .login-carousel { height: 128px; }
+  .login-carousel { height: 220px; }
+  body.login-focus .login-carousel { height: 124px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
