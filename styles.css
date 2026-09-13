@@ -828,8 +828,8 @@ body.on-login #app {
 
 .login-carousel {
   position: relative;
-  height: 204px;
-  margin: 0 -10px 12px;
+  height: 200px;
+  margin: 0 -10px 10px;
   overflow: hidden;
   touch-action: none;
   user-select: none;
@@ -846,7 +846,7 @@ body.on-login #app {
 .login-carousel-stage {
   position: absolute;
   left: 50%;
-  bottom: 58px;
+  bottom: 60px;
   width: 0;
   height: 0;
   z-index: 1;
@@ -865,8 +865,8 @@ body.on-login #app {
   position: absolute;
   left: 0;
   top: 0;
-  width: 22px;
-  height: 33px;
+  width: 26px;
+  height: 39px;
   border-radius: 3px;
   background-color: #24486c;
   background-size: cover;
@@ -880,7 +880,7 @@ body.on-login #app {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 3px;
+  bottom: 2px;
   height: 120px;
   display: flex;
   align-items: flex-end;
@@ -1081,8 +1081,8 @@ body.login-focus .login-cover-center {
 }
 
 body.login-focus .login-ring-item {
-  width: 13px;
-  height: 20px;
+  width: 15px;
+  height: 23px;
 }
 
 @media (min-width: 640px) {

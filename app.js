@@ -961,6 +961,7 @@
     hintShown: false,
     posters: [],
     items: [],
+    groups: [],
     angle: 0,
     vel: 0,
     mode: "idle",
@@ -996,9 +997,18 @@
   function carouselMetrics(root) {
     const w = (root && root.clientWidth) || 340;
     const compact = document.body.classList.contains("login-focus");
-    const rx = Math.round(Math.min(w * 0.47, (w / 2) - 12) * (compact ? 0.64 : 1));
-    const rise = Math.round(rx * (compact ? 0.5 : 0.6));
+    const rx = Math.round(Math.min(w * 0.455, (w / 2) - 10) * (compact ? 0.66 : 1));
+    const rise = Math.round(rx * (compact ? 0.62 : 0.74));
     return { rx, rise };
+  }
+
+  function ringSpecs(metrics) {
+    const { rx, rise } = metrics;
+    return [
+      { rx, rise, hide: 0.935 },
+      { rx: rx * 0.8, rise: rise * 0.84, hide: 0.92 },
+      { rx: rx * 0.64, rise: rise * 0.72, hide: 0.9 },
+    ];
   }
 
   function setCover(el, film) {
@@ -1011,20 +1021,26 @@
   function paintLoginCarousel() {
     const n = loginUi.posters.length;
     if (!n || !loginUi.items.length) return;
-    const { rx, rise } = loginUi.metrics;
+    const specs = ringSpecs(loginUi.metrics);
     const ang = (loginUi.angle * Math.PI) / 180;
-    for (let i = 0; i < n; i += 1) {
-      const t = ((i / n) * Math.PI * 2) + ang;
-      const x = Math.sin(t) * rx;
-      const y = -((1 - Math.cos(t)) / 2) * rise;
-      const depth = (Math.cos(t) + 1) / 2;
-      const scale = 0.5 + (depth * 0.52);
-      const hideFront = depth > 0.86 ? 0 : 1;
-      const opacity = hideFront * (0.58 + (depth * 0.42));
-      const el = loginUi.items[i];
-      el.style.transform = `translate(-50%, -50%) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${scale.toFixed(3)})`;
-      el.style.opacity = String(opacity.toFixed(3));
-      el.style.zIndex = String(40 + Math.round(depth * 80));
+    const groups = loginUi.groups;
+    for (let g = 0; g < groups.length; g += 1) {
+      const spec = specs[g] || specs[0];
+      const items = groups[g];
+      const count = items.length;
+      for (let i = 0; i < count; i += 1) {
+        const t = ((i / count) * Math.PI * 2) + ang;
+        const x = Math.sin(t) * spec.rx;
+        const y = -((1 - Math.cos(t)) / 2) * spec.rise;
+        const depth = (Math.cos(t) + 1) / 2;
+        const scale = 0.46 + (depth * 0.54);
+        const hideFront = depth > spec.hide ? 0 : 1;
+        const opacity = hideFront * (0.62 + (depth * 0.38));
+        const el = items[i];
+        el.style.transform = `translate(-50%, -50%) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${scale.toFixed(3)})`;
+        el.style.opacity = String(opacity.toFixed(3));
+        el.style.zIndex = String(20 + g + Math.round(depth * 80));
+      }
     }
     const step = 360 / n;
     let idx = Math.round(((-loginUi.angle / step) % n));
@@ -1242,6 +1258,7 @@
     loginUi.root = null;
     loginUi.ring = null;
     loginUi.items = [];
+    loginUi.groups = [];
     loginUi.covers = null;
     loginUi.drag = null;
     loginUi.mode = "idle";
@@ -1262,14 +1279,24 @@
     loginUi.ring = ring;
     loginUi.posters = arrangeCarouselPosters(offlineFilms);
     loginUi.items = [];
+    loginUi.groups = [];
     if (ring) {
+      const all = loginUi.posters;
+      const n0 = Math.round(all.length * 0.44);
+      const n1 = Math.round(all.length * 0.32);
+      const slices = [all.slice(0, n0), all.slice(n0, n0 + n1), all.slice(n0 + n1)];
       const frag = document.createDocumentFragment();
-      for (const film of loginUi.posters) {
-        const el = document.createElement("div");
-        el.className = "login-ring-item";
-        el.style.backgroundImage = `url("${posterThumb(film.poster, "w92")}")`;
-        frag.appendChild(el);
-        loginUi.items.push(el);
+      for (const slice of slices) {
+        const group = [];
+        for (const film of slice) {
+          const el = document.createElement("div");
+          el.className = "login-ring-item";
+          el.style.backgroundImage = `url("${posterThumb(film.poster, "w92")}")`;
+          frag.appendChild(el);
+          loginUi.items.push(el);
+          group.push(el);
+        }
+        loginUi.groups.push(group);
       }
       ring.innerHTML = "";
       ring.appendChild(frag);
