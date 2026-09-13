@@ -572,6 +572,11 @@ img { max-width: 100%; display: block; }
   margin-bottom: 10px;
 }
 
+.suggest-chips .search-status {
+  margin: 0;
+  width: 100%;
+}
+
 .row-card {
   display: grid;
   grid-template-columns: 1fr 52px;

@@ -14,9 +14,11 @@ Seed-Login: **Test** / **1234**
 
 Danach **Wer schaut**: Tester, User No 1, Bot - Apptesti. Neue Profile: nur Name + Avatar. Löschen nur nach Passwort des Logins.
 
-## Poster
+## Katalog
 
-Karten zeigen echte Filmplakate aus `films.json` (TMDB-Bild-URLs, **ohne API-Schlüssel**). `loadCatalog` lädt `./films.json` und ersetzt den eingebauten `FILMS`-Fallback, wenn mehr als 20 Titel da sind.
+Suche und „Filme vorschlagen“ nutzen die öffentliche TMDB-API v3 (`language=de-DE`, `region=DE`, `include_adult=false`). Poster bleiben TMDB-Bild-URLs.
+
+Optionaler Schlüssel in `config.js` als `window.TMDB_KEY` (siehe `config.example.js`). Ist der Schlüssel leer, versucht die App die Anfrage trotzdem. Schlägt TMDB fehl: Suche zeigt **Katalog nicht erreichbar**, leere Treffer **Kein Treffer**. `films.json` ist nur der schnelle Offline-Fallback für Vorschläge.
 
 ## Ablauf
 

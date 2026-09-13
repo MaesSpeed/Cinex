@@ -1,0 +1,1 @@
+window.TMDB_KEY = "";
