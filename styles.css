@@ -636,6 +636,12 @@ img { max-width: 100%; display: block; }
   margin-top: 12px;
 }
 
+.snackbar[hidden],
+.modal[hidden] {
+  display: none !important;
+  pointer-events: none;
+}
+
 .snackbar {
   position: fixed;
   left: 50%;

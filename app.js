@@ -617,18 +617,20 @@
     return `
       <section class="card auth-card">
         <h2>${register ? "Registrieren" : "Anmelden"}</h2>
+        <form data-act="auth-form">
         <label class="field">
           <span>Login</span>
-          <input data-act="login-name" autocomplete="username" value="${escapeHtml(state.loginName)}">
+          <input data-act="login-name" name="login" autocomplete="username" value="${escapeHtml(state.loginName)}">
         </label>
         <label class="field">
           <span>Passwort</span>
-          <input data-act="login-pass" type="password" autocomplete="${register ? "new-password" : "current-password"}" value="${escapeHtml(state.loginPass)}">
+          <input data-act="login-pass" name="password" type="password" autocomplete="${register ? "new-password" : "current-password"}" value="${escapeHtml(state.loginPass)}">
         </label>
         ${state.loginError ? `<p class="error">${escapeHtml(state.loginError)}</p>` : ""}
-        <button type="button" class="btn btn-primary" data-act="auth-submit" style="margin-top:14px">
+        <button type="submit" class="btn btn-primary" data-act="auth-submit" style="margin-top:14px">
           ${register ? "Konto anlegen" : "Anmelden"}
         </button>
+        </form>
         <button type="button" class="btn btn-ghost auth-switch" data-act="auth-toggle">
           ${register ? "Schon ein Konto? Anmelden" : "Neu hier? Registrieren"}
         </button>
@@ -1012,6 +1014,10 @@
   }
 
   function submitAuth() {
+    const nameInput = app.querySelector("[data-act=login-name]");
+    const passInput = app.querySelector("[data-act=login-pass]");
+    if (nameInput) state.loginName = nameInput.value;
+    if (passInput) state.loginPass = passInput.value;
     const login = state.loginName.trim();
     const password = state.loginPass;
     if (!login || !password) {
@@ -1347,6 +1353,13 @@
         </div>
       `);
       return;
+    }
+  });
+
+  app.addEventListener("submit", (event) => {
+    if (event.target.closest("[data-act=auth-form]")) {
+      event.preventDefault();
+      submitAuth();
     }
   });
 
