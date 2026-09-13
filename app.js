@@ -251,7 +251,7 @@
   const modalEl = document.getElementById("modal");
   const confettiCanvas = document.getElementById("confetti");
   const ctx = confettiCanvas.getContext("2d");
-  const desktopNavMq = window.matchMedia("(min-width: 768px), (hover: hover) and (pointer: fine)");
+  const desktopNavMq = window.matchMedia("(min-width: 768px)");
 
   function isDesktopNav() {
     return desktopNavMq.matches;
