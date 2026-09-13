@@ -8,11 +8,15 @@ Welcher Film heute? Statische Web-App zum gemeinsamen Filmauswählen – ohne Ba
 
 Öffentlich über GitHub Pages (Zweig `main`, Ordner `/`). Funktioniert auf iPhone Safari und am PC.
 
-## TMDB-Schlüssel (optional, für Poster & Anbieter)
+## Poster
 
-Ohne Schlüssel läuft die App offline mit einem festen Katalog bekannter Filme.
+Karten zeigen echte Filmplakate aus `films.json` (TMDB-Bild-URLs, ohne API-Schlüssel). Die Datei liegt im Repo-Root und wird von GitHub Pages ausgeliefert.
 
-Mit Schlüssel kommen Poster und die deutschen Watch-Anbieter (Stream / Leihen / Kaufen) von [TMDB](https://www.themoviedb.org):
+## TMDB-Schlüssel (optional, für Anbieter)
+
+Ohne Schlüssel laufen Vorschläge mit dem Katalog aus `films.json` (Fallback: eingebauter `FILMS`-Katalog).
+
+Mit Schlüssel kommen die deutschen Watch-Anbieter (Stream / Leihen / Kaufen) von [TMDB](https://www.themoviedb.org):
 
 1. Account auf [themoviedb.org](https://www.themoviedb.org) anlegen.
 2. Unter Einstellungen → API einen **API-Key (v3 auth)** erzeugen.

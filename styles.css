@@ -419,7 +419,10 @@ img {
   max-height: 278px;
   border-radius: 14px;
   overflow: hidden;
-  background: #6b8499;
+  background-color: #1d4f91;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .poster img {

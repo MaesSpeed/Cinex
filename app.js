@@ -35,7 +35,7 @@
     "#9ccc65", "#66bb6a", "#43a047", "#2e7d32", "#1b5e20",
   ];
 
-  const FALLBACK = [
+  const FILMS = [
     f(238, "Der Pate", ["Krimi", "Drama"], 175, 8.7),
     f(680, "Pulp Fiction", ["Krimi", "Drama"], 154, 8.5),
     f(13, "Forrest Gump", ["Drama", "Romanze"], 142, 8.5),
@@ -78,16 +78,79 @@
     f(329865, "Arrival", ["Sci-Fi", "Drama"], 116, 7.6),
   ];
 
+  let genrePicks = GENRE_CHIPS.slice();
+
   function f(id, title, genres, runtime, vote_average) {
     return {
       id,
+      tmdb: id,
       title,
+      genre: genres[0] || "Film",
       genres,
+      minutes: runtime,
       runtime,
+      rating: vote_average,
       vote_average,
+      poster: "",
       poster_path: null,
       color: colorFromTitle(title),
     };
+  }
+
+  function filmGenres(film) {
+    if (Array.isArray(film.genres) && film.genres.length) return film.genres;
+    if (film.genre) return [film.genre];
+    return [];
+  }
+
+  function normalizeFilm(raw) {
+    const tmdbNum = Number(raw.tmdb != null ? raw.tmdb : String(raw.id).replace(/^t/i, ""));
+    const id = Number.isFinite(tmdbNum) ? tmdbNum : raw.id;
+    const genres = filmGenres(raw);
+    const minutes = Number(raw.minutes != null ? raw.minutes : raw.runtime) || 0;
+    const rating = Number(raw.rating != null ? raw.rating : raw.vote_average) || 0;
+    let poster = raw.poster || "";
+    if (!poster && raw.poster_path) {
+      const path = String(raw.poster_path).startsWith("/") ? raw.poster_path : `/${raw.poster_path}`;
+      poster = `https://image.tmdb.org/t/p/w185${path}`;
+    }
+    return {
+      id,
+      tmdb: Number.isFinite(tmdbNum) ? tmdbNum : id,
+      title: raw.title,
+      genre: raw.genre || genres[0] || "Film",
+      genres: genres.slice(),
+      minutes,
+      runtime: minutes || raw.runtime || 0,
+      rating,
+      vote_average: rating,
+      poster,
+      poster_path: raw.poster_path || null,
+      color: raw.color || "#1d4f91",
+    };
+  }
+
+  function cloneFilms(list) {
+    return (list || FILMS).map((row) => normalizeFilm(row));
+  }
+
+  function rebuildGenres() {
+    const present = new Set();
+    for (const film of FILMS) {
+      for (const g of filmGenres(film)) present.add(g);
+    }
+    const next = [];
+    for (const g of GENRE_CHIPS) {
+      if (present.has(g)) next.push(g);
+    }
+    for (const g of present) {
+      if (!next.includes(g)) next.push(g);
+    }
+    genrePicks = next.length ? next : GENRE_CHIPS.slice();
+  }
+
+  function renderGenrePicks() {
+    if (state.screen === "home" || state.screen === "suggest") render();
   }
 
   function colorFromTitle(title) {
@@ -105,6 +168,7 @@
   }
 
   function posterUrl(film) {
+    if (film.poster) return film.poster;
     if (!film.poster_path) return "";
     const path = film.poster_path.startsWith("/") ? film.poster_path : `/${film.poster_path}`;
     return `https://image.tmdb.org/t/p/w185${path}`;
@@ -140,7 +204,7 @@
   const state = {
     account: null,
     screen: "accounts",
-    catalog: FALLBACK.map((x) => ({ ...x, genres: x.genres.slice() })),
+    catalog: FILMS.map((x) => normalizeFilm(x)),
     filters: {
       dauerOn: false,
       dauer: 120,
@@ -227,7 +291,7 @@
       else score += Math.min(0.55, (state.filters.dauer - film.runtime) / 90);
     }
     if (state.filters.genreOn && state.filters.genres.length) {
-      const match = (film.genres || []).some((g) => state.filters.genres.includes(g));
+      const match = filmGenres(film).some((g) => state.filters.genres.includes(g));
       score += match ? 2.2 : -0.45;
     }
     score += Math.random() * 0.85;
@@ -292,6 +356,22 @@
     return out;
   }
 
+  function pickThree(excludeIds) {
+    const picks = pickFilms(3, excludeIds);
+    if (picks.length >= 3) return picks.slice(0, 3);
+    const extras = cloneFilms(FILMS);
+    for (const film of extras.concat(cloneFilms(state.catalog))) {
+      if (picks.some((x) => Number(x.id) === Number(film.id))) continue;
+      picks.push(film);
+      if (picks.length >= 3) break;
+    }
+    if (!picks.length && extras.length) return extras.slice(0, 3);
+    while (picks.length && picks.length < 3) {
+      picks.push(picks[picks.length % picks.length]);
+    }
+    return picks.slice(0, 3);
+  }
+
   function skipCurrentPicks() {
     for (const film of state.currentPicks) {
       state.sessionSkip.add(Number(film.id));
@@ -310,48 +390,21 @@
   }
 
   async function loadCatalog() {
-    const key = tmdbKey();
-    if (!key) {
-      state.catalog = FALLBACK.map((x) => ({ ...x, genres: x.genres.slice() }));
-      return;
-    }
     try {
-      const pages = [];
-      for (let page = 1; page <= 8; page += 1) {
-        const url = new URL("https://api.themoviedb.org/3/discover/movie");
-        url.searchParams.set("api_key", key);
-        url.searchParams.set("language", "de-DE");
-        url.searchParams.set("region", "DE");
-        url.searchParams.set("sort_by", "popularity.desc");
-        url.searchParams.set("include_adult", "false");
-        url.searchParams.set("page", String(page));
-        pages.push(fetch(url).then((res) => {
-          if (!res.ok) throw new Error("tmdb");
-          return res.json();
-        }));
+      const res = await fetch("./films.json");
+      if (!res.ok) throw new Error("catalog");
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 20) {
+        FILMS.splice(0, FILMS.length, ...data);
+        state.catalog = cloneFilms(FILMS);
+        rebuildGenres();
+        renderGenrePicks();
+        return;
       }
-      const results = await Promise.all(pages);
-      const seen = new Set();
-      const movies = [];
-      for (const page of results) {
-        for (const movie of page.results || []) {
-          if (!movie.id || movie.adult || seen.has(movie.id)) continue;
-          seen.add(movie.id);
-          movies.push({
-            id: movie.id,
-            title: movie.title || movie.original_title,
-            genres: (movie.genre_ids || []).map((id) => GENRE_DE[id]).filter(Boolean),
-            runtime: null,
-            vote_average: movie.vote_average || 0,
-            poster_path: movie.poster_path || null,
-            color: colorFromTitle(movie.title || movie.original_title || ""),
-          });
-        }
-      }
-      state.catalog = movies.length >= 30 ? movies : FALLBACK.map((x) => ({ ...x, genres: x.genres.slice() }));
     } catch {
-      state.catalog = FALLBACK.map((x) => ({ ...x, genres: x.genres.slice() }));
+      /* keep static FILMS fallback */
     }
+    state.catalog = cloneFilms(FILMS);
   }
 
   async function hydrateVisible() {
@@ -365,7 +418,11 @@
         if (!res.ok) return;
         const data = await res.json();
         film.runtime = data.runtime || film.runtime;
-        if (data.poster_path) film.poster_path = data.poster_path;
+        if (data.runtime) film.minutes = data.runtime;
+        if (data.poster_path) {
+          film.poster_path = data.poster_path;
+          film.poster = `https://image.tmdb.org/t/p/w185${data.poster_path}`;
+        }
         if (data.title) film.title = data.title;
       } catch {
         /* offline / rate limit */
@@ -496,7 +553,7 @@
 
   function renderHome() {
     const fill = ((state.filters.dauer - 60) / (210 - 60)) * 100;
-    const chips = GENRE_CHIPS.map((g) => `
+    const chips = genrePicks.map((g) => `
       <button type="button" class="chip" data-act="genre" data-genre="${g}" aria-pressed="${state.filters.genres.includes(g)}">${g}</button>
     `).join("");
     return `
@@ -571,14 +628,15 @@
       return `<button type="button" class="note${Number(mine) === n ? " sel" : ""}" data-act="rate" data-id="${film.id}" data-n="${n}" style="background:${color}">${n}</button>`;
     }).join("");
     const src = posterUrl(film);
-    const poster = src
-      ? `<img src="${src}" alt="" width="185" height="278">`
-      : "";
-    const genre = (film.genres && film.genres[0]) || "Film";
-    const runtime = film.runtime ? `${film.runtime} Min` : "Dauer folgt";
+    const color = film.color || colorFromTitle(film.title);
+    const posterStyle = src
+      ? `background-color:${color};background-image:url("${src}")`
+      : `background-color:${color}`;
+    const genre = film.genre || (film.genres && film.genres[0]) || "Film";
+    const runtime = film.runtime || film.minutes ? `${film.runtime || film.minutes} Min` : "Dauer folgt";
     return `
       <article class="card film-card" data-card="${film.id}">
-        <div class="poster" style="background:${film.color || colorFromTitle(film.title)}">${poster}</div>
+        <div class="poster" style="${posterStyle}" role="img" aria-label=""></div>
         <h3 class="film-title">${escapeHtml(film.title)}</h3>
         <div class="meta">
           <span class="genre-pill">${escapeHtml(genre)}</span>
@@ -685,9 +743,9 @@
   }
 
   function startSuggestions() {
-    state.currentPicks = pickFilms(3);
+    state.currentPicks = pickThree();
     if (state.currentPicks.length < 1) {
-      state.currentPicks = shuffle(state.catalog).slice(0, 3);
+      state.currentPicks = pickThree();
     }
     state.screen = "suggest";
     render();
@@ -703,7 +761,7 @@
 
   function startCoin() {
     const candidates = uniqueById(state.shortlist.concat(state.currentPicks));
-    const pool = candidates.length ? candidates : pickFilms(3);
+    const pool = candidates.length ? candidates : pickThree();
     state.preFlipPicks = state.currentPicks.slice();
     state.preFlipShortlist = state.shortlist.slice();
     const winner = pool[Math.floor(Math.random() * pool.length)];
@@ -773,7 +831,7 @@
     }
     if (act === "reroll") {
       skipCurrentPicks();
-      state.currentPicks = pickFilms(3);
+      state.currentPicks = pickThree();
       render();
       hydrateVisible();
       return;
@@ -869,4 +927,5 @@
   });
 
   render();
+  loadCatalog();
 })();
