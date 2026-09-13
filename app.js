@@ -16,9 +16,9 @@
   ];
 
   const HERO_COVERS = [
-    { tmdb: 155, src: "https://image.tmdb.org/t/p/w92/qJ2tW6WMUDux911r6m7haRef0WH.jpg" },
-    { tmdb: 27205, src: "https://image.tmdb.org/t/p/w92/oYu4f6tE5z9PQ6aRthYx3ce2GwA.jpg" },
-    { tmdb: 157336, src: "https://image.tmdb.org/t/p/w92/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg" },
+    { tmdb: 155, src: "https://image.tmdb.org/t/p/w185/qJ2tW6WMUDux911r6m7haRef0WH.jpg" },
+    { tmdb: 27205, src: "https://image.tmdb.org/t/p/w185/oYu4f6tE5z9PQ6aRthYx3ce2GwA.jpg" },
+    { tmdb: 157336, src: "https://image.tmdb.org/t/p/w185/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg" },
   ];
 
   const RATE_KEYS = [
@@ -863,7 +863,7 @@
     const tiles = HERO_COVERS.map((row, index) => {
       const known = findFilm(`t${row.tmdb}`);
       const src = (known && known.poster) || row.src;
-      return `<img class="cover-stack-tile" style="--i:${index}" src="${escapeHtml(src)}" alt="" width="28" height="42" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">`;
+      return `<img class="cover-stack-tile" style="--i:${index}" src="${escapeHtml(src)}" alt="" width="56" height="84" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">`;
     });
     return `<span class="cover-stack" aria-hidden="true">${ICONS.covers}${tiles.join("")}</span>`;
   }
