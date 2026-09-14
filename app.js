@@ -139,6 +139,23 @@
     f(361743, "Top Gun: Maverick", ["Action"], 131, 8.2, ["Tom Cruise", "Miles Teller", "Jennifer Connelly"]),
   ];
 
+  const WATCH_CATS = [
+    { id: "blockbuster", label: "Blockbuster" },
+    { id: "neu", label: "Neu" },
+    { id: "top", label: "Top bewertet" },
+    { id: "action", label: "Action" },
+    { id: "klassiker", label: "Klassiker" },
+  ];
+
+  const BLOCKBUSTER_IDS = [
+    27205, 157336, 299534, 604, 120, 155, 24428, 19995, 597, 361743,
+    569094, 1726, 693134, 603, 872585, 447365, 76341, 49026, 671, 13,
+  ];
+
+  const KLASSIKER_IDS = [
+    238, 680, 13, 603, 120, 278, 550, 129, 862, 155, 122, 11, 1891, 78, 769,
+  ];
+
   let genrePicks = GENRE_CHIPS.slice();
 
   function filmCastNames(raw) {
@@ -202,6 +219,7 @@
       poster,
       color: raw.color || "#1d4f91",
       cast: filmCastNames(raw).slice(0, 4),
+      year: Number(raw.year) || (raw.release_date ? Number(String(raw.release_date).slice(0, 4)) : 0) || 0,
     };
   }
 
@@ -276,6 +294,8 @@
       rating: raw.vote_average,
       poster: tmdbPoster(raw.poster_path),
       poster_path: raw.poster_path,
+      year: raw.release_date ? Number(String(raw.release_date).slice(0, 4)) : 0,
+      release_date: raw.release_date || "",
     });
   }
 
@@ -377,6 +397,8 @@
       <circle cx="35" cy="19" r="2.2" fill="#fff"/>
     </svg>`,
     plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>`,
+    check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"/></svg>`,
+    search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.2"/><path d="m16 16 4.2 4.2"/></svg>`,
     close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg>`,
     chipX: `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 3l6 6M9 3 3 9"/></svg>`,
     jump: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.2 3.2H3.8A1.6 1.6 0 0 0 2.2 4.8v7.4A1.6 1.6 0 0 0 3.8 13.8h7.4a1.6 1.6 0 0 0 1.6-1.6V9.8"/><path d="M8.6 7.4 13.8 2.2M9.8 2.2h4v4"/></svg>`,
@@ -429,6 +451,9 @@
     search: "",
     searchHits: [],
     searchStatus: "",
+    watchSheet: null,
+    watchCat: "blockbuster",
+    watchSearch: "",
     discoverPage: 0,
     discoverTotalPages: 1,
     catalogLive: false,
@@ -452,6 +477,7 @@
   const headerActions = document.getElementById("header-actions");
   const footer = document.getElementById("site-footer");
   const snackbar = document.getElementById("snackbar");
+  const watchSheetEl = document.getElementById("watch-sheet");
   const modalEl = document.getElementById("modal");
   const confettiCanvas = document.getElementById("confetti");
   const ctx = confettiCanvas.getContext("2d");
@@ -635,6 +661,7 @@
         poster: n.poster || prev.poster,
         genres: n.genres && n.genres.length ? n.genres : prev.genres,
         cast: (n.cast && n.cast.length) ? n.cast : (prev.cast || []),
+        year: n.year || prev.year,
       });
     } else {
       state.catalog.push(n);
@@ -662,7 +689,7 @@
     const sid = String(id);
     const num = Number(String(id).replace(/^t/i, ""));
     const match = (f) => filmId(f) === sid || String(f.tmdb) === sid || Number(f.tmdb) === num;
-    const lists = [state.currentPicks, state.shortlist, state.searchHits, state.catalog, offlineFilms, FILMS];
+    const lists = [state.currentPicks, state.shortlist, state.searchHits, state.catalog, offlineFilms, FILMS, LOGIN_POSTERS];
     for (const list of lists) {
       const hit = (list || []).find(match);
       if (hit) return hit;
@@ -736,7 +763,26 @@
         /* keep empty cast line hidden */
       }
     }));
-    if (changed && seq === listCastSeq && state.screen === "lists") render();
+    if (changed && seq === listCastSeq) patchFilmCastLines();
+  }
+
+  function patchFilmCastLines() {
+    document.querySelectorAll(".film-row[data-id]").forEach((row) => {
+      const film = findFilm(row.dataset.id);
+      if (!film) return;
+      const line = filmCastLine(film);
+      let el = row.querySelector(".film-row-cast");
+      if (!line) {
+        if (el) el.remove();
+        return;
+      }
+      if (el) {
+        el.textContent = line;
+        return;
+      }
+      const body = row.querySelector(".film-row-body");
+      if (body) body.insertAdjacentHTML("beforeend", `<p class="film-row-cast">${escapeHtml(line)}</p>`);
+    });
   }
 
   function escapeHtml(value) {
@@ -900,13 +946,16 @@
     tagWaveTimer = window.setInterval(runTagWave, 6000);
   }
 
-  function showSnack(text) {
+  function showSnack(text, tone) {
     snackbar.hidden = false;
+    snackbar.classList.toggle("is-danger", tone === "danger");
     document.body.classList.add("snack-on");
-    snackbar.innerHTML = `<span aria-hidden="true">✓</span><span>${escapeHtml(text)}</span>`;
+    const mark = tone === "danger" ? "✕" : "✓";
+    snackbar.innerHTML = `<span aria-hidden="true">${mark}</span><span>${escapeHtml(text)}</span>`;
     window.clearTimeout(showSnack.tid);
     showSnack.tid = window.setTimeout(() => {
       snackbar.hidden = true;
+      snackbar.classList.remove("is-danger");
       document.body.classList.remove("snack-on");
     }, 2600);
   }
@@ -1390,6 +1439,7 @@
   }
 
   function doLogout() {
+    closeWatchSheet();
     closeModal();
     state.user = null;
     state.profile = null;
@@ -2245,13 +2295,22 @@
     const sub = extra && extra !== cast ? extra : "";
     const line = [cast, sub].filter(Boolean).join(" · ");
     const id = escapeHtml(filmId(film));
-    let menuInner = opts.menu;
-    if (!menuInner) {
-      if (opts.rates || unrated) menuInner = `<div class="film-row-rates">${renderRates(film, true)}</div>`;
-      else menuInner = `<p class="film-menu-placeholder">Menü folgt</p>`;
+    const onWatch = isOnWatchlist(film);
+    let control;
+    let menuPop = "";
+    if (opts.toggle) {
+      control = `<button type="button" class="watch-toggle${onWatch ? " is-on" : ""}" data-act="watch-toggle" data-id="${id}" aria-pressed="${onWatch}" aria-label="${onWatch ? "Von Watchlist entfernen" : "Zur Watchlist hinzufügen"}">${onWatch ? ICONS.check : ICONS.plus}</button>`;
+    } else {
+      let menuInner = opts.menu;
+      if (!menuInner) {
+        if (opts.rates || unrated) menuInner = `<div class="film-row-rates">${renderRates(film, true)}</div>`;
+        else menuInner = `<p class="film-menu-placeholder">Menü folgt</p>`;
+      }
+      control = `<button type="button" class="film-row-menu" data-act="film-menu" data-id="${id}" aria-label="Filmmenü" aria-expanded="false">${ICONS.menu}</button>`;
+      menuPop = `<div class="film-menu-pop" hidden>${menuInner}</div>`;
     }
     return `
-      <article class="film-row${unrated ? " is-unrated" : ""}" data-swipe-row data-id="${id}">
+      <article class="film-row${unrated ? " is-unrated" : ""}"${opts.toggle ? "" : " data-swipe-row"} data-id="${id}">
         ${posterTile(film)}
         <div class="film-row-body">
           <div class="film-row-titleline">
@@ -2260,8 +2319,8 @@
           </div>
           ${line ? `<p class="film-row-cast">${escapeHtml(line)}</p>` : ""}
         </div>
-        <button type="button" class="film-row-menu" data-act="film-menu" data-id="${id}" aria-label="Filmmenü" aria-expanded="false">${ICONS.menu}</button>
-        <div class="film-menu-pop" hidden>${menuInner}</div>
+        ${control}
+        ${menuPop}
       </article>
     `;
   }
@@ -2304,34 +2363,264 @@
     return "";
   }
 
-  function renderSearchChipsHtml() {
-    const q = state.search.trim();
-    if (!q) return "";
-    const listed = watchlist();
-    const chips = (state.searchHits || []).filter((film) => (
-      !listed.some((row) => String(row.id) === filmId(film))
-    ));
-    const chipHtml = chips.map((film) => (
-      `<button type="button" class="chip" data-act="watch-add" data-id="${escapeHtml(filmId(film))}">${escapeHtml(film.title)}</button>`
-    )).join("");
-    if (chipHtml) return chipHtml;
-    const status = searchStatusText();
-    return status ? `<p class="hint search-status">${escapeHtml(status)}</p>` : "";
+  function mergeKnownFilm(map, row) {
+    if (!row) return;
+    const n = normalizeFilm(row);
+    if (!n.id || !n.title) return;
+    const key = filmId(n);
+    const prev = map.get(key);
+    if (!prev) {
+      map.set(key, n);
+      return;
+    }
+    const minutes = pickRuntime(n.minutes || n.runtime, prev.minutes || prev.runtime);
+    map.set(key, normalizeFilm({
+      ...prev,
+      ...n,
+      minutes,
+      runtime: minutes,
+      poster: n.poster || prev.poster,
+      genres: n.genres && n.genres.length ? n.genres : prev.genres,
+      cast: (n.cast && n.cast.length) ? n.cast : (prev.cast || []),
+      year: n.year || prev.year,
+    }));
   }
 
-  function paintSearchUi() {
+  function allKnownFilms() {
+    const map = new Map();
+    LOGIN_POSTERS.forEach((row) => mergeKnownFilm(map, row));
+    cloneFilms(FILMS).forEach((row) => mergeKnownFilm(map, row));
+    (offlineFilms || []).forEach((row) => mergeKnownFilm(map, row));
+    (state.catalog || []).forEach((row) => mergeKnownFilm(map, row));
+    Object.values(loadKnownFilms()).forEach((row) => mergeKnownFilm(map, row));
+    return Array.from(map.values());
+  }
+
+  function filmsByTmdbIds(ids, pool) {
+    const source = pool || allKnownFilms();
+    return ids.map((num) => source.find((film) => Number(film.tmdb) === Number(num) || filmId(film) === `t${num}`)).filter(Boolean);
+  }
+
+  function watchCategoryFilms(cat) {
+    const all = allKnownFilms();
+    if (cat === "action") {
+      return all.filter((film) => filmGenres(film).includes("Action"));
+    }
+    if (cat === "top") {
+      return all
+        .filter((film) => (Number(film.rating) || Number(film.vote_average) || 0) > 0)
+        .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0))
+        .slice(0, 40);
+    }
+    if (cat === "neu") {
+      return all
+        .filter((film) => (Number(film.year) || 0) >= 2020 || (Number(film.tmdb) || 0) > 300000)
+        .sort((a, b) => {
+          const year = (Number(b.year) || 0) - (Number(a.year) || 0);
+          if (year) return year;
+          return (Number(b.tmdb) || 0) - (Number(a.tmdb) || 0);
+        })
+        .slice(0, 40);
+    }
+    if (cat === "klassiker") {
+      const curated = filmsByTmdbIds(KLASSIKER_IDS, all);
+      const seen = new Set(curated.map((film) => filmId(film)));
+      const rest = all.filter((film) => !seen.has(filmId(film)) && (Number(film.year) || 0) > 0 && (Number(film.year) || 0) < 2000);
+      return curated.concat(rest).slice(0, 40);
+    }
+    const curated = filmsByTmdbIds(BLOCKBUSTER_IDS, all);
+    const seen = new Set(curated.map((film) => filmId(film)));
+    const rest = all.filter((film) => !seen.has(filmId(film)) && (Number(film.rating) || 0) >= 7.6);
+    return curated.concat(rest).slice(0, 40);
+  }
+
+  function catalogTitleHits(query) {
+    const q = String(query || "").trim().toLowerCase();
+    if (!q) return [];
+    const hits = allKnownFilms().filter((film) => film.title && film.title.toLowerCase().includes(q));
+    hits.sort((a, b) => {
+      const at = a.title.toLowerCase();
+      const bt = b.title.toLowerCase();
+      const rank = (title) => (title.startsWith(q) ? 0 : title.includes(` ${q}`) ? 1 : 2);
+      const diff = rank(at) - rank(bt);
+      if (diff) return diff;
+      return at.localeCompare(bt, "de");
+    });
+    return hits;
+  }
+
+  function watchSheetFilms() {
+    if (state.watchSheet === "search") {
+      if (!state.watchSearch.trim()) return [];
+      return state.searchHits || [];
+    }
+    return watchCategoryFilms(state.watchCat || "blockbuster");
+  }
+
+  function watchSheetEmptyText() {
+    if (state.watchSheet === "search") {
+      if (!state.watchSearch.trim()) return "Titel eingeben, um im Katalog zu suchen.";
+      return searchStatusText() || "Kein Treffer";
+    }
+    return "Keine Filme in dieser Kategorie.";
+  }
+
+  function renderWatchSheetRows(films) {
+    if (!films.length) return `<p class="hint">${escapeHtml(watchSheetEmptyText())}</p>`;
+    return films.map((film) => renderListRow(film, { toggle: true })).join("");
+  }
+
+  function paintWatchSheetList() {
+    if (!watchSheetEl || !state.watchSheet) return;
+    const list = watchSheetEl.querySelector("[data-role=watch-sheet-list]");
+    if (!list) return;
+    const films = watchSheetFilms();
+    list.innerHTML = renderWatchSheetRows(films);
+    enrichListCast(films);
+  }
+
+  function paintWatchToggles() {
+    const listed = new Set(watchlist().map((row) => String(row.id)));
+    document.querySelectorAll("[data-act=watch-toggle]").forEach((btn) => {
+      const on = listed.has(filmId(btn.dataset.id));
+      btn.classList.toggle("is-on", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      btn.setAttribute("aria-label", on ? "Von Watchlist entfernen" : "Zur Watchlist hinzufügen");
+      btn.innerHTML = on ? ICONS.check : ICONS.plus;
+    });
+  }
+
+  function renderWatchRows() {
+    return watchlistFilms().map((film) => {
+      const tags = renderFilmTagChips(film);
+      return renderListRow(film, {
+        menu: `
+          <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Anschauen</button>
+          <button type="button" class="btn btn-compact" data-act="watch-remove" data-id="${escapeHtml(filmId(film))}">Streichen</button>
+          ${tags ? `<div class="film-menu-tags">${tags}</div>` : ""}
+        `,
+      });
+    }).join("");
+  }
+
+  function refreshWatchList() {
     if (state.screen !== "lists" || state.listTab !== "watch") return;
-    const wrap = app.querySelector(".search-wrap");
-    if (wrap) {
-      const clear = wrap.querySelector("[data-act=search-clear]");
-      if (state.search && !clear) {
-        wrap.insertAdjacentHTML("beforeend", `<button type="button" class="search-clear" data-act="search-clear" aria-label="Suche leeren">${ICONS.close}</button>`);
-      } else if (!state.search && clear) {
-        clear.remove();
+    const list = app.querySelector("[data-role=film-list]");
+    if (!list) return;
+    const rows = renderWatchRows();
+    list.innerHTML = rows || `<p class="hint">Noch nichts auf der Watchlist.</p>`;
+    enrichListCast(watchlistFilms());
+    scheduleFooterSync();
+  }
+
+  function renderWatchSheetHtml() {
+    const searching = state.watchSheet === "search";
+    if (searching) {
+      return `
+        <div class="sheet-panel is-search" data-role="sheet-panel">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <div class="sheet-search-wrap">
+            <span class="sheet-search-icon">${ICONS.search}</span>
+            <input data-act="watch-search" placeholder="Film suchen" value="${escapeHtml(state.watchSearch)}" autocomplete="off" enterkeyhint="search">
+          </div>
+          <section class="film-list" data-role="watch-sheet-list">${renderWatchSheetRows(watchSheetFilms())}</section>
+        </div>
+      `;
+    }
+    const chips = WATCH_CATS.map((cat) => `
+      <button type="button" class="chip" data-act="watch-cat" data-id="${cat.id}" aria-pressed="${state.watchCat === cat.id}">${escapeHtml(cat.label)}</button>
+    `).join("");
+    return `
+      <div class="sheet-panel" data-role="sheet-panel">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <div class="sheet-head">
+          <h2 class="sheet-title">Zu Watchlist hinzufügen</h2>
+        </div>
+        <div class="sheet-cats">${chips}</div>
+        <section class="film-list" data-role="watch-sheet-list">${renderWatchSheetRows(watchSheetFilms())}</section>
+        <button type="button" class="sheet-search-bar" data-act="watch-search-open">
+          <span class="sheet-search-icon">${ICONS.search}</span>
+          Film suchen
+        </button>
+      </div>
+    `;
+  }
+
+  function paintWatchSheet() {
+    if (!watchSheetEl) return;
+    if (!state.watchSheet) {
+      document.body.classList.remove("watch-sheet-open");
+      watchSheetEl.hidden = true;
+      watchSheetEl.innerHTML = "";
+      return;
+    }
+    document.body.classList.add("watch-sheet-open");
+    watchSheetEl.hidden = false;
+    watchSheetEl.innerHTML = renderWatchSheetHtml();
+    const panel = watchSheetEl.querySelector("[data-role=sheet-panel]");
+    if (panel && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      panel.classList.add("is-enter");
+      window.requestAnimationFrame(() => {
+        panel.classList.remove("is-enter");
+      });
+    }
+    const films = watchSheetFilms();
+    enrichListCast(films);
+    if (state.watchSheet === "search") {
+      const input = watchSheetEl.querySelector("[data-act=watch-search]");
+      if (input) {
+        input.focus();
+        const len = input.value.length;
+        try { input.setSelectionRange(len, len); } catch { /* ignore */ }
       }
     }
-    const box = app.querySelector("[data-role=search-chips]");
-    if (box) box.innerHTML = renderSearchChipsHtml();
+  }
+
+  function openWatchAddSheet() {
+    closeFilmMenus();
+    state.watchSheet = "add";
+    state.watchCat = state.watchCat || "blockbuster";
+    paintWatchSheet();
+  }
+
+  function openWatchSearchSheet() {
+    state.watchSheet = "search";
+    paintWatchSheet();
+    if (state.watchSearch.trim()) scheduleTitleSearch(state.watchSearch);
+  }
+
+  function closeWatchSheet() {
+    window.clearTimeout(searchTimer);
+    searchSeq += 1;
+    state.watchSheet = null;
+    state.watchSearch = "";
+    state.searchHits = [];
+    state.searchStatus = "";
+    document.body.classList.remove("watch-sheet-open");
+    if (watchSheetEl) {
+      watchSheetEl.hidden = true;
+      watchSheetEl.innerHTML = "";
+    }
+  }
+
+  function dismissWatchSheet() {
+    const panel = watchSheetEl && watchSheetEl.querySelector("[data-role=sheet-panel]");
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const finish = () => {
+      if (state.watchSheet === "search") {
+        state.watchSheet = "add";
+        paintWatchSheet();
+        return;
+      }
+      closeWatchSheet();
+    };
+    if (!panel || reduce) {
+      finish();
+      return;
+    }
+    panel.style.transition = "transform 0.22s ease";
+    panel.style.transform = "translateY(110%)";
+    window.setTimeout(finish, 220);
   }
 
   let searchTimer = 0;
@@ -2344,11 +2633,13 @@
       searchSeq += 1;
       state.searchHits = [];
       state.searchStatus = "";
-      paintSearchUi();
+      paintWatchSheetList();
       return;
     }
-    state.searchStatus = "loading";
-    paintSearchUi();
+    state.searchHits = catalogTitleHits(q);
+    state.searchHits.forEach((film) => rememberFilm(film));
+    state.searchStatus = state.searchHits.length ? "ok" : "loading";
+    paintWatchSheetList();
     searchTimer = window.setTimeout(() => {
       runTitleSearch(q);
     }, 200);
@@ -2356,50 +2647,37 @@
 
   async function runTitleSearch(query) {
     const seq = ++searchSeq;
+    const local = catalogTitleHits(query);
     try {
       const data = await tmdbFetch("/search/movie", { query });
       if (seq !== searchSeq) return;
-      const films = (data.results || []).map(fromTmdbMovie).filter((film) => film && film.title);
-      state.searchHits = films;
-      films.forEach((film) => rememberFilm(film));
-      state.searchStatus = films.length ? "ok" : "empty";
+      const remote = (data.results || []).map(fromTmdbMovie).filter((film) => film && film.title);
+      const seen = new Set(local.map((film) => filmId(film)));
+      const merged = local.slice();
+      for (const film of remote) {
+        if (seen.has(filmId(film))) continue;
+        seen.add(filmId(film));
+        merged.push(film);
+        rememberFilm(film);
+      }
+      state.searchHits = merged;
+      state.searchStatus = merged.length ? "ok" : "empty";
     } catch {
       if (seq !== searchSeq) return;
-      state.searchHits = [];
-      state.searchStatus = "offline";
+      state.searchHits = local;
+      state.searchStatus = local.length ? "ok" : "offline";
     }
-    paintSearchUi();
+    paintWatchSheetList();
   }
 
   function renderWatchTab() {
-    const q = state.search.trim().toLowerCase();
-    const listed = watchlistFilms();
-    const listedMatch = q
-      ? listed.filter((f) => f.title.toLowerCase().includes(q))
-      : [];
-    const rest = q
-      ? listed.filter((f) => !listedMatch.some((x) => filmId(x) === filmId(f)))
-      : listed;
-    const ordered = listedMatch.concat(rest);
-    const rows = ordered.map((film) => {
-      const already = q && film.title.toLowerCase().includes(q);
-      const tags = renderFilmTagChips(film);
-      return renderListRow(film, {
-        extra: already ? "schon auf der Watchlist" : "",
-        menu: `
-          <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Anschauen</button>
-          <button type="button" class="btn btn-compact" data-act="watch-remove" data-id="${escapeHtml(filmId(film))}">Streichen</button>
-          ${tags ? `<div class="film-menu-tags">${tags}</div>` : ""}
-        `,
-      });
-    }).join("");
+    const rows = renderWatchRows();
     return `
       <div class="list-toolbar">
-        <div class="search-wrap">
-          <input data-act="search" placeholder="Film suchen" value="${escapeHtml(state.search)}" autocomplete="off">
-          ${state.search ? `<button type="button" class="search-clear" data-act="search-clear" aria-label="Suche leeren">${ICONS.close}</button>` : ""}
-        </div>
-        <div class="suggest-chips" data-role="search-chips">${renderSearchChipsHtml()}</div>
+        <button type="button" class="watch-add-chip" data-act="watch-sheet-open">
+          <span class="watch-add-plus">${ICONS.plus}</span>
+          Hinzufügen
+        </button>
       </div>
       <section class="film-list" data-role="film-list">${rows || `<p class="hint">Noch nichts auf der Watchlist.</p>`}</section>
     `;
@@ -2530,6 +2808,7 @@
   }
 
   function render() {
+    if (state.screen !== "lists" || state.listTab !== "watch") closeWatchSheet();
     updateHeader();
     updateFooter();
     const onLogin = state.screen === "login";
@@ -2574,6 +2853,7 @@
   }
 
   function goBack() {
+    closeWatchSheet();
     if (state.screen === "profile-add") state.screen = "profiles";
     else if (state.screen === "suggest" || state.screen === "lists" || state.screen === "tags" || state.screen === "done") {
       if (state.screen === "tags") state.tagEditId = null;
@@ -2647,6 +2927,7 @@
   }
 
   async function startSuggestions() {
+    closeWatchSheet();
     await loadCatalog();
     await ensureDiscoverPool(80);
     if (!state.catalog.length) state.catalog = cloneFilms(offlineFilms);
@@ -2681,6 +2962,27 @@
     return true;
   }
 
+  function isOnWatchlist(film) {
+    if (!film) return false;
+    return watchlist().some((row) => String(row.id) === filmId(film));
+  }
+
+  function toggleWatchFilm(film) {
+    if (!film) return;
+    rememberFilm(film);
+    if (isOnWatchlist(film)) {
+      saveWatchlist(watchlist().filter((row) => String(row.id) !== filmId(film)));
+      paintWatchToggles();
+      refreshWatchList();
+      showSnack(`${film.title} von Watchlist entfernt`, "danger");
+      return;
+    }
+    addWatch(film);
+    paintWatchToggles();
+    refreshWatchList();
+    showSnack(`${film.title} zur Watchlist hinzugefügt`);
+  }
+
   function chooseFilm(film) {
     if (!film) return;
     rememberFilm(film);
@@ -2696,7 +2998,36 @@
     burstConfetti();
   }
 
+  function handleWatchUiClick(event) {
+    const t = event.target.closest("[data-act]");
+    if (!t) return false;
+    const act = t.dataset.act;
+    if (act === "watch-sheet-open") {
+      openWatchAddSheet();
+      return true;
+    }
+    if (act === "watch-search-open") {
+      openWatchSearchSheet();
+      return true;
+    }
+    if (act === "watch-cat") {
+      if (state.watchCat === t.dataset.id) return true;
+      state.watchCat = t.dataset.id;
+      watchSheetEl.querySelectorAll("[data-act=watch-cat]").forEach((btn) => {
+        btn.setAttribute("aria-pressed", btn.dataset.id === state.watchCat ? "true" : "false");
+      });
+      paintWatchSheetList();
+      return true;
+    }
+    if (act === "watch-toggle") {
+      toggleWatchFilm(findFilm(t.dataset.id));
+      return true;
+    }
+    return false;
+  }
+
   app.addEventListener("click", async (event) => {
+    if (handleWatchUiClick(event)) return;
     const t = event.target.closest("[data-act]");
     if (!t) {
       closeFilmMenus();
@@ -2902,7 +3233,7 @@
       const film = findFilm(t.dataset.id);
       if (addWatch(film)) {
         render();
-        showSnack(`${film.title} ist auf der Watchlist`);
+        showSnack(`${film.title} zur Watchlist hinzugefügt`);
       }
       return;
     }
@@ -2931,8 +3262,10 @@
       return;
     }
     if (act === "watch-remove") {
+      const film = findFilm(t.dataset.id);
       saveWatchlist(watchlist().filter((row) => String(row.id) !== filmId(t.dataset.id)));
       render();
+      if (film) showSnack(`${film.title} von Watchlist entfernt`, "danger");
       return;
     }
     if (act === "choose") {
@@ -3063,6 +3396,10 @@
       state.search = t.value;
       scheduleTitleSearch(t.value);
     }
+    if (act === "watch-search") {
+      state.watchSearch = t.value;
+      scheduleTitleSearch(t.value);
+    }
     if (act === "dauer") {
       state.filters.dauer = Number(t.value);
       state.filters.dauerOn = true;
@@ -3162,6 +3499,7 @@
       return;
     }
     if (nav === "lists") {
+      closeWatchSheet();
       state.listTab = "watch";
       state.search = "";
       state.searchHits = [];
@@ -3171,6 +3509,7 @@
       return;
     }
     if (nav === "tags") {
+      closeWatchSheet();
       state.tagEditId = null;
       state.screen = "tags";
       render();
@@ -3215,6 +3554,77 @@
     if (Math.abs(dx) < 56) return;
     row.dataset.swipeDir = dx < 0 ? "left" : "right";
   }, { passive: true });
+
+  watchSheetEl.addEventListener("click", (event) => {
+    handleWatchUiClick(event);
+  });
+
+  watchSheetEl.addEventListener("input", (event) => {
+    const t = event.target;
+    if (!t || t.dataset.act !== "watch-search") return;
+    state.watchSearch = t.value;
+    scheduleTitleSearch(t.value);
+  });
+
+  let sheetDrag = null;
+
+  function sheetDragAllowed(event) {
+    if (!state.watchSheet) return false;
+    if (event.target.closest("input, textarea, [data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open]")) return false;
+    const list = event.target.closest("[data-role=watch-sheet-list]");
+    if (list && list.scrollTop > 2) return false;
+    return true;
+  }
+
+  function endSheetDrag(event) {
+    if (!sheetDrag || (event && event.pointerId !== sheetDrag.id)) return;
+    const panel = sheetDrag.panel;
+    const dy = event ? event.clientY - sheetDrag.startY : 0;
+    const dragging = sheetDrag.dragging;
+    sheetDrag = null;
+    if (!panel) return;
+    if (!dragging || dy <= 72) {
+      panel.style.transition = "transform 0.2s ease";
+      panel.style.transform = "translateY(0)";
+      window.setTimeout(() => {
+        panel.style.transition = "";
+        panel.style.transform = "";
+      }, 200);
+      return;
+    }
+    dismissWatchSheet();
+  }
+
+  watchSheetEl.addEventListener("pointerdown", (event) => {
+    if (event.button && event.button !== 0) return;
+    if (!sheetDragAllowed(event)) return;
+    const panel = watchSheetEl.querySelector("[data-role=sheet-panel]");
+    if (!panel) return;
+    sheetDrag = {
+      id: event.pointerId,
+      startY: event.clientY,
+      panel,
+      dragging: false,
+    };
+    try { panel.setPointerCapture(event.pointerId); } catch { /* ignore */ }
+  });
+
+  watchSheetEl.addEventListener("pointermove", (event) => {
+    if (!sheetDrag || event.pointerId !== sheetDrag.id) return;
+    const dy = event.clientY - sheetDrag.startY;
+    if (!sheetDrag.dragging && dy < 10) return;
+    if (dy < 0) {
+      sheetDrag.panel.style.transform = "";
+      return;
+    }
+    sheetDrag.dragging = true;
+    sheetDrag.panel.style.transition = "none";
+    sheetDrag.panel.style.transform = `translateY(${dy}px)`;
+    event.preventDefault();
+  }, { passive: false });
+
+  watchSheetEl.addEventListener("pointerup", endSheetDrag);
+  watchSheetEl.addEventListener("pointercancel", endSheetDrag);
 
   desktopNavMq.addEventListener("change", () => {
     scheduleFooterSync({ reset: !isDesktopNav() });
