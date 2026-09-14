@@ -1677,8 +1677,8 @@ body.has-footer.footer-open.watch-sheet-open .snackbar {
 
 .sheet-panel {
   width: min(430px, 100%);
-  height: min(88dvh, 620px);
-  max-height: calc(100dvh - 36px);
+  height: calc(100dvh - 56px);
+  max-height: calc(100dvh - 52px);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1691,7 +1691,8 @@ body.has-footer.footer-open.watch-sheet-open .snackbar {
 }
 
 .sheet-panel.is-search {
-  height: min(90dvh, 640px);
+  height: calc(100dvh - 56px);
+  max-height: calc(100dvh - 52px);
 }
 
 .sheet-panel.is-enter {
@@ -1722,15 +1723,15 @@ body.has-footer.footer-open.watch-sheet-open .snackbar {
 .sheet-cats {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   overflow: hidden;
   flex: 0 0 auto;
-  padding: 0 2px 8px;
+  padding: 0 0 8px;
 }
 
 .sheet-cats .chip {
-  font-size: 0.72rem;
-  padding: 5px 9px;
+  font-size: 0.66rem;
+  padding: 4px 7px;
 }
 
 .sheet-panel .film-list {

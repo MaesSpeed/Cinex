@@ -2853,7 +2853,10 @@
   }
 
   function goBack() {
-    closeWatchSheet();
+    if (state.watchSheet) {
+      dismissWatchSheet();
+      return;
+    }
     if (state.screen === "profile-add") state.screen = "profiles";
     else if (state.screen === "suggest" || state.screen === "lists" || state.screen === "tags" || state.screen === "done") {
       if (state.screen === "tags") state.tagEditId = null;
