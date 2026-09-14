@@ -21,6 +21,39 @@
     { tmdb: 157336, src: "https://image.tmdb.org/t/p/w185/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg" },
   ];
 
+  const LOGIN_POSTERS = [
+    { id: "t557", title: "Spider-Man", poster: "https://image.tmdb.org/t/p/w185/2xSL6CAWsynawHFDGdJSGutUj9X.jpg" },
+    { id: "t155", title: "The Dark Knight", poster: "https://image.tmdb.org/t/p/w185/z1DfRQf2CgnROyhVZ6ch8FbWt71.jpg" },
+    { id: "t120", title: "Der Herr der Ringe - Die Gefährten", poster: "https://image.tmdb.org/t/p/w185/k6lw7hhaMDzJ170bfZfBbnipxcW.jpg" },
+    { id: "t27205", title: "Inception", poster: "https://image.tmdb.org/t/p/w185/t5WUY5ZSxwVIVExaMZmmIj88BKA.jpg" },
+    { id: "t157336", title: "Interstellar", poster: "https://image.tmdb.org/t/p/w185/hHdhfkkzt0Mwec33Ux177Z7CO8w.jpg" },
+    { id: "t238", title: "Der Pate", poster: "https://image.tmdb.org/t/p/w185/uumEbSnYqeV1oennyVx8DPVjujF.jpg" },
+    { id: "t680", title: "Pulp Fiction", poster: "https://image.tmdb.org/t/p/w185/hOg9USqmQmglmr5kGvpyg1XkhqN.jpg" },
+    { id: "t13", title: "Forrest Gump", poster: "https://image.tmdb.org/t/p/w185/zUWRCzac72YuO9k5kEWSe0aGbs7.jpg" },
+    { id: "t603", title: "Matrix", poster: "https://image.tmdb.org/t/p/w185/iVmDLujHcV1zaMnaahKWn4TcCS6.jpg" },
+    { id: "t597", title: "Titanic", poster: "https://image.tmdb.org/t/p/w185/MlnPG3oxhfmuiDwcoeElQWui9m.jpg" },
+    { id: "t19995", title: "Avatar", poster: "https://image.tmdb.org/t/p/w185/8VV4YUwOGxgolFZTo2SgNwsfznR.jpg" },
+    { id: "t671", title: "Harry Potter und der Stein der Weisen", poster: "https://image.tmdb.org/t/p/w185/nKspzM3rVJASkT4CvZvuj9KDT7l.jpg" },
+    { id: "t862", title: "Toy Story", poster: "https://image.tmdb.org/t/p/w185/om4fMx3e4xkx27sAsacoFP4WiEd.jpg" },
+    { id: "t550", title: "Fight Club", poster: "https://image.tmdb.org/t/p/w185/5sLBZtBzmL9Xd5MdGyqymgM9kPY.jpg" },
+    { id: "t278", title: "Die Verurteilten", poster: "https://image.tmdb.org/t/p/w185/78Pb6FMLMfpm1jUOKTniwREYgAN.jpg" },
+    { id: "t872585", title: "Oppenheimer", poster: "https://image.tmdb.org/t/p/w185/9AiHV08v8RyyuHcO5wuTaTXBxfe.jpg" },
+    { id: "t569094", title: "Spider-Man: Across the Spider-Verse", poster: "https://image.tmdb.org/t/p/w185/6jYQM7zldTF0q6Ky1XbIJCNsS2L.jpg" },
+    { id: "t693134", title: "Dune: Part Two", poster: "https://image.tmdb.org/t/p/w185/zYLP7Uiqz6XqoiQLAu4XQ6DRUMz.jpg" },
+    { id: "t122", title: "Der Herr der Ringe - Die Rückkehr des Königs", poster: "https://image.tmdb.org/t/p/w185/uFjlP9U9UOZAzGB25HUtmlEpXbc.jpg" },
+    { id: "t1726", title: "Iron Man", poster: "https://image.tmdb.org/t/p/w185/ueGAjn2cR1nc1f2i8VjIhpiP73E.jpg" },
+    { id: "t76341", title: "Mad Max: Fury Road", poster: "https://image.tmdb.org/t/p/w185/6zI7lI5Usf5z6wXH9KPWvGWvKS7.jpg" },
+    { id: "t533535", title: "Deadpool & Wolverine", poster: "https://image.tmdb.org/t/p/w185/chDpMyvXNDFMhg3yUknITnGUCUk.jpg" },
+    { id: "t496243", title: "Parasite", poster: "https://image.tmdb.org/t/p/w185/hoqe3leVhHBgboB6G1bv1kB8K4p.jpg" },
+    { id: "t361743", title: "Top Gun: Maverick", poster: "https://image.tmdb.org/t/p/w185/cvLe7YpLTsgT25FpuTD1bwgEcWZ.jpg" },
+    { id: "t129", title: "Chihiros Reise ins Zauberland", poster: "https://image.tmdb.org/t/p/w185/wWNLsGvKqhi6cNWul0uvhqbQ4kl.jpg" },
+    { id: "t24428", title: "The Avengers", poster: "https://image.tmdb.org/t/p/w185/nwdcPGzBtex0XSOhG8vryGXKByZ.jpg" },
+    { id: "t299534", title: "Avengers: Endgame", poster: "https://image.tmdb.org/t/p/w185/ibO8Pj0aA1nwj3Q9FMpMcYZkdCA.jpg" },
+    { id: "t447365", title: "Guardians of the Galaxy Vol. 3", poster: "https://image.tmdb.org/t/p/w185/jrz8nDZH6u3Xfpl74q2xeaS33RL.jpg" },
+    { id: "t218", title: "Terminator", poster: "https://image.tmdb.org/t/p/w185/kdYu7YJJP0uuGEuhUX5toqvBSog.jpg" },
+    { id: "t49026", title: "The Dark Knight Rises", poster: "https://image.tmdb.org/t/p/w185/9NyCuhyvFKTqGRLcr4r8fWXnu9v.jpg" },
+  ];
+
   const RATE_KEYS = [
     { id: "sehr-gut", label: "Sehr gut" },
     { id: "gut", label: "Gut" },
@@ -84,31 +117,62 @@
   );
 
   const FILMS = [
-    f(238, "Der Pate", ["Krimi", "Drama"], 175, 8.7),
-    f(680, "Pulp Fiction", ["Krimi", "Drama"], 154, 8.5),
-    f(13, "Forrest Gump", ["Drama", "Romanze"], 142, 8.5),
-    f(603, "Matrix", ["Sci-Fi", "Action"], 136, 8.2),
-    f(27205, "Inception", ["Sci-Fi", "Action"], 148, 8.4),
-    f(157336, "Interstellar", ["Sci-Fi", "Drama"], 169, 8.4),
-    f(496243, "Parasite", ["Thriller", "Drama"], 132, 8.5),
-    f(597, "Titanic", ["Drama", "Romanze"], 194, 7.9),
-    f(19995, "Avatar", ["Sci-Fi", "Abenteuer"], 162, 7.6),
-    f(120, "Der Herr der Ringe: Die Gefährten", ["Fantasy", "Abenteuer"], 178, 8.4),
-    f(671, "Harry Potter und der Stein der Weisen", ["Fantasy", "Abenteuer"], 152, 7.6),
-    f(862, "Toy Story", ["Animation", "Komödie"], 81, 8.0),
-    f(129, "Chihiros Reise ins Zauberland", ["Animation", "Fantasy"], 125, 8.5),
-    f(155, "The Dark Knight", ["Action", "Krimi"], 152, 8.5),
-    f(550, "Fight Club", ["Drama", "Thriller"], 139, 8.4),
-    f(278, "Die Verurteilten", ["Drama"], 142, 8.7),
-    f(872585, "Oppenheimer", ["Drama", "Historie"], 180, 8.1),
-    f(569094, "Spider-Man: Across the Spider-Verse", ["Animation", "Action"], 140, 8.4),
-    f(693134, "Dune: Part Two", ["Sci-Fi", "Abenteuer"], 166, 8.1),
-    f(361743, "Top Gun: Maverick", ["Action"], 131, 8.2),
+    f(238, "Der Pate", ["Krimi", "Drama"], 175, 8.7, ["Marlon Brando", "Al Pacino", "James Caan"]),
+    f(680, "Pulp Fiction", ["Krimi", "Drama"], 154, 8.5, ["John Travolta", "Samuel L. Jackson", "Uma Thurman"]),
+    f(13, "Forrest Gump", ["Drama", "Romanze"], 142, 8.5, ["Tom Hanks", "Robin Wright", "Gary Sinise"]),
+    f(603, "Matrix", ["Sci-Fi", "Action"], 136, 8.2, ["Keanu Reeves", "Laurence Fishburne", "Carrie-Anne Moss"]),
+    f(27205, "Inception", ["Sci-Fi", "Action"], 148, 8.4, ["Leonardo DiCaprio", "Joseph Gordon-Levitt", "Elliot Page"]),
+    f(157336, "Interstellar", ["Sci-Fi", "Drama"], 169, 8.4, ["Matthew McConaughey", "Anne Hathaway", "Jessica Chastain"]),
+    f(496243, "Parasite", ["Thriller", "Drama"], 132, 8.5, ["Song Kang-ho", "Lee Sun-kyun", "Cho Yeo-jeong"]),
+    f(597, "Titanic", ["Drama", "Romanze"], 194, 7.9, ["Leonardo DiCaprio", "Kate Winslet", "Billy Zane"]),
+    f(19995, "Avatar", ["Sci-Fi", "Abenteuer"], 162, 7.6, ["Sam Worthington", "Zoe Saldana", "Sigourney Weaver"]),
+    f(120, "Der Herr der Ringe: Die Gefährten", ["Fantasy", "Abenteuer"], 178, 8.4, ["Elijah Wood", "Ian McKellen", "Viggo Mortensen"]),
+    f(155, "The Dark Knight", ["Action", "Krimi"], 152, 8.5, ["Christian Bale", "Heath Ledger", "Aaron Eckhart"]),
+    f(671, "Harry Potter und der Stein der Weisen", ["Fantasy", "Abenteuer"], 152, 7.6, ["Daniel Radcliffe", "Rupert Grint", "Emma Watson"]),
+    f(862, "Toy Story", ["Animation", "Komödie"], 81, 8.0, ["Tom Hanks", "Tim Allen", "Don Rickles"]),
+    f(129, "Chihiros Reise ins Zauberland", ["Animation", "Fantasy"], 125, 8.5, ["Rumi Hiiragi", "Miyu Irino", "Mari Natsuki"]),
+    f(550, "Fight Club", ["Drama", "Thriller"], 139, 8.4, ["Brad Pitt", "Edward Norton", "Helena Bonham Carter"]),
+    f(278, "Die Verurteilten", ["Drama"], 142, 8.7, ["Tim Robbins", "Morgan Freeman", "Bob Gunton"]),
+    f(872585, "Oppenheimer", ["Drama", "Historie"], 180, 8.1, ["Cillian Murphy", "Emily Blunt", "Robert Downey Jr."]),
+    f(569094, "Spider-Man: Across the Spider-Verse", ["Animation", "Action"], 140, 8.4, ["Shameik Moore", "Hailee Steinfeld", "Brian Tyree Henry"]),
+    f(693134, "Dune: Part Two", ["Sci-Fi", "Abenteuer"], 166, 8.1, ["Timothée Chalamet", "Zendaya", "Rebecca Ferguson"]),
+    f(361743, "Top Gun: Maverick", ["Action"], 131, 8.2, ["Tom Cruise", "Miles Teller", "Jennifer Connelly"]),
+  ];
+
+  const WATCH_CATS = [
+    { id: "blockbuster", label: "Blockbuster" },
+    { id: "neu", label: "Neu" },
+    { id: "top", label: "Top bewertet" },
+    { id: "action", label: "Action" },
+    { id: "klassiker", label: "Klassiker" },
+  ];
+
+  const BLOCKBUSTER_IDS = [
+    27205, 157336, 299534, 604, 120, 155, 24428, 19995, 597, 361743,
+    569094, 1726, 693134, 603, 872585, 447365, 76341, 49026, 671, 13,
+  ];
+
+  const KLASSIKER_IDS = [
+    238, 680, 13, 603, 120, 278, 550, 129, 862, 155, 122, 11, 1891, 78, 769,
   ];
 
   let genrePicks = GENRE_CHIPS.slice();
 
-  function f(id, title, genres, runtime, vote_average) {
+  function filmCastNames(raw) {
+    if (!raw) return [];
+    if (Array.isArray(raw.cast)) {
+      return raw.cast.map((row) => {
+        if (typeof row === "string") return row.trim();
+        return String((row && (row.name || row.original_name)) || "").trim();
+      }).filter(Boolean);
+    }
+    if (typeof raw.cast === "string") {
+      return raw.cast.split(",").map((name) => name.trim()).filter(Boolean);
+    }
+    return [];
+  }
+
+  function f(id, title, genres, runtime, vote_average, cast) {
     return {
       id: `t${id}`,
       tmdb: id,
@@ -121,6 +185,7 @@
       vote_average,
       poster: "",
       color: "#1d4f91",
+      cast: Array.isArray(cast) ? cast.slice() : [],
     };
   }
 
@@ -153,6 +218,8 @@
       vote_average: rating,
       poster,
       color: raw.color || "#1d4f91",
+      cast: filmCastNames(raw).slice(0, 4),
+      year: Number(raw.year) || (raw.release_date ? Number(String(raw.release_date).slice(0, 4)) : 0) || 0,
     };
   }
 
@@ -227,6 +294,8 @@
       rating: raw.vote_average,
       poster: tmdbPoster(raw.poster_path),
       poster_path: raw.poster_path,
+      year: raw.release_date ? Number(String(raw.release_date).slice(0, 4)) : 0,
+      release_date: raw.release_date || "",
     });
   }
 
@@ -328,6 +397,8 @@
       <circle cx="35" cy="19" r="2.2" fill="#fff"/>
     </svg>`,
     plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>`,
+    check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"/></svg>`,
+    search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.2"/><path d="m16 16 4.2 4.2"/></svg>`,
     close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg>`,
     chipX: `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 3l6 6M9 3 3 9"/></svg>`,
     jump: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.2 3.2H3.8A1.6 1.6 0 0 0 2.2 4.8v7.4A1.6 1.6 0 0 0 3.8 13.8h7.4a1.6 1.6 0 0 0 1.6-1.6V9.8"/><path d="M8.6 7.4 13.8 2.2M9.8 2.2h4v4"/></svg>`,
@@ -335,6 +406,7 @@
     lock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="6" y="10.2" width="12" height="9.3" rx="2"/><path d="M8.2 10.2V8.1a3.8 3.8 0 0 1 7.6 0v2.1"/></svg>`,
     eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.7 12S6.1 6.6 12 6.6 21.3 12 21.3 12 17.9 17.4 12 17.4 2.7 12 2.7 12z"/><circle cx="12" cy="12" r="2.35"/></svg>`,
     eyeOff: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5.1 19.4 20.5"/><path d="M10.1 10.4a2.35 2.35 0 0 0 3.4 3.3"/><path d="M7.1 7.6C5 8.9 3.4 11.1 2.7 12c0 0 3.4 5.4 9.3 5.4 1.6 0 3-.3 4.2-.8"/><path d="M16.8 16.1c1.8-1.2 3.2-3 3.8-4.1 0 0-1.6-2.6-4.5-4.2"/></svg>`,
+    menu: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>`,
   };
 
   function rateIcon(id) {
@@ -379,6 +451,9 @@
     search: "",
     searchHits: [],
     searchStatus: "",
+    watchSheet: null,
+    watchCat: "blockbuster",
+    watchSearch: "",
     discoverPage: 0,
     discoverTotalPages: 1,
     catalogLive: false,
@@ -402,6 +477,7 @@
   const headerActions = document.getElementById("header-actions");
   const footer = document.getElementById("site-footer");
   const snackbar = document.getElementById("snackbar");
+  const watchSheetEl = document.getElementById("watch-sheet");
   const modalEl = document.getElementById("modal");
   const confettiCanvas = document.getElementById("confetti");
   const ctx = confettiCanvas.getContext("2d");
@@ -508,10 +584,10 @@
     ];
     const prefix = "wdq.p.u-test.tester.";
     saveJson(`${prefix}tags`, tags);
-    saveJson(`${prefix}watchlist`, [
-      { id: "t27205", at: Date.now() - 4000 },
-      { id: "t862", at: Date.now() - 2000 },
-    ]);
+    saveJson(`${prefix}watchlist`, FILMS.map((film, index) => ({
+      id: film.id,
+      at: Date.now() - ((FILMS.length - index) * 1000),
+    })));
     saveJson(`${prefix}filmTags`, { t862: ["tag-omma"] });
     saveJson(`${prefix}history`, [
       { id: "t693134", title: "Dune: Part Two", at: Date.now() - 8000 },
@@ -562,6 +638,13 @@
     return raw && typeof raw === "object" ? raw : {};
   }
 
+  function pickRuntime(next, prev) {
+    const a = Number(next) || 0;
+    const b = Number(prev) || 0;
+    if (a && b && a === 120 && b !== 120) return b;
+    return a || b;
+  }
+
   function rememberFilm(film) {
     if (!film) return null;
     const n = normalizeFilm(film);
@@ -569,13 +652,16 @@
     const idx = state.catalog.findIndex((row) => filmId(row) === filmId(n));
     if (idx >= 0) {
       const prev = state.catalog[idx];
+      const minutes = pickRuntime(n.minutes || n.runtime, prev.minutes || prev.runtime);
       state.catalog[idx] = normalizeFilm({
         ...prev,
         ...n,
-        minutes: n.minutes || prev.minutes,
-        runtime: n.runtime || prev.runtime,
+        minutes,
+        runtime: minutes,
         poster: n.poster || prev.poster,
         genres: n.genres && n.genres.length ? n.genres : prev.genres,
+        cast: (n.cast && n.cast.length) ? n.cast : (prev.cast || []),
+        year: n.year || prev.year,
       });
     } else {
       state.catalog.push(n);
@@ -603,7 +689,7 @@
     const sid = String(id);
     const num = Number(String(id).replace(/^t/i, ""));
     const match = (f) => filmId(f) === sid || String(f.tmdb) === sid || Number(f.tmdb) === num;
-    const lists = [state.currentPicks, state.shortlist, state.searchHits, state.catalog, offlineFilms];
+    const lists = [state.currentPicks, state.shortlist, state.searchHits, state.catalog, offlineFilms, FILMS, LOGIN_POSTERS];
     for (const list of lists) {
       const hit = (list || []).find(match);
       if (hit) return hit;
@@ -621,6 +707,82 @@
       return r ? `${h} Std., ${r} Min.` : `${h} Std.`;
     }
     return `${m} Min.`;
+  }
+
+  function durationPill(film) {
+    const m = Number((film && (film.runtime || film.minutes)) || 0);
+    return m > 0 ? `${m} min` : "";
+  }
+
+  function filmCastLine(film) {
+    let names = filmCastNames(film).slice(0, 3);
+    if (!names.length && film) {
+      const sid = filmId(film);
+      const fallback = FILMS.find((row) => filmId(row) === sid);
+      names = filmCastNames(fallback).slice(0, 3);
+    }
+    return names.join(", ");
+  }
+
+  const castFetchTried = new Set();
+  let listCastSeq = 0;
+
+  async function enrichListCast(films) {
+    const seq = ++listCastSeq;
+    const pending = (films || []).filter((film) => {
+      const id = filmId(film);
+      if (!id || castFetchTried.has(id)) return false;
+      if (filmCastNames(film).length) {
+        castFetchTried.add(id);
+        return false;
+      }
+      if (!film.tmdb) {
+        castFetchTried.add(id);
+        return false;
+      }
+      return true;
+    });
+    if (!pending.length) return;
+    let changed = false;
+    await Promise.all(pending.map(async (film) => {
+      const id = filmId(film);
+      castFetchTried.add(id);
+      try {
+        const data = await tmdbFetch(`/movie/${film.tmdb}/credits`);
+        const names = (data.cast || [])
+          .slice()
+          .sort((a, b) => (Number(a.order) || 99) - (Number(b.order) || 99))
+          .map((row) => String(row.name || row.original_name || "").trim())
+          .filter(Boolean)
+          .slice(0, 3);
+        if (names.length) {
+          rememberFilm({ ...film, cast: names });
+          changed = true;
+        }
+      } catch {
+        /* keep empty cast line hidden */
+      }
+    }));
+    if (changed && seq === listCastSeq) patchFilmCastLines();
+  }
+
+  function patchFilmCastLines() {
+    document.querySelectorAll(".film-row[data-id]").forEach((row) => {
+      const film = findFilm(row.dataset.id);
+      if (!film) return;
+      const line = filmCastLine(film);
+      let el = row.querySelector(".film-row-cast");
+      if (!line) {
+        if (el) el.remove();
+        return;
+      }
+      if (el) {
+        el.textContent = line;
+        return;
+      }
+      const body = row.querySelector(".film-row-body");
+      if (body) body.insertAdjacentHTML("beforeend", `<p class="film-row-cast">${escapeHtml(line)}</p>`);
+    });
   }
 
   function escapeHtml(value) {
@@ -784,13 +946,16 @@
     tagWaveTimer = window.setInterval(runTagWave, 6000);
   }
 
-  function showSnack(text) {
+  function showSnack(text, tone) {
     snackbar.hidden = false;
+    snackbar.classList.toggle("is-danger", tone === "danger");
     document.body.classList.add("snack-on");
-    snackbar.innerHTML = `<span aria-hidden="true">✓</span><span>${escapeHtml(text)}</span>`;
+    const mark = tone === "danger" ? "✕" : "✓";
+    snackbar.innerHTML = `<span aria-hidden="true">${mark}</span><span>${escapeHtml(text)}</span>`;
     window.clearTimeout(showSnack.tid);
     showSnack.tid = window.setTimeout(() => {
       snackbar.hidden = true;
+      snackbar.classList.remove("is-danger");
       document.body.classList.remove("snack-on");
     }, 2600);
   }
@@ -1009,6 +1174,8 @@
     if (catalogInFlight) return catalogInFlight;
     catalogInFlight = (async () => {
       await loadOfflineFallback();
+      addFilmsToCatalog(cloneFilms(offlineFilms));
+      addFilmsToCatalog(cloneFilms(FILMS));
       const live = await ensureDiscoverPool(80);
       if (!live && !state.catalogLive) {
         if (!state.catalog.length) state.catalog = cloneFilms(offlineFilms);
@@ -1093,11 +1260,12 @@
     const chips = items.map((item) => (
       `<button type="button" class="chip" data-act="${item.act}" ${item.attrs} aria-pressed="${item.on}">${escapeHtml(item.label)}</button>`
     )).join("");
+    const expanded = !!state.filterMore[key];
     return `
-      <div class="filter-chips" data-chip-row="${key}">
+      <div class="filter-chips${expanded ? " is-expanded" : ""}" data-chip-row="${key}">
         ${chips}
       </div>
-      <button type="button" class="chip-more" data-act="filter-more" data-key="${key}" hidden>mehr</button>
+      <button type="button" class="chip-more${expanded ? " is-weniger" : ""}" data-act="filter-more" data-key="${key}" ${expanded ? "" : "hidden"}>${expanded ? "weniger" : "mehr"}</button>
     `;
   }
 
@@ -1111,11 +1279,19 @@
       chips.forEach((chip) => { chip.hidden = false; });
       if (state.filterMore[key]) {
         row.classList.add("is-expanded");
-        if (moreBtn) moreBtn.hidden = true;
+        if (card) card.classList.add("is-expanded");
+        if (moreBtn) {
+          moreBtn.hidden = false;
+          moreBtn.textContent = "weniger";
+          moreBtn.classList.add("is-weniger");
+        }
         return;
       }
       row.classList.remove("is-expanded");
+      if (card) card.classList.remove("is-expanded");
       if (!moreBtn) return;
+      moreBtn.textContent = "mehr";
+      moreBtn.classList.remove("is-weniger");
       moreBtn.hidden = false;
       const overflows = () => row.scrollWidth > row.clientWidth + 1;
       if (!overflows()) {
@@ -1137,9 +1313,38 @@
     state.filters.streaming = [];
   }
 
-  function showDauerTip(on) {
-    const tip = app.querySelector("[data-role=dauer-tip]");
-    if (tip) tip.hidden = !on;
+  function closeFilmMenus() {
+    app.querySelectorAll(".film-menu-pop").forEach((pop) => {
+      pop.hidden = true;
+      pop.style.position = "";
+      pop.style.left = "";
+      pop.style.right = "";
+      pop.style.top = "";
+      pop.style.width = "";
+      pop.style.transform = "";
+    });
+    app.querySelectorAll("[data-act=film-menu]").forEach((btn) => {
+      btn.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function placeFilmMenu(btn, pop) {
+    const rect = btn.getBoundingClientRect();
+    pop.style.position = "fixed";
+    pop.style.transform = "none";
+    const width = Math.min(200, Math.max(148, window.innerWidth - 24));
+    let left = rect.right - width;
+    if (left < 8) left = 8;
+    if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - width - 8);
+    pop.style.left = `${left}px`;
+    pop.style.right = "auto";
+    pop.style.width = `${width}px`;
+    const h = pop.offsetHeight;
+    let top = rect.bottom + 4;
+    if (top + h > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - h - 4);
+    }
+    pop.style.top = `${top}px`;
   }
 
   function openConfirm(opts) {
@@ -1234,6 +1439,7 @@
   }
 
   function doLogout() {
+    closeWatchSheet();
     closeModal();
     state.user = null;
     state.profile = null;
@@ -1311,10 +1517,23 @@
   }
 
   function contentOverflows() {
+    const list = app.querySelector("[data-role=film-list]");
+    if (list) return list.scrollHeight > list.clientHeight + 8;
     const header = document.querySelector(".site-header");
     const headerH = header ? header.offsetHeight : 0;
     const contentH = app ? app.scrollHeight : 0;
     return headerH + contentH > window.innerHeight + 8;
+  }
+
+  function bindFilmListScroll() {
+    const list = app.querySelector("[data-role=film-list]");
+    if (!list) return;
+    let last = list.scrollTop;
+    list.addEventListener("scroll", () => {
+      const y = list.scrollTop;
+      onScrollDir(y - last);
+      last = y;
+    }, { passive: true });
   }
 
   function syncPhoneFooter(opts) {
@@ -1418,6 +1637,47 @@
     return packed;
   }
 
+  const loginPosterImages = new Map();
+  let loginPosterPreload = null;
+  let loginMountSeq = 0;
+
+  function loginPosterSrc(film) {
+    return film && film.poster ? String(film.poster) : "";
+  }
+
+  function loginPosterReady(url) {
+    const img = loginPosterImages.get(url);
+    return !!(img && img.complete && img.naturalWidth);
+  }
+
+  function preloadLoginImage(url) {
+    if (!url) return Promise.resolve(false);
+    const existing = loginPosterImages.get(url);
+    if (existing && existing.complete && existing.naturalWidth) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      const img = existing || new Image();
+      img.referrerPolicy = "no-referrer";
+      const finish = (ok) => resolve(!!ok);
+      img.onload = () => {
+        const decode = typeof img.decode === "function" ? img.decode() : Promise.resolve();
+        decode.then(() => finish(img.naturalWidth > 0), () => finish(img.naturalWidth > 0));
+      };
+      img.onerror = () => finish(false);
+      loginPosterImages.set(url, img);
+      img.src = url;
+    });
+  }
+
+  function ensureLoginPostersPreloaded() {
+    if (!loginPosterPreload) {
+      loginPosterPreload = Promise.all(LOGIN_POSTERS.map(async (row) => {
+        const ok = await preloadLoginImage(row.poster);
+        return ok ? row : null;
+      })).then((rows) => rows.filter(Boolean));
+    }
+    return loginPosterPreload;
+  }
+
   function carouselMetrics() {
     const compact = document.body.classList.contains("login-focus");
     return {
@@ -1434,8 +1694,13 @@
 
   function setCover(el, film) {
     if (!el) return;
-    const src = film && film.poster ? posterThumb(film.poster, "w185") : "";
-    el.style.backgroundImage = src ? `url("${src}")` : "";
+    const src = loginPosterSrc(film);
+    if (!src || !loginPosterReady(src)) {
+      el.style.backgroundImage = "";
+      el.title = "";
+      return;
+    }
+    el.style.backgroundImage = `url("${src}")`;
     el.title = film && film.title ? film.title : "";
   }
 
@@ -1672,6 +1937,7 @@
   }
 
   function teardownLoginCarousel() {
+    if (loginUi.root) loginUi.root.classList.remove("is-ready");
     if (loginUi.unbind) loginUi.unbind();
     loginUi.unbind = null;
     if (loginUi.raf) cancelAnimationFrame(loginUi.raf);
@@ -1689,32 +1955,32 @@
   async function mountLoginCarousel() {
     const root = app.querySelector("[data-role=login-carousel]");
     if (!root) return;
-    if (loginUi.root === root) return;
+    if (loginUi.root === root && loginUi.items.length) return;
+    const seq = ++loginMountSeq;
     teardownLoginCarousel();
     loginUi.root = root;
     loginUi.reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    await loadOfflineFallback();
+    root.classList.remove("is-ready");
+    const readyPosters = await ensureLoginPostersPreloaded();
+    if (seq !== loginMountSeq) return;
     if (state.screen !== "login" || app.querySelector("[data-role=login-carousel]") !== root) return;
+    if (!readyPosters.length) return;
     const ring = root.querySelector("[data-role=login-ring]");
     loginUi.ring = ring;
-    loginUi.posters = packCarouselPosters(offlineFilms);
+    loginUi.posters = packCarouselPosters(readyPosters).filter((film) => loginPosterReady(loginPosterSrc(film)));
     loginUi.items = [];
     if (ring) {
       const frag = document.createDocumentFragment();
       for (const film of loginUi.posters) {
+        const src = loginPosterSrc(film);
         const el = document.createElement("div");
         el.className = "login-ring-item";
-        el.style.backgroundImage = `url("${posterThumb(film.poster, "w92")}")`;
+        el.style.backgroundImage = `url("${src}")`;
         frag.appendChild(el);
         loginUi.items.push(el);
       }
       ring.innerHTML = "";
       ring.appendChild(frag);
-      for (const film of loginUi.posters) {
-        const img = new Image();
-        img.referrerPolicy = "no-referrer";
-        img.src = posterThumb(film.poster, "w185");
-      }
     }
     loginUi.covers = {
       left: root.querySelector("[data-role=cover-left]"),
@@ -1724,6 +1990,7 @@
     loginUi.metrics = carouselMetrics();
     loginUi.unbind = bindCarouselPointer(root);
     window.addEventListener("resize", onCarouselResize);
+    root.classList.add("is-ready");
     if (!loginUi.autoPlayed) {
       loginUi.autoPlayed = true;
       startAutoSpin();
@@ -1908,10 +2175,6 @@
           <div class="dauer-controls">
             <input class="filigree${state.filters.dauerOn ? "" : " idle"}" data-act="dauer" type="range" min="60" max="210" step="5" value="${state.filters.dauer}" style="--fill:${fill}%" aria-label="Maximale Dauer">
             <span class="dauer-value" data-role="dauer-value">${dauerLabel(state.filters.dauer)}</span>
-            <div class="dauer-tip" data-role="dauer-tip" hidden>
-              <span>60</span>
-              <span>180/210</span>
-            </div>
           </div>
         </div>
         <div class="card filter-card">
@@ -1948,7 +2211,7 @@
           <span class="menu-icon">${ICONS.lists}</span>
           <span class="menu-copy">
             <strong>Meine Filmlisten</strong>
-            <span class="menu-sub">Vorgemerkt, Noten, Tags</span>
+            <span class="menu-sub">Watchlist, Noten, Tags</span>
           </span>
           <span></span>
         </button>
@@ -2000,7 +2263,7 @@
             <button type="button" class="btn btn-compact" data-act="richtung" data-id="${escapeHtml(filmId(film))}">Die Richtung stimmt</button>
             <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Film wählen</button>
             <button type="button" class="btn btn-compact" data-act="engere" data-id="${escapeHtml(filmId(film))}">Engere Auswahl</button>
-            <button type="button" class="btn btn-compact btn-ghost" data-act="watch-add" data-id="${escapeHtml(filmId(film))}">→ Vorgemerkt</button>
+            <button type="button" class="btn btn-compact btn-ghost" data-act="watch-add" data-id="${escapeHtml(filmId(film))}">→ Watchlist</button>
           </div>
         </article>
       `;
@@ -2025,23 +2288,39 @@
   }
 
   function renderListRow(film, opts) {
-    const tagNames = tagsFor(film.id).map((id) => {
-      const tag = customTags().find((t) => t.id === id);
-      return tag ? tag.name : "";
-    }).filter(Boolean);
-    if (opts.gesehen) tagNames.unshift("gesehen");
     const extra = opts.extra || "";
-    const meta = [fmtDuration(film.runtime || film.minutes), film.genre].concat(tagNames).concat(extra).filter(Boolean).join(" · ");
     const unrated = opts.unrated;
+    const runtime = durationPill(film);
+    const cast = filmCastLine(film);
+    const sub = extra && extra !== cast ? extra : "";
+    const line = [cast, sub].filter(Boolean).join(" · ");
+    const id = escapeHtml(filmId(film));
+    const onWatch = isOnWatchlist(film);
+    let control;
+    let menuPop = "";
+    if (opts.toggle) {
+      control = `<button type="button" class="watch-toggle${onWatch ? " is-on" : ""}" data-act="watch-toggle" data-id="${id}" aria-pressed="${onWatch}" aria-label="${onWatch ? "Von Watchlist entfernen" : "Zur Watchlist hinzufügen"}">${onWatch ? ICONS.check : ICONS.plus}</button>`;
+    } else {
+      let menuInner = opts.menu;
+      if (!menuInner) {
+        if (opts.rates || unrated) menuInner = `<div class="film-row-rates">${renderRates(film, true)}</div>`;
+        else menuInner = `<p class="film-menu-placeholder">Menü folgt</p>`;
+      }
+      control = `<button type="button" class="film-row-menu" data-act="film-menu" data-id="${id}" aria-label="Filmmenü" aria-expanded="false">${ICONS.menu}</button>`;
+      menuPop = `<div class="film-menu-pop" hidden>${menuInner}</div>`;
+    }
     return `
-      <article class="card row-card${unrated ? " unrated" : ""}">
-        <div class="row-copy">
-          <h3>${escapeHtml(film.title)}</h3>
-          <p>${escapeHtml(meta)}</p>
-          ${opts.actions || ""}
-          ${unrated || opts.rates ? renderRates(film, true) : ""}
-        </div>
+      <article class="film-row${unrated ? " is-unrated" : ""}"${opts.toggle ? "" : " data-swipe-row"} data-id="${id}">
         ${posterTile(film)}
+        <div class="film-row-body">
+          <div class="film-row-titleline">
+            <h3 class="film-row-title">${escapeHtml(film.title)}</h3>
+            ${runtime ? `<span class="duration-pill">${escapeHtml(runtime)}</span>` : ""}
+          </div>
+          ${line ? `<p class="film-row-cast">${escapeHtml(line)}</p>` : ""}
+        </div>
+        ${control}
+        ${menuPop}
       </article>
     `;
   }
@@ -2049,7 +2328,7 @@
   function renderLists() {
     const badge = unratedCount();
     const tabs = [
-      ["watch", "Vorgemerkt"],
+      ["watch", "Watchlist"],
       ["rated", "Bewertete"],
       ["tags", "Tags"],
       ["seen", "Angesehen"],
@@ -2059,11 +2338,14 @@
       </button>
     `).join("");
     return `
-      <div class="tabs">${tabs}</div>
-      ${state.listTab === "watch" ? renderWatchTab() : ""}
-      ${state.listTab === "rated" ? renderRatedTab() : ""}
-      ${state.listTab === "tags" ? renderTagsTab() : ""}
-      ${state.listTab === "seen" ? renderSeenTab() : ""}
+      <div class="lists-screen">
+        <h2 class="screen-title home-title">Meine Filmlisten</h2>
+        <div class="tabs">${tabs}</div>
+        ${state.listTab === "watch" ? renderWatchTab() : ""}
+        ${state.listTab === "rated" ? renderRatedTab() : ""}
+        ${state.listTab === "tags" ? renderTagsTab() : ""}
+        ${state.listTab === "seen" ? renderSeenTab() : ""}
+      </div>
     `;
   }
 
@@ -2081,34 +2363,264 @@
     return "";
   }
 
-  function renderSearchChipsHtml() {
-    const q = state.search.trim();
-    if (!q) return "";
-    const listed = watchlist();
-    const chips = (state.searchHits || []).filter((film) => (
-      !listed.some((row) => String(row.id) === filmId(film))
-    ));
-    const chipHtml = chips.map((film) => (
-      `<button type="button" class="chip" data-act="watch-add" data-id="${escapeHtml(filmId(film))}">${escapeHtml(film.title)}</button>`
-    )).join("");
-    if (chipHtml) return chipHtml;
-    const status = searchStatusText();
-    return status ? `<p class="hint search-status">${escapeHtml(status)}</p>` : "";
+  function mergeKnownFilm(map, row) {
+    if (!row) return;
+    const n = normalizeFilm(row);
+    if (!n.id || !n.title) return;
+    const key = filmId(n);
+    const prev = map.get(key);
+    if (!prev) {
+      map.set(key, n);
+      return;
+    }
+    const minutes = pickRuntime(n.minutes || n.runtime, prev.minutes || prev.runtime);
+    map.set(key, normalizeFilm({
+      ...prev,
+      ...n,
+      minutes,
+      runtime: minutes,
+      poster: n.poster || prev.poster,
+      genres: n.genres && n.genres.length ? n.genres : prev.genres,
+      cast: (n.cast && n.cast.length) ? n.cast : (prev.cast || []),
+      year: n.year || prev.year,
+    }));
   }
 
-  function paintSearchUi() {
+  function allKnownFilms() {
+    const map = new Map();
+    LOGIN_POSTERS.forEach((row) => mergeKnownFilm(map, row));
+    cloneFilms(FILMS).forEach((row) => mergeKnownFilm(map, row));
+    (offlineFilms || []).forEach((row) => mergeKnownFilm(map, row));
+    (state.catalog || []).forEach((row) => mergeKnownFilm(map, row));
+    Object.values(loadKnownFilms()).forEach((row) => mergeKnownFilm(map, row));
+    return Array.from(map.values());
+  }
+
+  function filmsByTmdbIds(ids, pool) {
+    const source = pool || allKnownFilms();
+    return ids.map((num) => source.find((film) => Number(film.tmdb) === Number(num) || filmId(film) === `t${num}`)).filter(Boolean);
+  }
+
+  function watchCategoryFilms(cat) {
+    const all = allKnownFilms();
+    if (cat === "action") {
+      return all.filter((film) => filmGenres(film).includes("Action"));
+    }
+    if (cat === "top") {
+      return all
+        .filter((film) => (Number(film.rating) || Number(film.vote_average) || 0) > 0)
+        .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0))
+        .slice(0, 40);
+    }
+    if (cat === "neu") {
+      return all
+        .filter((film) => (Number(film.year) || 0) >= 2020 || (Number(film.tmdb) || 0) > 300000)
+        .sort((a, b) => {
+          const year = (Number(b.year) || 0) - (Number(a.year) || 0);
+          if (year) return year;
+          return (Number(b.tmdb) || 0) - (Number(a.tmdb) || 0);
+        })
+        .slice(0, 40);
+    }
+    if (cat === "klassiker") {
+      const curated = filmsByTmdbIds(KLASSIKER_IDS, all);
+      const seen = new Set(curated.map((film) => filmId(film)));
+      const rest = all.filter((film) => !seen.has(filmId(film)) && (Number(film.year) || 0) > 0 && (Number(film.year) || 0) < 2000);
+      return curated.concat(rest).slice(0, 40);
+    }
+    const curated = filmsByTmdbIds(BLOCKBUSTER_IDS, all);
+    const seen = new Set(curated.map((film) => filmId(film)));
+    const rest = all.filter((film) => !seen.has(filmId(film)) && (Number(film.rating) || 0) >= 7.6);
+    return curated.concat(rest).slice(0, 40);
+  }
+
+  function catalogTitleHits(query) {
+    const q = String(query || "").trim().toLowerCase();
+    if (!q) return [];
+    const hits = allKnownFilms().filter((film) => film.title && film.title.toLowerCase().includes(q));
+    hits.sort((a, b) => {
+      const at = a.title.toLowerCase();
+      const bt = b.title.toLowerCase();
+      const rank = (title) => (title.startsWith(q) ? 0 : title.includes(` ${q}`) ? 1 : 2);
+      const diff = rank(at) - rank(bt);
+      if (diff) return diff;
+      return at.localeCompare(bt, "de");
+    });
+    return hits;
+  }
+
+  function watchSheetFilms() {
+    if (state.watchSheet === "search") {
+      if (!state.watchSearch.trim()) return [];
+      return state.searchHits || [];
+    }
+    return watchCategoryFilms(state.watchCat || "blockbuster");
+  }
+
+  function watchSheetEmptyText() {
+    if (state.watchSheet === "search") {
+      if (!state.watchSearch.trim()) return "Titel eingeben, um im Katalog zu suchen.";
+      return searchStatusText() || "Kein Treffer";
+    }
+    return "Keine Filme in dieser Kategorie.";
+  }
+
+  function renderWatchSheetRows(films) {
+    if (!films.length) return `<p class="hint">${escapeHtml(watchSheetEmptyText())}</p>`;
+    return films.map((film) => renderListRow(film, { toggle: true })).join("");
+  }
+
+  function paintWatchSheetList() {
+    if (!watchSheetEl || !state.watchSheet) return;
+    const list = watchSheetEl.querySelector("[data-role=watch-sheet-list]");
+    if (!list) return;
+    const films = watchSheetFilms();
+    list.innerHTML = renderWatchSheetRows(films);
+    enrichListCast(films);
+  }
+
+  function paintWatchToggles() {
+    const listed = new Set(watchlist().map((row) => String(row.id)));
+    document.querySelectorAll("[data-act=watch-toggle]").forEach((btn) => {
+      const on = listed.has(filmId(btn.dataset.id));
+      btn.classList.toggle("is-on", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      btn.setAttribute("aria-label", on ? "Von Watchlist entfernen" : "Zur Watchlist hinzufügen");
+      btn.innerHTML = on ? ICONS.check : ICONS.plus;
+    });
+  }
+
+  function renderWatchRows() {
+    return watchlistFilms().map((film) => {
+      const tags = renderFilmTagChips(film);
+      return renderListRow(film, {
+        menu: `
+          <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Anschauen</button>
+          <button type="button" class="btn btn-compact" data-act="watch-remove" data-id="${escapeHtml(filmId(film))}">Streichen</button>
+          ${tags ? `<div class="film-menu-tags">${tags}</div>` : ""}
+        `,
+      });
+    }).join("");
+  }
+
+  function refreshWatchList() {
     if (state.screen !== "lists" || state.listTab !== "watch") return;
-    const wrap = app.querySelector(".search-wrap");
-    if (wrap) {
-      const clear = wrap.querySelector("[data-act=search-clear]");
-      if (state.search && !clear) {
-        wrap.insertAdjacentHTML("beforeend", `<button type="button" class="search-clear" data-act="search-clear" aria-label="Suche leeren">${ICONS.close}</button>`);
-      } else if (!state.search && clear) {
-        clear.remove();
+    const list = app.querySelector("[data-role=film-list]");
+    if (!list) return;
+    const rows = renderWatchRows();
+    list.innerHTML = rows || `<p class="hint">Noch nichts auf der Watchlist.</p>`;
+    enrichListCast(watchlistFilms());
+    scheduleFooterSync();
+  }
+
+  function renderWatchSheetHtml() {
+    const searching = state.watchSheet === "search";
+    if (searching) {
+      return `
+        <div class="sheet-panel is-search" data-role="sheet-panel">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <div class="sheet-search-wrap">
+            <span class="sheet-search-icon">${ICONS.search}</span>
+            <input data-act="watch-search" placeholder="Film suchen" value="${escapeHtml(state.watchSearch)}" autocomplete="off" enterkeyhint="search">
+          </div>
+          <section class="film-list" data-role="watch-sheet-list">${renderWatchSheetRows(watchSheetFilms())}</section>
+        </div>
+      `;
+    }
+    const chips = WATCH_CATS.map((cat) => `
+      <button type="button" class="chip" data-act="watch-cat" data-id="${cat.id}" aria-pressed="${state.watchCat === cat.id}">${escapeHtml(cat.label)}</button>
+    `).join("");
+    return `
+      <div class="sheet-panel" data-role="sheet-panel">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <div class="sheet-head">
+          <h2 class="sheet-title">Zu Watchlist hinzufügen</h2>
+        </div>
+        <div class="sheet-cats">${chips}</div>
+        <section class="film-list" data-role="watch-sheet-list">${renderWatchSheetRows(watchSheetFilms())}</section>
+        <button type="button" class="sheet-search-bar" data-act="watch-search-open">
+          <span class="sheet-search-icon">${ICONS.search}</span>
+          Film suchen
+        </button>
+      </div>
+    `;
+  }
+
+  function paintWatchSheet() {
+    if (!watchSheetEl) return;
+    if (!state.watchSheet) {
+      document.body.classList.remove("watch-sheet-open");
+      watchSheetEl.hidden = true;
+      watchSheetEl.innerHTML = "";
+      return;
+    }
+    document.body.classList.add("watch-sheet-open");
+    watchSheetEl.hidden = false;
+    watchSheetEl.innerHTML = renderWatchSheetHtml();
+    const panel = watchSheetEl.querySelector("[data-role=sheet-panel]");
+    if (panel && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      panel.classList.add("is-enter");
+      window.requestAnimationFrame(() => {
+        panel.classList.remove("is-enter");
+      });
+    }
+    const films = watchSheetFilms();
+    enrichListCast(films);
+    if (state.watchSheet === "search") {
+      const input = watchSheetEl.querySelector("[data-act=watch-search]");
+      if (input) {
+        input.focus();
+        const len = input.value.length;
+        try { input.setSelectionRange(len, len); } catch { /* ignore */ }
       }
     }
-    const box = app.querySelector("[data-role=search-chips]");
-    if (box) box.innerHTML = renderSearchChipsHtml();
+  }
+
+  function openWatchAddSheet() {
+    closeFilmMenus();
+    state.watchSheet = "add";
+    state.watchCat = state.watchCat || "blockbuster";
+    paintWatchSheet();
+  }
+
+  function openWatchSearchSheet() {
+    state.watchSheet = "search";
+    paintWatchSheet();
+    if (state.watchSearch.trim()) scheduleTitleSearch(state.watchSearch);
+  }
+
+  function closeWatchSheet() {
+    window.clearTimeout(searchTimer);
+    searchSeq += 1;
+    state.watchSheet = null;
+    state.watchSearch = "";
+    state.searchHits = [];
+    state.searchStatus = "";
+    document.body.classList.remove("watch-sheet-open");
+    if (watchSheetEl) {
+      watchSheetEl.hidden = true;
+      watchSheetEl.innerHTML = "";
+    }
+  }
+
+  function dismissWatchSheet() {
+    const panel = watchSheetEl && watchSheetEl.querySelector("[data-role=sheet-panel]");
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const finish = () => {
+      if (state.watchSheet === "search") {
+        state.watchSheet = "add";
+        paintWatchSheet();
+        return;
+      }
+      closeWatchSheet();
+    };
+    if (!panel || reduce) {
+      finish();
+      return;
+    }
+    panel.style.transition = "transform 0.22s ease";
+    panel.style.transform = "translateY(110%)";
+    window.setTimeout(finish, 220);
   }
 
   let searchTimer = 0;
@@ -2121,11 +2633,13 @@
       searchSeq += 1;
       state.searchHits = [];
       state.searchStatus = "";
-      paintSearchUi();
+      paintWatchSheetList();
       return;
     }
-    state.searchStatus = "loading";
-    paintSearchUi();
+    state.searchHits = catalogTitleHits(q);
+    state.searchHits.forEach((film) => rememberFilm(film));
+    state.searchStatus = state.searchHits.length ? "ok" : "loading";
+    paintWatchSheetList();
     searchTimer = window.setTimeout(() => {
       runTitleSearch(q);
     }, 200);
@@ -2133,51 +2647,39 @@
 
   async function runTitleSearch(query) {
     const seq = ++searchSeq;
+    const local = catalogTitleHits(query);
     try {
       const data = await tmdbFetch("/search/movie", { query });
       if (seq !== searchSeq) return;
-      const films = (data.results || []).map(fromTmdbMovie).filter((film) => film && film.title);
-      state.searchHits = films;
-      films.forEach((film) => rememberFilm(film));
-      state.searchStatus = films.length ? "ok" : "empty";
+      const remote = (data.results || []).map(fromTmdbMovie).filter((film) => film && film.title);
+      const seen = new Set(local.map((film) => filmId(film)));
+      const merged = local.slice();
+      for (const film of remote) {
+        if (seen.has(filmId(film))) continue;
+        seen.add(filmId(film));
+        merged.push(film);
+        rememberFilm(film);
+      }
+      state.searchHits = merged;
+      state.searchStatus = merged.length ? "ok" : "empty";
     } catch {
       if (seq !== searchSeq) return;
-      state.searchHits = [];
-      state.searchStatus = "offline";
+      state.searchHits = local;
+      state.searchStatus = local.length ? "ok" : "offline";
     }
-    paintSearchUi();
+    paintWatchSheetList();
   }
 
   function renderWatchTab() {
-    const q = state.search.trim().toLowerCase();
-    const listed = watchlistFilms();
-    const listedMatch = q
-      ? listed.filter((f) => f.title.toLowerCase().includes(q))
-      : [];
-    const rest = q
-      ? listed.filter((f) => !listedMatch.some((x) => filmId(x) === filmId(f)))
-      : listed;
-    const ordered = listedMatch.concat(rest);
-    const rows = ordered.map((film) => {
-      const already = q && film.title.toLowerCase().includes(q);
-      return renderListRow(film, {
-        extra: already ? "schon vorgemerkt" : "",
-        actions: `
-          <div class="row-actions">
-            <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Anschauen</button>
-            <button type="button" class="btn btn-compact" data-act="watch-remove" data-id="${escapeHtml(filmId(film))}">Streichen</button>
-            ${renderFilmTagChips(film)}
-          </div>
-        `,
-      });
-    }).join("");
+    const rows = renderWatchRows();
     return `
-      <div class="search-wrap">
-        <input data-act="search" placeholder="Film suchen" value="${escapeHtml(state.search)}" autocomplete="off">
-        ${state.search ? `<button type="button" class="search-clear" data-act="search-clear" aria-label="Suche leeren">${ICONS.close}</button>` : ""}
+      <div class="list-toolbar">
+        <button type="button" class="watch-add-chip" data-act="watch-sheet-open">
+          <span class="watch-add-plus">${ICONS.plus}</span>
+          Hinzufügen
+        </button>
       </div>
-      <div class="suggest-chips" data-role="search-chips">${renderSearchChipsHtml()}</div>
-      <section class="stack">${rows || `<p class="hint">Noch nichts vorgemerkt.</p>`}</section>
+      <section class="film-list" data-role="film-list">${rows || `<p class="hint">Noch nichts auf der Watchlist.</p>`}</section>
     `;
   }
 
@@ -2189,8 +2691,10 @@
     const films = state.catalog.filter((f) => all[filmId(f)] === state.ratedFilter);
     const rows = films.map((film) => renderListRow(film, { rates: true })).join("");
     return `
-      <div class="suggest-chips" style="margin-top:12px">${chips}</div>
-      <section class="stack">${rows || `<p class="hint">Keine Filme mit dieser Bewertung.</p>`}</section>
+      <div class="list-toolbar">
+        <div class="suggest-chips">${chips}</div>
+      </div>
+      <section class="film-list" data-role="film-list">${rows || `<p class="hint">Keine Filme mit dieser Bewertung.</p>`}</section>
     `;
   }
 
@@ -2214,8 +2718,10 @@
       : "";
     return `
       ${exactHint}
-      <div class="suggest-chips" style="margin-top:12px">${chips || `<span class="hint">Noch keine eigenen Tags</span>`}</div>
-      <section class="stack">${selected.length ? (rows || `<p class="hint">Keine Filme mit genau diesen Tags.</p>`) : `<p class="hint">Tags wählen, um Filme zu sehen.</p>`}</section>
+      <div class="list-toolbar">
+        <div class="suggest-chips">${chips || `<span class="hint">Noch keine eigenen Tags</span>`}</div>
+      </div>
+      <section class="film-list" data-role="film-list">${selected.length ? (rows || `<p class="hint">Keine Filme mit genau diesen Tags.</p>`) : `<p class="hint">Tags wählen, um Filme zu sehen.</p>`}</section>
     `;
   }
 
@@ -2233,11 +2739,13 @@
       });
     }).join("");
     return `
-      <div class="suggest-chips" style="margin-top:12px">
-        <button type="button" class="chip" data-act="seen-unrated" aria-pressed="${state.seenOnlyUnrated}">nur unbewertet</button>
-        <button type="button" class="chip" data-act="seen-all" aria-pressed="${!state.seenOnlyUnrated}">alle</button>
+      <div class="list-toolbar">
+        <div class="suggest-chips">
+          <button type="button" class="chip" data-act="seen-unrated" aria-pressed="${state.seenOnlyUnrated}">nur unbewertet</button>
+          <button type="button" class="chip" data-act="seen-all" aria-pressed="${!state.seenOnlyUnrated}">alle</button>
+        </div>
       </div>
-      <section class="stack">${cards || `<p class="hint">Noch keine gesehenen Filme.</p>`}</section>
+      <section class="film-list" data-role="film-list">${cards || `<p class="hint">Noch keine gesehenen Filme.</p>`}</section>
     `;
   }
 
@@ -2300,11 +2808,13 @@
   }
 
   function render() {
+    if (state.screen !== "lists" || state.listTab !== "watch") closeWatchSheet();
     updateHeader();
     updateFooter();
     const onLogin = state.screen === "login";
     document.body.classList.toggle("on-login", onLogin);
     document.body.classList.toggle("on-home", state.screen === "home");
+    document.body.classList.toggle("on-lists", state.screen === "lists");
     if (!onLogin) {
       document.body.classList.remove("login-focus");
       teardownLoginCarousel();
@@ -2328,7 +2838,13 @@
       window.requestAnimationFrame(paintChipOverflow);
     }
     else if (state.screen === "suggest") app.innerHTML = renderSuggest();
-    else if (state.screen === "lists") app.innerHTML = renderLists();
+    else if (state.screen === "lists") {
+      app.innerHTML = renderLists();
+      bindFilmListScroll();
+      const shown = app.querySelectorAll(".film-row");
+      const films = [...shown].map((row) => findFilm(row.dataset.id)).filter(Boolean);
+      enrichListCast(films);
+    }
     else if (state.screen === "tags") app.innerHTML = renderTagsManage();
     else if (state.screen === "done") app.innerHTML = renderDone();
     if (state.screen === "tags") scheduleTagWave();
@@ -2337,6 +2853,10 @@
   }
 
   function goBack() {
+    if (state.watchSheet) {
+      dismissWatchSheet();
+      return;
+    }
     if (state.screen === "profile-add") state.screen = "profiles";
     else if (state.screen === "suggest" || state.screen === "lists" || state.screen === "tags" || state.screen === "done") {
       if (state.screen === "tags") state.tagEditId = null;
@@ -2410,6 +2930,7 @@
   }
 
   async function startSuggestions() {
+    closeWatchSheet();
     await loadCatalog();
     await ensureDiscoverPool(80);
     if (!state.catalog.length) state.catalog = cloneFilms(offlineFilms);
@@ -2444,6 +2965,27 @@
     return true;
   }
 
+  function isOnWatchlist(film) {
+    if (!film) return false;
+    return watchlist().some((row) => String(row.id) === filmId(film));
+  }
+
+  function toggleWatchFilm(film) {
+    if (!film) return;
+    rememberFilm(film);
+    if (isOnWatchlist(film)) {
+      saveWatchlist(watchlist().filter((row) => String(row.id) !== filmId(film)));
+      paintWatchToggles();
+      refreshWatchList();
+      showSnack(`${film.title} von Watchlist entfernt`, "danger");
+      return;
+    }
+    addWatch(film);
+    paintWatchToggles();
+    refreshWatchList();
+    showSnack(`${film.title} zur Watchlist hinzugefügt`);
+  }
+
   function chooseFilm(film) {
     if (!film) return;
     rememberFilm(film);
@@ -2459,10 +3001,43 @@
     burstConfetti();
   }
 
-  app.addEventListener("click", async (event) => {
+  function handleWatchUiClick(event) {
     const t = event.target.closest("[data-act]");
-    if (!t) return;
+    if (!t) return false;
     const act = t.dataset.act;
+    if (act === "watch-sheet-open") {
+      openWatchAddSheet();
+      return true;
+    }
+    if (act === "watch-search-open") {
+      openWatchSearchSheet();
+      return true;
+    }
+    if (act === "watch-cat") {
+      if (state.watchCat === t.dataset.id) return true;
+      state.watchCat = t.dataset.id;
+      watchSheetEl.querySelectorAll("[data-act=watch-cat]").forEach((btn) => {
+        btn.setAttribute("aria-pressed", btn.dataset.id === state.watchCat ? "true" : "false");
+      });
+      paintWatchSheetList();
+      return true;
+    }
+    if (act === "watch-toggle") {
+      toggleWatchFilm(findFilm(t.dataset.id));
+      return true;
+    }
+    return false;
+  }
+
+  app.addEventListener("click", async (event) => {
+    if (handleWatchUiClick(event)) return;
+    const t = event.target.closest("[data-act]");
+    if (!t) {
+      closeFilmMenus();
+      return;
+    }
+    const act = t.dataset.act;
+    if (act !== "film-menu" && !t.closest(".film-menu-pop")) closeFilmMenus();
 
     if (act === "toggle-pass") {
       const input = app.querySelector("[data-act=login-pass]");
@@ -2542,7 +3117,7 @@
     }
     if (act === "filter-more") {
       const key = t.dataset.key;
-      if (key) state.filterMore[key] = true;
+      if (key) state.filterMore[key] = !state.filterMore[key];
       render();
       return;
     }
@@ -2661,7 +3236,7 @@
       const film = findFilm(t.dataset.id);
       if (addWatch(film)) {
         render();
-        showSnack(`${film.title} ist hinzugefügt`);
+        showSnack(`${film.title} zur Watchlist hinzugefügt`);
       }
       return;
     }
@@ -2677,9 +3252,23 @@
       render();
       return;
     }
+    if (act === "film-menu") {
+      const row = t.closest(".film-row");
+      const pop = row ? row.querySelector(".film-menu-pop") : null;
+      const willOpen = !!(pop && pop.hidden);
+      closeFilmMenus();
+      if (pop && willOpen) {
+        pop.hidden = false;
+        t.setAttribute("aria-expanded", "true");
+        placeFilmMenu(t, pop);
+      }
+      return;
+    }
     if (act === "watch-remove") {
+      const film = findFilm(t.dataset.id);
       saveWatchlist(watchlist().filter((row) => String(row.id) !== filmId(t.dataset.id)));
       render();
+      if (film) showSnack(`${film.title} von Watchlist entfernt`, "danger");
       return;
     }
     if (act === "choose") {
@@ -2810,6 +3399,10 @@
       state.search = t.value;
       scheduleTitleSearch(t.value);
     }
+    if (act === "watch-search") {
+      state.watchSearch = t.value;
+      scheduleTitleSearch(t.value);
+    }
     if (act === "dauer") {
       state.filters.dauer = Number(t.value);
       state.filters.dauerOn = true;
@@ -2909,6 +3502,7 @@
       return;
     }
     if (nav === "lists") {
+      closeWatchSheet();
       state.listTab = "watch";
       state.search = "";
       state.searchHits = [];
@@ -2918,6 +3512,7 @@
       return;
     }
     if (nav === "tags") {
+      closeWatchSheet();
       state.tagEditId = null;
       state.screen = "tags";
       render();
@@ -2940,6 +3535,10 @@
 
   window.addEventListener("touchstart", (event) => {
     lastTouchY = event.touches[0] ? event.touches[0].clientY : null;
+    const row = event.target.closest("[data-swipe-row]");
+    if (row && event.touches[0] && !event.target.closest("[data-act=film-menu], .film-menu-pop")) {
+      row.dataset.swipeX = String(event.touches[0].clientX);
+    }
   }, { passive: true });
 
   window.addEventListener("touchmove", (event) => {
@@ -2949,6 +3548,86 @@
     onScrollDir(lastTouchY - y);
     lastTouchY = y;
   }, { passive: true });
+
+  window.addEventListener("touchend", (event) => {
+    const row = event.target.closest("[data-swipe-row]");
+    if (!row || row.dataset.swipeX == null || !event.changedTouches[0]) return;
+    const dx = event.changedTouches[0].clientX - Number(row.dataset.swipeX);
+    delete row.dataset.swipeX;
+    if (Math.abs(dx) < 56) return;
+    row.dataset.swipeDir = dx < 0 ? "left" : "right";
+  }, { passive: true });
+
+  watchSheetEl.addEventListener("click", (event) => {
+    handleWatchUiClick(event);
+  });
+
+  watchSheetEl.addEventListener("input", (event) => {
+    const t = event.target;
+    if (!t || t.dataset.act !== "watch-search") return;
+    state.watchSearch = t.value;
+    scheduleTitleSearch(t.value);
+  });
+
+  let sheetDrag = null;
+
+  function sheetDragAllowed(event) {
+    if (!state.watchSheet) return false;
+    if (event.target.closest("input, textarea, [data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open]")) return false;
+    const list = event.target.closest("[data-role=watch-sheet-list]");
+    if (list && list.scrollTop > 2) return false;
+    return true;
+  }
+
+  function endSheetDrag(event) {
+    if (!sheetDrag || (event && event.pointerId !== sheetDrag.id)) return;
+    const panel = sheetDrag.panel;
+    const dy = event ? event.clientY - sheetDrag.startY : 0;
+    const dragging = sheetDrag.dragging;
+    sheetDrag = null;
+    if (!panel) return;
+    if (!dragging || dy <= 72) {
+      panel.style.transition = "transform 0.2s ease";
+      panel.style.transform = "translateY(0)";
+      window.setTimeout(() => {
+        panel.style.transition = "";
+        panel.style.transform = "";
+      }, 200);
+      return;
+    }
+    dismissWatchSheet();
+  }
+
+  watchSheetEl.addEventListener("pointerdown", (event) => {
+    if (event.button && event.button !== 0) return;
+    if (!sheetDragAllowed(event)) return;
+    const panel = watchSheetEl.querySelector("[data-role=sheet-panel]");
+    if (!panel) return;
+    sheetDrag = {
+      id: event.pointerId,
+      startY: event.clientY,
+      panel,
+      dragging: false,
+    };
+    try { panel.setPointerCapture(event.pointerId); } catch { /* ignore */ }
+  });
+
+  watchSheetEl.addEventListener("pointermove", (event) => {
+    if (!sheetDrag || event.pointerId !== sheetDrag.id) return;
+    const dy = event.clientY - sheetDrag.startY;
+    if (!sheetDrag.dragging && dy < 10) return;
+    if (dy < 0) {
+      sheetDrag.panel.style.transform = "";
+      return;
+    }
+    sheetDrag.dragging = true;
+    sheetDrag.panel.style.transition = "none";
+    sheetDrag.panel.style.transform = `translateY(${dy}px)`;
+    event.preventDefault();
+  }, { passive: false });
+
+  watchSheetEl.addEventListener("pointerup", endSheetDrag);
+  watchSheetEl.addEventListener("pointercancel", endSheetDrag);
 
   desktopNavMq.addEventListener("change", () => {
     scheduleFooterSync({ reset: !isDesktopNav() });
@@ -2960,8 +3639,6 @@
   });
 
   app.addEventListener("pointerdown", (event) => {
-    const t = event.target;
-    if (t && t.dataset && t.dataset.act === "dauer") showDauerTip(true);
     const hero = event.target.closest(".suggest-hero");
     if (hero && state.filtersOpen && !event.target.closest("[data-act=toggle-filters]")) {
       state.shinePaused = true;
@@ -2970,16 +3647,9 @@
     }
   });
 
-  app.addEventListener("pointerup", (event) => {
-    if (event.target && event.target.dataset && event.target.dataset.act === "dauer") showDauerTip(false);
-  });
-
-  app.addEventListener("pointercancel", (event) => {
-    if (event.target && event.target.dataset && event.target.dataset.act === "dauer") showDauerTip(false);
-  });
-
   seedIfNeeded();
   restoreSession();
+  ensureLoginPostersPreloaded();
   render();
   loadCatalog();
 
