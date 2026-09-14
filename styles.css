@@ -69,9 +69,9 @@ button, input {
   55% {
     border-color: #c87a54;
     box-shadow:
-      0 0 0 2px rgba(210, 140, 96, 0.28),
-      0 0 11px 3px rgba(196, 108, 72, 0.22),
-      0 0 24px 8px rgba(176, 80, 60, 0.12);
+      0 0 0 2px rgba(210, 140, 96, 0.34),
+      0 0 14px 4px rgba(196, 108, 72, 0.28),
+      0 0 28px 10px rgba(176, 80, 60, 0.16);
   }
   78% {
     border-color: #e0a070;
@@ -85,6 +85,10 @@ button, input {
 input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="hidden"]):not([type="file"]):not([type="color"]):focus {
   border-color: var(--ember-border);
   outline: none;
+  box-shadow:
+    0 0 0 2px rgba(var(--ember-gold), 0.42),
+    0 0 16px 4px rgba(212, 128, 80, 0.34),
+    0 0 32px 10px rgba(var(--ember-rose), 0.18);
   animation: ember-flicker 2s ease-in-out infinite;
 }
 
