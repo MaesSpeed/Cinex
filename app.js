@@ -579,6 +579,13 @@
     return raw && typeof raw === "object" ? raw : {};
   }
 
+  function pickRuntime(next, prev) {
+    const a = Number(next) || 0;
+    const b = Number(prev) || 0;
+    if (a && b && a === 120 && b !== 120) return b;
+    return a || b;
+  }
+
   function rememberFilm(film) {
     if (!film) return null;
     const n = normalizeFilm(film);
@@ -586,11 +593,12 @@
     const idx = state.catalog.findIndex((row) => filmId(row) === filmId(n));
     if (idx >= 0) {
       const prev = state.catalog[idx];
+      const minutes = pickRuntime(n.minutes || n.runtime, prev.minutes || prev.runtime);
       state.catalog[idx] = normalizeFilm({
         ...prev,
         ...n,
-        minutes: n.minutes || prev.minutes,
-        runtime: n.runtime || prev.runtime,
+        minutes,
+        runtime: minutes,
         poster: n.poster || prev.poster,
         genres: n.genres && n.genres.length ? n.genres : prev.genres,
         cast: (n.cast && n.cast.length) ? n.cast : (prev.cast || []),
@@ -1084,8 +1092,8 @@
     if (catalogInFlight) return catalogInFlight;
     catalogInFlight = (async () => {
       await loadOfflineFallback();
-      addFilmsToCatalog(cloneFilms(FILMS));
       addFilmsToCatalog(cloneFilms(offlineFilms));
+      addFilmsToCatalog(cloneFilms(FILMS));
       const live = await ensureDiscoverPool(80);
       if (!live && !state.catalogLive) {
         if (!state.catalog.length) state.catalog = cloneFilms(offlineFilms);
@@ -1224,10 +1232,37 @@
   }
 
   function closeFilmMenus() {
-    app.querySelectorAll(".film-menu-pop").forEach((pop) => { pop.hidden = true; });
+    app.querySelectorAll(".film-menu-pop").forEach((pop) => {
+      pop.hidden = true;
+      pop.style.position = "";
+      pop.style.left = "";
+      pop.style.right = "";
+      pop.style.top = "";
+      pop.style.width = "";
+      pop.style.transform = "";
+    });
     app.querySelectorAll("[data-act=film-menu]").forEach((btn) => {
       btn.setAttribute("aria-expanded", "false");
     });
+  }
+
+  function placeFilmMenu(btn, pop) {
+    const rect = btn.getBoundingClientRect();
+    pop.style.position = "fixed";
+    pop.style.transform = "none";
+    const width = Math.min(200, Math.max(148, window.innerWidth - 24));
+    let left = rect.right - width;
+    if (left < 8) left = 8;
+    if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - width - 8);
+    pop.style.left = `${left}px`;
+    pop.style.right = "auto";
+    pop.style.width = `${width}px`;
+    const h = pop.offsetHeight;
+    let top = rect.bottom + 4;
+    if (top + h > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - h - 4);
+    }
+    pop.style.top = `${top}px`;
   }
 
   function openConfirm(opts) {
@@ -2810,6 +2845,7 @@
       if (pop && willOpen) {
         pop.hidden = false;
         t.setAttribute("aria-expanded", "true");
+        placeFilmMenu(t, pop);
       }
       return;
     }
