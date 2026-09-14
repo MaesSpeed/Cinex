@@ -1085,6 +1085,7 @@
     catalogInFlight = (async () => {
       await loadOfflineFallback();
       addFilmsToCatalog(cloneFilms(FILMS));
+      addFilmsToCatalog(cloneFilms(offlineFilms));
       const live = await ensureDiscoverPool(80);
       if (!live && !state.catalogLive) {
         if (!state.catalog.length) state.catalog = cloneFilms(offlineFilms);
