@@ -25,8 +25,8 @@ Optionaler Schlüssel in `config.js` als `window.TMDB_KEY` (siehe `config.exampl
 1. Anmelden oder registrieren (localStorage)
 2. Wer schaut
 3. Hauptmenü: Filme vorschlagen, Filter, Meine Filmlisten, Tags verwalten
-4. Vorschläge mit Postern, Noten-Icons und Vorgemerkt
-5. Filmlisten: Vorgemerkt, Bewertete, Tags, Angesehen
+4. Vorschläge mit Postern, Noten-Icons und Watchlist
+5. Filmlisten: Watchlist, Bewertete, Tags, Angesehen
 6. Footer (genau 3): **Vorschlagen** | **Listen** | **Verwalten**. Desktop immer sichtbar. Handy: sichtbar, wenn die Seite nicht scrollt (z. B. Hauptmenü); sonst ausblenden beim Runterscrollen, einblenden beim Hochscrollen. Toast sitzt über dem Footer. Account/Logout bleiben im Header.
 
 Jeder Profilstand (Listen, Historie, Bewertungen, eigene Tags) liegt getrennt in `localStorage`.

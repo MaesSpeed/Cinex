@@ -84,31 +84,45 @@
   );
 
   const FILMS = [
-    f(238, "Der Pate", ["Krimi", "Drama"], 175, 8.7),
-    f(680, "Pulp Fiction", ["Krimi", "Drama"], 154, 8.5),
-    f(13, "Forrest Gump", ["Drama", "Romanze"], 142, 8.5),
-    f(603, "Matrix", ["Sci-Fi", "Action"], 136, 8.2),
-    f(27205, "Inception", ["Sci-Fi", "Action"], 148, 8.4),
-    f(157336, "Interstellar", ["Sci-Fi", "Drama"], 169, 8.4),
-    f(496243, "Parasite", ["Thriller", "Drama"], 132, 8.5),
-    f(597, "Titanic", ["Drama", "Romanze"], 194, 7.9),
-    f(19995, "Avatar", ["Sci-Fi", "Abenteuer"], 162, 7.6),
-    f(120, "Der Herr der Ringe: Die Gefährten", ["Fantasy", "Abenteuer"], 178, 8.4),
-    f(671, "Harry Potter und der Stein der Weisen", ["Fantasy", "Abenteuer"], 152, 7.6),
-    f(862, "Toy Story", ["Animation", "Komödie"], 81, 8.0),
-    f(129, "Chihiros Reise ins Zauberland", ["Animation", "Fantasy"], 125, 8.5),
-    f(155, "The Dark Knight", ["Action", "Krimi"], 152, 8.5),
-    f(550, "Fight Club", ["Drama", "Thriller"], 139, 8.4),
-    f(278, "Die Verurteilten", ["Drama"], 142, 8.7),
-    f(872585, "Oppenheimer", ["Drama", "Historie"], 180, 8.1),
-    f(569094, "Spider-Man: Across the Spider-Verse", ["Animation", "Action"], 140, 8.4),
-    f(693134, "Dune: Part Two", ["Sci-Fi", "Abenteuer"], 166, 8.1),
-    f(361743, "Top Gun: Maverick", ["Action"], 131, 8.2),
+    f(238, "Der Pate", ["Krimi", "Drama"], 175, 8.7, ["Marlon Brando", "Al Pacino", "James Caan"]),
+    f(680, "Pulp Fiction", ["Krimi", "Drama"], 154, 8.5, ["John Travolta", "Samuel L. Jackson", "Uma Thurman"]),
+    f(13, "Forrest Gump", ["Drama", "Romanze"], 142, 8.5, ["Tom Hanks", "Robin Wright", "Gary Sinise"]),
+    f(603, "Matrix", ["Sci-Fi", "Action"], 136, 8.2, ["Keanu Reeves", "Laurence Fishburne", "Carrie-Anne Moss"]),
+    f(27205, "Inception", ["Sci-Fi", "Action"], 148, 8.4, ["Leonardo DiCaprio", "Joseph Gordon-Levitt", "Elliot Page"]),
+    f(157336, "Interstellar", ["Sci-Fi", "Drama"], 169, 8.4, ["Matthew McConaughey", "Anne Hathaway", "Jessica Chastain"]),
+    f(496243, "Parasite", ["Thriller", "Drama"], 132, 8.5, ["Song Kang-ho", "Lee Sun-kyun", "Cho Yeo-jeong"]),
+    f(597, "Titanic", ["Drama", "Romanze"], 194, 7.9, ["Leonardo DiCaprio", "Kate Winslet", "Billy Zane"]),
+    f(19995, "Avatar", ["Sci-Fi", "Abenteuer"], 162, 7.6, ["Sam Worthington", "Zoe Saldana", "Sigourney Weaver"]),
+    f(120, "Der Herr der Ringe: Die Gefährten", ["Fantasy", "Abenteuer"], 178, 8.4, ["Elijah Wood", "Ian McKellen", "Viggo Mortensen"]),
+    f(155, "The Dark Knight", ["Action", "Krimi"], 152, 8.5, ["Christian Bale", "Heath Ledger", "Aaron Eckhart"]),
+    f(671, "Harry Potter und der Stein der Weisen", ["Fantasy", "Abenteuer"], 152, 7.6, ["Daniel Radcliffe", "Rupert Grint", "Emma Watson"]),
+    f(862, "Toy Story", ["Animation", "Komödie"], 81, 8.0, ["Tom Hanks", "Tim Allen", "Don Rickles"]),
+    f(129, "Chihiros Reise ins Zauberland", ["Animation", "Fantasy"], 125, 8.5, ["Rumi Hiiragi", "Miyu Irino", "Mari Natsuki"]),
+    f(550, "Fight Club", ["Drama", "Thriller"], 139, 8.4, ["Brad Pitt", "Edward Norton", "Helena Bonham Carter"]),
+    f(278, "Die Verurteilten", ["Drama"], 142, 8.7, ["Tim Robbins", "Morgan Freeman", "Bob Gunton"]),
+    f(872585, "Oppenheimer", ["Drama", "Historie"], 180, 8.1, ["Cillian Murphy", "Emily Blunt", "Robert Downey Jr."]),
+    f(569094, "Spider-Man: Across the Spider-Verse", ["Animation", "Action"], 140, 8.4, ["Shameik Moore", "Hailee Steinfeld", "Brian Tyree Henry"]),
+    f(693134, "Dune: Part Two", ["Sci-Fi", "Abenteuer"], 166, 8.1, ["Timothée Chalamet", "Zendaya", "Rebecca Ferguson"]),
+    f(361743, "Top Gun: Maverick", ["Action"], 131, 8.2, ["Tom Cruise", "Miles Teller", "Jennifer Connelly"]),
   ];
 
   let genrePicks = GENRE_CHIPS.slice();
 
-  function f(id, title, genres, runtime, vote_average) {
+  function filmCastNames(raw) {
+    if (!raw) return [];
+    if (Array.isArray(raw.cast)) {
+      return raw.cast.map((row) => {
+        if (typeof row === "string") return row.trim();
+        return String((row && (row.name || row.original_name)) || "").trim();
+      }).filter(Boolean);
+    }
+    if (typeof raw.cast === "string") {
+      return raw.cast.split(",").map((name) => name.trim()).filter(Boolean);
+    }
+    return [];
+  }
+
+  function f(id, title, genres, runtime, vote_average, cast) {
     return {
       id: `t${id}`,
       tmdb: id,
@@ -121,6 +135,7 @@
       vote_average,
       poster: "",
       color: "#1d4f91",
+      cast: Array.isArray(cast) ? cast.slice() : [],
     };
   }
 
@@ -153,6 +168,7 @@
       vote_average: rating,
       poster,
       color: raw.color || "#1d4f91",
+      cast: filmCastNames(raw).slice(0, 4),
     };
   }
 
@@ -335,6 +351,7 @@
     lock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="6" y="10.2" width="12" height="9.3" rx="2"/><path d="M8.2 10.2V8.1a3.8 3.8 0 0 1 7.6 0v2.1"/></svg>`,
     eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.7 12S6.1 6.6 12 6.6 21.3 12 21.3 12 17.9 17.4 12 17.4 2.7 12 2.7 12z"/><circle cx="12" cy="12" r="2.35"/></svg>`,
     eyeOff: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5.1 19.4 20.5"/><path d="M10.1 10.4a2.35 2.35 0 0 0 3.4 3.3"/><path d="M7.1 7.6C5 8.9 3.4 11.1 2.7 12c0 0 3.4 5.4 9.3 5.4 1.6 0 3-.3 4.2-.8"/><path d="M16.8 16.1c1.8-1.2 3.2-3 3.8-4.1 0 0-1.6-2.6-4.5-4.2"/></svg>`,
+    menu: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>`,
   };
 
   function rateIcon(id) {
@@ -508,10 +525,10 @@
     ];
     const prefix = "wdq.p.u-test.tester.";
     saveJson(`${prefix}tags`, tags);
-    saveJson(`${prefix}watchlist`, [
-      { id: "t27205", at: Date.now() - 4000 },
-      { id: "t862", at: Date.now() - 2000 },
-    ]);
+    saveJson(`${prefix}watchlist`, FILMS.map((film, index) => ({
+      id: film.id,
+      at: Date.now() - ((FILMS.length - index) * 1000),
+    })));
     saveJson(`${prefix}filmTags`, { t862: ["tag-omma"] });
     saveJson(`${prefix}history`, [
       { id: "t693134", title: "Dune: Part Two", at: Date.now() - 8000 },
@@ -576,6 +593,7 @@
         runtime: n.runtime || prev.runtime,
         poster: n.poster || prev.poster,
         genres: n.genres && n.genres.length ? n.genres : prev.genres,
+        cast: (n.cast && n.cast.length) ? n.cast : (prev.cast || []),
       });
     } else {
       state.catalog.push(n);
@@ -603,7 +621,7 @@
     const sid = String(id);
     const num = Number(String(id).replace(/^t/i, ""));
     const match = (f) => filmId(f) === sid || String(f.tmdb) === sid || Number(f.tmdb) === num;
-    const lists = [state.currentPicks, state.shortlist, state.searchHits, state.catalog, offlineFilms];
+    const lists = [state.currentPicks, state.shortlist, state.searchHits, state.catalog, offlineFilms, FILMS];
     for (const list of lists) {
       const hit = (list || []).find(match);
       if (hit) return hit;
@@ -621,6 +639,63 @@
       return r ? `${h} Std., ${r} Min.` : `${h} Std.`;
     }
     return `${m} Min.`;
+  }
+
+  function durationPill(film) {
+    const m = Number((film && (film.runtime || film.minutes)) || 0);
+    return m > 0 ? `${m} min` : "";
+  }
+
+  function filmCastLine(film) {
+    let names = filmCastNames(film).slice(0, 3);
+    if (!names.length && film) {
+      const sid = filmId(film);
+      const fallback = FILMS.find((row) => filmId(row) === sid);
+      names = filmCastNames(fallback).slice(0, 3);
+    }
+    return names.join(", ");
+  }
+
+  const castFetchTried = new Set();
+  let listCastSeq = 0;
+
+  async function enrichListCast(films) {
+    const seq = ++listCastSeq;
+    const pending = (films || []).filter((film) => {
+      const id = filmId(film);
+      if (!id || castFetchTried.has(id)) return false;
+      if (filmCastNames(film).length) {
+        castFetchTried.add(id);
+        return false;
+      }
+      if (!film.tmdb) {
+        castFetchTried.add(id);
+        return false;
+      }
+      return true;
+    });
+    if (!pending.length) return;
+    let changed = false;
+    await Promise.all(pending.map(async (film) => {
+      const id = filmId(film);
+      castFetchTried.add(id);
+      try {
+        const data = await tmdbFetch(`/movie/${film.tmdb}/credits`);
+        const names = (data.cast || [])
+          .slice()
+          .sort((a, b) => (Number(a.order) || 99) - (Number(b.order) || 99))
+          .map((row) => String(row.name || row.original_name || "").trim())
+          .filter(Boolean)
+          .slice(0, 3);
+        if (names.length) {
+          rememberFilm({ ...film, cast: names });
+          changed = true;
+        }
+      } catch {
+        /* keep empty cast line hidden */
+      }
+    }));
+    if (changed && seq === listCastSeq && state.screen === "lists") render();
   }
 
   function escapeHtml(value) {
@@ -1009,6 +1084,7 @@
     if (catalogInFlight) return catalogInFlight;
     catalogInFlight = (async () => {
       await loadOfflineFallback();
+      addFilmsToCatalog(cloneFilms(FILMS));
       const live = await ensureDiscoverPool(80);
       if (!live && !state.catalogLive) {
         if (!state.catalog.length) state.catalog = cloneFilms(offlineFilms);
@@ -1093,11 +1169,12 @@
     const chips = items.map((item) => (
       `<button type="button" class="chip" data-act="${item.act}" ${item.attrs} aria-pressed="${item.on}">${escapeHtml(item.label)}</button>`
     )).join("");
+    const expanded = !!state.filterMore[key];
     return `
-      <div class="filter-chips" data-chip-row="${key}">
+      <div class="filter-chips${expanded ? " is-expanded" : ""}" data-chip-row="${key}">
         ${chips}
       </div>
-      <button type="button" class="chip-more" data-act="filter-more" data-key="${key}" hidden>mehr</button>
+      <button type="button" class="chip-more${expanded ? " is-weniger" : ""}" data-act="filter-more" data-key="${key}" ${expanded ? "" : "hidden"}>${expanded ? "weniger" : "mehr"}</button>
     `;
   }
 
@@ -1111,11 +1188,19 @@
       chips.forEach((chip) => { chip.hidden = false; });
       if (state.filterMore[key]) {
         row.classList.add("is-expanded");
-        if (moreBtn) moreBtn.hidden = true;
+        if (card) card.classList.add("is-expanded");
+        if (moreBtn) {
+          moreBtn.hidden = false;
+          moreBtn.textContent = "weniger";
+          moreBtn.classList.add("is-weniger");
+        }
         return;
       }
       row.classList.remove("is-expanded");
+      if (card) card.classList.remove("is-expanded");
       if (!moreBtn) return;
+      moreBtn.textContent = "mehr";
+      moreBtn.classList.remove("is-weniger");
       moreBtn.hidden = false;
       const overflows = () => row.scrollWidth > row.clientWidth + 1;
       if (!overflows()) {
@@ -1137,9 +1222,11 @@
     state.filters.streaming = [];
   }
 
-  function showDauerTip(on) {
-    const tip = app.querySelector("[data-role=dauer-tip]");
-    if (tip) tip.hidden = !on;
+  function closeFilmMenus() {
+    app.querySelectorAll(".film-menu-pop").forEach((pop) => { pop.hidden = true; });
+    app.querySelectorAll("[data-act=film-menu]").forEach((btn) => {
+      btn.setAttribute("aria-expanded", "false");
+    });
   }
 
   function openConfirm(opts) {
@@ -1311,10 +1398,23 @@
   }
 
   function contentOverflows() {
+    const list = app.querySelector("[data-role=film-list]");
+    if (list) return list.scrollHeight > list.clientHeight + 8;
     const header = document.querySelector(".site-header");
     const headerH = header ? header.offsetHeight : 0;
     const contentH = app ? app.scrollHeight : 0;
     return headerH + contentH > window.innerHeight + 8;
+  }
+
+  function bindFilmListScroll() {
+    const list = app.querySelector("[data-role=film-list]");
+    if (!list) return;
+    let last = list.scrollTop;
+    list.addEventListener("scroll", () => {
+      const y = list.scrollTop;
+      onScrollDir(y - last);
+      last = y;
+    }, { passive: true });
   }
 
   function syncPhoneFooter(opts) {
@@ -1908,10 +2008,6 @@
           <div class="dauer-controls">
             <input class="filigree${state.filters.dauerOn ? "" : " idle"}" data-act="dauer" type="range" min="60" max="210" step="5" value="${state.filters.dauer}" style="--fill:${fill}%" aria-label="Maximale Dauer">
             <span class="dauer-value" data-role="dauer-value">${dauerLabel(state.filters.dauer)}</span>
-            <div class="dauer-tip" data-role="dauer-tip" hidden>
-              <span>60</span>
-              <span>180/210</span>
-            </div>
           </div>
         </div>
         <div class="card filter-card">
@@ -1948,7 +2044,7 @@
           <span class="menu-icon">${ICONS.lists}</span>
           <span class="menu-copy">
             <strong>Meine Filmlisten</strong>
-            <span class="menu-sub">Vorgemerkt, Noten, Tags</span>
+            <span class="menu-sub">Watchlist, Noten, Tags</span>
           </span>
           <span></span>
         </button>
@@ -2000,7 +2096,7 @@
             <button type="button" class="btn btn-compact" data-act="richtung" data-id="${escapeHtml(filmId(film))}">Die Richtung stimmt</button>
             <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Film wählen</button>
             <button type="button" class="btn btn-compact" data-act="engere" data-id="${escapeHtml(filmId(film))}">Engere Auswahl</button>
-            <button type="button" class="btn btn-compact btn-ghost" data-act="watch-add" data-id="${escapeHtml(filmId(film))}">→ Vorgemerkt</button>
+            <button type="button" class="btn btn-compact btn-ghost" data-act="watch-add" data-id="${escapeHtml(filmId(film))}">→ Watchlist</button>
           </div>
         </article>
       `;
@@ -2025,23 +2121,30 @@
   }
 
   function renderListRow(film, opts) {
-    const tagNames = tagsFor(film.id).map((id) => {
-      const tag = customTags().find((t) => t.id === id);
-      return tag ? tag.name : "";
-    }).filter(Boolean);
-    if (opts.gesehen) tagNames.unshift("gesehen");
     const extra = opts.extra || "";
-    const meta = [fmtDuration(film.runtime || film.minutes), film.genre].concat(tagNames).concat(extra).filter(Boolean).join(" · ");
     const unrated = opts.unrated;
+    const runtime = durationPill(film);
+    const cast = filmCastLine(film);
+    const sub = extra && extra !== cast ? extra : "";
+    const line = [cast, sub].filter(Boolean).join(" · ");
+    const id = escapeHtml(filmId(film));
+    let menuInner = opts.menu;
+    if (!menuInner) {
+      if (opts.rates || unrated) menuInner = `<div class="film-row-rates">${renderRates(film, true)}</div>`;
+      else menuInner = `<p class="film-menu-placeholder">Menü folgt</p>`;
+    }
     return `
-      <article class="card row-card${unrated ? " unrated" : ""}">
-        <div class="row-copy">
-          <h3>${escapeHtml(film.title)}</h3>
-          <p>${escapeHtml(meta)}</p>
-          ${opts.actions || ""}
-          ${unrated || opts.rates ? renderRates(film, true) : ""}
-        </div>
+      <article class="film-row${unrated ? " is-unrated" : ""}" data-swipe-row data-id="${id}">
         ${posterTile(film)}
+        <div class="film-row-body">
+          <div class="film-row-titleline">
+            <h3 class="film-row-title">${escapeHtml(film.title)}</h3>
+            ${runtime ? `<span class="duration-pill">${escapeHtml(runtime)}</span>` : ""}
+          </div>
+          ${line ? `<p class="film-row-cast">${escapeHtml(line)}</p>` : ""}
+        </div>
+        <button type="button" class="film-row-menu" data-act="film-menu" data-id="${id}" aria-label="Filmmenü" aria-expanded="false">${ICONS.menu}</button>
+        <div class="film-menu-pop" hidden>${menuInner}</div>
       </article>
     `;
   }
@@ -2049,7 +2152,7 @@
   function renderLists() {
     const badge = unratedCount();
     const tabs = [
-      ["watch", "Vorgemerkt"],
+      ["watch", "Watchlist"],
       ["rated", "Bewertete"],
       ["tags", "Tags"],
       ["seen", "Angesehen"],
@@ -2059,11 +2162,14 @@
       </button>
     `).join("");
     return `
-      <div class="tabs">${tabs}</div>
-      ${state.listTab === "watch" ? renderWatchTab() : ""}
-      ${state.listTab === "rated" ? renderRatedTab() : ""}
-      ${state.listTab === "tags" ? renderTagsTab() : ""}
-      ${state.listTab === "seen" ? renderSeenTab() : ""}
+      <div class="lists-screen">
+        <h2 class="screen-title home-title">Meine Filmlisten</h2>
+        <div class="tabs">${tabs}</div>
+        ${state.listTab === "watch" ? renderWatchTab() : ""}
+        ${state.listTab === "rated" ? renderRatedTab() : ""}
+        ${state.listTab === "tags" ? renderTagsTab() : ""}
+        ${state.listTab === "seen" ? renderSeenTab() : ""}
+      </div>
     `;
   }
 
@@ -2160,24 +2266,25 @@
     const ordered = listedMatch.concat(rest);
     const rows = ordered.map((film) => {
       const already = q && film.title.toLowerCase().includes(q);
+      const tags = renderFilmTagChips(film);
       return renderListRow(film, {
-        extra: already ? "schon vorgemerkt" : "",
-        actions: `
-          <div class="row-actions">
-            <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Anschauen</button>
-            <button type="button" class="btn btn-compact" data-act="watch-remove" data-id="${escapeHtml(filmId(film))}">Streichen</button>
-            ${renderFilmTagChips(film)}
-          </div>
+        extra: already ? "schon auf der Watchlist" : "",
+        menu: `
+          <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Anschauen</button>
+          <button type="button" class="btn btn-compact" data-act="watch-remove" data-id="${escapeHtml(filmId(film))}">Streichen</button>
+          ${tags ? `<div class="film-menu-tags">${tags}</div>` : ""}
         `,
       });
     }).join("");
     return `
-      <div class="search-wrap">
-        <input data-act="search" placeholder="Film suchen" value="${escapeHtml(state.search)}" autocomplete="off">
-        ${state.search ? `<button type="button" class="search-clear" data-act="search-clear" aria-label="Suche leeren">${ICONS.close}</button>` : ""}
+      <div class="list-toolbar">
+        <div class="search-wrap">
+          <input data-act="search" placeholder="Film suchen" value="${escapeHtml(state.search)}" autocomplete="off">
+          ${state.search ? `<button type="button" class="search-clear" data-act="search-clear" aria-label="Suche leeren">${ICONS.close}</button>` : ""}
+        </div>
+        <div class="suggest-chips" data-role="search-chips">${renderSearchChipsHtml()}</div>
       </div>
-      <div class="suggest-chips" data-role="search-chips">${renderSearchChipsHtml()}</div>
-      <section class="stack">${rows || `<p class="hint">Noch nichts vorgemerkt.</p>`}</section>
+      <section class="film-list" data-role="film-list">${rows || `<p class="hint">Noch nichts auf der Watchlist.</p>`}</section>
     `;
   }
 
@@ -2189,8 +2296,10 @@
     const films = state.catalog.filter((f) => all[filmId(f)] === state.ratedFilter);
     const rows = films.map((film) => renderListRow(film, { rates: true })).join("");
     return `
-      <div class="suggest-chips" style="margin-top:12px">${chips}</div>
-      <section class="stack">${rows || `<p class="hint">Keine Filme mit dieser Bewertung.</p>`}</section>
+      <div class="list-toolbar">
+        <div class="suggest-chips">${chips}</div>
+      </div>
+      <section class="film-list" data-role="film-list">${rows || `<p class="hint">Keine Filme mit dieser Bewertung.</p>`}</section>
     `;
   }
 
@@ -2214,8 +2323,10 @@
       : "";
     return `
       ${exactHint}
-      <div class="suggest-chips" style="margin-top:12px">${chips || `<span class="hint">Noch keine eigenen Tags</span>`}</div>
-      <section class="stack">${selected.length ? (rows || `<p class="hint">Keine Filme mit genau diesen Tags.</p>`) : `<p class="hint">Tags wählen, um Filme zu sehen.</p>`}</section>
+      <div class="list-toolbar">
+        <div class="suggest-chips">${chips || `<span class="hint">Noch keine eigenen Tags</span>`}</div>
+      </div>
+      <section class="film-list" data-role="film-list">${selected.length ? (rows || `<p class="hint">Keine Filme mit genau diesen Tags.</p>`) : `<p class="hint">Tags wählen, um Filme zu sehen.</p>`}</section>
     `;
   }
 
@@ -2233,11 +2344,13 @@
       });
     }).join("");
     return `
-      <div class="suggest-chips" style="margin-top:12px">
-        <button type="button" class="chip" data-act="seen-unrated" aria-pressed="${state.seenOnlyUnrated}">nur unbewertet</button>
-        <button type="button" class="chip" data-act="seen-all" aria-pressed="${!state.seenOnlyUnrated}">alle</button>
+      <div class="list-toolbar">
+        <div class="suggest-chips">
+          <button type="button" class="chip" data-act="seen-unrated" aria-pressed="${state.seenOnlyUnrated}">nur unbewertet</button>
+          <button type="button" class="chip" data-act="seen-all" aria-pressed="${!state.seenOnlyUnrated}">alle</button>
+        </div>
       </div>
-      <section class="stack">${cards || `<p class="hint">Noch keine gesehenen Filme.</p>`}</section>
+      <section class="film-list" data-role="film-list">${cards || `<p class="hint">Noch keine gesehenen Filme.</p>`}</section>
     `;
   }
 
@@ -2305,6 +2418,7 @@
     const onLogin = state.screen === "login";
     document.body.classList.toggle("on-login", onLogin);
     document.body.classList.toggle("on-home", state.screen === "home");
+    document.body.classList.toggle("on-lists", state.screen === "lists");
     if (!onLogin) {
       document.body.classList.remove("login-focus");
       teardownLoginCarousel();
@@ -2328,7 +2442,13 @@
       window.requestAnimationFrame(paintChipOverflow);
     }
     else if (state.screen === "suggest") app.innerHTML = renderSuggest();
-    else if (state.screen === "lists") app.innerHTML = renderLists();
+    else if (state.screen === "lists") {
+      app.innerHTML = renderLists();
+      bindFilmListScroll();
+      const shown = app.querySelectorAll(".film-row");
+      const films = [...shown].map((row) => findFilm(row.dataset.id)).filter(Boolean);
+      enrichListCast(films);
+    }
     else if (state.screen === "tags") app.innerHTML = renderTagsManage();
     else if (state.screen === "done") app.innerHTML = renderDone();
     if (state.screen === "tags") scheduleTagWave();
@@ -2461,8 +2581,12 @@
 
   app.addEventListener("click", async (event) => {
     const t = event.target.closest("[data-act]");
-    if (!t) return;
+    if (!t) {
+      closeFilmMenus();
+      return;
+    }
     const act = t.dataset.act;
+    if (act !== "film-menu" && !t.closest(".film-menu-pop")) closeFilmMenus();
 
     if (act === "toggle-pass") {
       const input = app.querySelector("[data-act=login-pass]");
@@ -2542,7 +2666,7 @@
     }
     if (act === "filter-more") {
       const key = t.dataset.key;
-      if (key) state.filterMore[key] = true;
+      if (key) state.filterMore[key] = !state.filterMore[key];
       render();
       return;
     }
@@ -2661,7 +2785,7 @@
       const film = findFilm(t.dataset.id);
       if (addWatch(film)) {
         render();
-        showSnack(`${film.title} ist hinzugefügt`);
+        showSnack(`${film.title} ist auf der Watchlist`);
       }
       return;
     }
@@ -2675,6 +2799,17 @@
       map[id] = Array.from(have);
       saveFilmTags(map);
       render();
+      return;
+    }
+    if (act === "film-menu") {
+      const row = t.closest(".film-row");
+      const pop = row ? row.querySelector(".film-menu-pop") : null;
+      const willOpen = !!(pop && pop.hidden);
+      closeFilmMenus();
+      if (pop && willOpen) {
+        pop.hidden = false;
+        t.setAttribute("aria-expanded", "true");
+      }
       return;
     }
     if (act === "watch-remove") {
@@ -2940,6 +3075,10 @@
 
   window.addEventListener("touchstart", (event) => {
     lastTouchY = event.touches[0] ? event.touches[0].clientY : null;
+    const row = event.target.closest("[data-swipe-row]");
+    if (row && event.touches[0] && !event.target.closest("[data-act=film-menu], .film-menu-pop")) {
+      row.dataset.swipeX = String(event.touches[0].clientX);
+    }
   }, { passive: true });
 
   window.addEventListener("touchmove", (event) => {
@@ -2948,6 +3087,15 @@
     const y = event.touches[0].clientY;
     onScrollDir(lastTouchY - y);
     lastTouchY = y;
+  }, { passive: true });
+
+  window.addEventListener("touchend", (event) => {
+    const row = event.target.closest("[data-swipe-row]");
+    if (!row || row.dataset.swipeX == null || !event.changedTouches[0]) return;
+    const dx = event.changedTouches[0].clientX - Number(row.dataset.swipeX);
+    delete row.dataset.swipeX;
+    if (Math.abs(dx) < 56) return;
+    row.dataset.swipeDir = dx < 0 ? "left" : "right";
   }, { passive: true });
 
   desktopNavMq.addEventListener("change", () => {
@@ -2960,22 +3108,12 @@
   });
 
   app.addEventListener("pointerdown", (event) => {
-    const t = event.target;
-    if (t && t.dataset && t.dataset.act === "dauer") showDauerTip(true);
     const hero = event.target.closest(".suggest-hero");
     if (hero && state.filtersOpen && !event.target.closest("[data-act=toggle-filters]")) {
       state.shinePaused = true;
       hero.classList.remove("is-shining");
       hero.classList.add("is-paused");
     }
-  });
-
-  app.addEventListener("pointerup", (event) => {
-    if (event.target && event.target.dataset && event.target.dataset.act === "dauer") showDauerTip(false);
-  });
-
-  app.addEventListener("pointercancel", (event) => {
-    if (event.target && event.target.dataset && event.target.dataset.act === "dauer") showDauerTip(false);
   });
 
   seedIfNeeded();
