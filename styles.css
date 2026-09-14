@@ -1654,6 +1654,14 @@ body.on-login #app {
   transition: height 0.28s ease, margin-bottom 0.28s ease;
 }
 
+.login-carousel:not(.is-ready) .login-carousel-inner {
+  opacity: 0;
+}
+
+.login-carousel.is-ready .login-carousel-inner {
+  opacity: 1;
+}
+
 .login-carousel-inner {
   position: relative;
   height: 100%;
@@ -1691,7 +1699,7 @@ body.on-login #app {
   width: 24px;
   height: 36px;
   border-radius: 3px;
-  background-color: #24486c;
+  background-color: transparent;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1716,7 +1724,7 @@ body.on-login #app {
 
 .login-cover {
   border-radius: 6px;
-  background-color: #1d4f91;
+  background-color: transparent;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;

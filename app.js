@@ -21,6 +21,39 @@
     { tmdb: 157336, src: "https://image.tmdb.org/t/p/w185/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg" },
   ];
 
+  const LOGIN_POSTERS = [
+    { id: "t557", title: "Spider-Man", poster: "https://image.tmdb.org/t/p/w185/2xSL6CAWsynawHFDGdJSGutUj9X.jpg" },
+    { id: "t155", title: "The Dark Knight", poster: "https://image.tmdb.org/t/p/w185/z1DfRQf2CgnROyhVZ6ch8FbWt71.jpg" },
+    { id: "t120", title: "Der Herr der Ringe - Die Gefährten", poster: "https://image.tmdb.org/t/p/w185/k6lw7hhaMDzJ170bfZfBbnipxcW.jpg" },
+    { id: "t27205", title: "Inception", poster: "https://image.tmdb.org/t/p/w185/t5WUY5ZSxwVIVExaMZmmIj88BKA.jpg" },
+    { id: "t157336", title: "Interstellar", poster: "https://image.tmdb.org/t/p/w185/hHdhfkkzt0Mwec33Ux177Z7CO8w.jpg" },
+    { id: "t238", title: "Der Pate", poster: "https://image.tmdb.org/t/p/w185/uumEbSnYqeV1oennyVx8DPVjujF.jpg" },
+    { id: "t680", title: "Pulp Fiction", poster: "https://image.tmdb.org/t/p/w185/hOg9USqmQmglmr5kGvpyg1XkhqN.jpg" },
+    { id: "t13", title: "Forrest Gump", poster: "https://image.tmdb.org/t/p/w185/zUWRCzac72YuO9k5kEWSe0aGbs7.jpg" },
+    { id: "t603", title: "Matrix", poster: "https://image.tmdb.org/t/p/w185/iVmDLujHcV1zaMnaahKWn4TcCS6.jpg" },
+    { id: "t597", title: "Titanic", poster: "https://image.tmdb.org/t/p/w185/MlnPG3oxhfmuiDwcoeElQWui9m.jpg" },
+    { id: "t19995", title: "Avatar", poster: "https://image.tmdb.org/t/p/w185/8VV4YUwOGxgolFZTo2SgNwsfznR.jpg" },
+    { id: "t671", title: "Harry Potter und der Stein der Weisen", poster: "https://image.tmdb.org/t/p/w185/nKspzM3rVJASkT4CvZvuj9KDT7l.jpg" },
+    { id: "t862", title: "Toy Story", poster: "https://image.tmdb.org/t/p/w185/om4fMx3e4xkx27sAsacoFP4WiEd.jpg" },
+    { id: "t550", title: "Fight Club", poster: "https://image.tmdb.org/t/p/w185/5sLBZtBzmL9Xd5MdGyqymgM9kPY.jpg" },
+    { id: "t278", title: "Die Verurteilten", poster: "https://image.tmdb.org/t/p/w185/78Pb6FMLMfpm1jUOKTniwREYgAN.jpg" },
+    { id: "t872585", title: "Oppenheimer", poster: "https://image.tmdb.org/t/p/w185/9AiHV08v8RyyuHcO5wuTaTXBxfe.jpg" },
+    { id: "t569094", title: "Spider-Man: Across the Spider-Verse", poster: "https://image.tmdb.org/t/p/w185/6jYQM7zldTF0q6Ky1XbIJCNsS2L.jpg" },
+    { id: "t693134", title: "Dune: Part Two", poster: "https://image.tmdb.org/t/p/w185/zYLP7Uiqz6XqoiQLAu4XQ6DRUMz.jpg" },
+    { id: "t122", title: "Der Herr der Ringe - Die Rückkehr des Königs", poster: "https://image.tmdb.org/t/p/w185/uFjlP9U9UOZAzGB25HUtmlEpXbc.jpg" },
+    { id: "t1726", title: "Iron Man", poster: "https://image.tmdb.org/t/p/w185/ueGAjn2cR1nc1f2i8VjIhpiP73E.jpg" },
+    { id: "t76341", title: "Mad Max: Fury Road", poster: "https://image.tmdb.org/t/p/w185/6zI7lI5Usf5z6wXH9KPWvGWvKS7.jpg" },
+    { id: "t533535", title: "Deadpool & Wolverine", poster: "https://image.tmdb.org/t/p/w185/chDpMyvXNDFMhg3yUknITnGUCUk.jpg" },
+    { id: "t496243", title: "Parasite", poster: "https://image.tmdb.org/t/p/w185/hoqe3leVhHBgboB6G1bv1kB8K4p.jpg" },
+    { id: "t361743", title: "Top Gun: Maverick", poster: "https://image.tmdb.org/t/p/w185/cvLe7YpLTsgT25FpuTD1bwgEcWZ.jpg" },
+    { id: "t129", title: "Chihiros Reise ins Zauberland", poster: "https://image.tmdb.org/t/p/w185/wWNLsGvKqhi6cNWul0uvhqbQ4kl.jpg" },
+    { id: "t24428", title: "The Avengers", poster: "https://image.tmdb.org/t/p/w185/nwdcPGzBtex0XSOhG8vryGXKByZ.jpg" },
+    { id: "t299534", title: "Avengers: Endgame", poster: "https://image.tmdb.org/t/p/w185/ibO8Pj0aA1nwj3Q9FMpMcYZkdCA.jpg" },
+    { id: "t447365", title: "Guardians of the Galaxy Vol. 3", poster: "https://image.tmdb.org/t/p/w185/jrz8nDZH6u3Xfpl74q2xeaS33RL.jpg" },
+    { id: "t218", title: "Terminator", poster: "https://image.tmdb.org/t/p/w185/kdYu7YJJP0uuGEuhUX5toqvBSog.jpg" },
+    { id: "t49026", title: "The Dark Knight Rises", poster: "https://image.tmdb.org/t/p/w185/9NyCuhyvFKTqGRLcr4r8fWXnu9v.jpg" },
+  ];
+
   const RATE_KEYS = [
     { id: "sehr-gut", label: "Sehr gut" },
     { id: "gut", label: "Gut" },
@@ -1554,6 +1587,47 @@
     return packed;
   }
 
+  const loginPosterImages = new Map();
+  let loginPosterPreload = null;
+  let loginMountSeq = 0;
+
+  function loginPosterSrc(film) {
+    return film && film.poster ? String(film.poster) : "";
+  }
+
+  function loginPosterReady(url) {
+    const img = loginPosterImages.get(url);
+    return !!(img && img.complete && img.naturalWidth);
+  }
+
+  function preloadLoginImage(url) {
+    if (!url) return Promise.resolve(false);
+    const existing = loginPosterImages.get(url);
+    if (existing && existing.complete && existing.naturalWidth) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      const img = existing || new Image();
+      img.referrerPolicy = "no-referrer";
+      const finish = (ok) => resolve(!!ok);
+      img.onload = () => {
+        const decode = typeof img.decode === "function" ? img.decode() : Promise.resolve();
+        decode.then(() => finish(img.naturalWidth > 0), () => finish(img.naturalWidth > 0));
+      };
+      img.onerror = () => finish(false);
+      loginPosterImages.set(url, img);
+      img.src = url;
+    });
+  }
+
+  function ensureLoginPostersPreloaded() {
+    if (!loginPosterPreload) {
+      loginPosterPreload = Promise.all(LOGIN_POSTERS.map(async (row) => {
+        const ok = await preloadLoginImage(row.poster);
+        return ok ? row : null;
+      })).then((rows) => rows.filter(Boolean));
+    }
+    return loginPosterPreload;
+  }
+
   function carouselMetrics() {
     const compact = document.body.classList.contains("login-focus");
     return {
@@ -1570,8 +1644,13 @@
 
   function setCover(el, film) {
     if (!el) return;
-    const src = film && film.poster ? posterThumb(film.poster, "w185") : "";
-    el.style.backgroundImage = src ? `url("${src}")` : "";
+    const src = loginPosterSrc(film);
+    if (!src || !loginPosterReady(src)) {
+      el.style.backgroundImage = "";
+      el.title = "";
+      return;
+    }
+    el.style.backgroundImage = `url("${src}")`;
     el.title = film && film.title ? film.title : "";
   }
 
@@ -1808,6 +1887,7 @@
   }
 
   function teardownLoginCarousel() {
+    if (loginUi.root) loginUi.root.classList.remove("is-ready");
     if (loginUi.unbind) loginUi.unbind();
     loginUi.unbind = null;
     if (loginUi.raf) cancelAnimationFrame(loginUi.raf);
@@ -1825,32 +1905,32 @@
   async function mountLoginCarousel() {
     const root = app.querySelector("[data-role=login-carousel]");
     if (!root) return;
-    if (loginUi.root === root) return;
+    if (loginUi.root === root && loginUi.items.length) return;
+    const seq = ++loginMountSeq;
     teardownLoginCarousel();
     loginUi.root = root;
     loginUi.reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    await loadOfflineFallback();
+    root.classList.remove("is-ready");
+    const readyPosters = await ensureLoginPostersPreloaded();
+    if (seq !== loginMountSeq) return;
     if (state.screen !== "login" || app.querySelector("[data-role=login-carousel]") !== root) return;
+    if (!readyPosters.length) return;
     const ring = root.querySelector("[data-role=login-ring]");
     loginUi.ring = ring;
-    loginUi.posters = packCarouselPosters(offlineFilms);
+    loginUi.posters = packCarouselPosters(readyPosters).filter((film) => loginPosterReady(loginPosterSrc(film)));
     loginUi.items = [];
     if (ring) {
       const frag = document.createDocumentFragment();
       for (const film of loginUi.posters) {
+        const src = loginPosterSrc(film);
         const el = document.createElement("div");
         el.className = "login-ring-item";
-        el.style.backgroundImage = `url("${posterThumb(film.poster, "w92")}")`;
+        el.style.backgroundImage = `url("${src}")`;
         frag.appendChild(el);
         loginUi.items.push(el);
       }
       ring.innerHTML = "";
       ring.appendChild(frag);
-      for (const film of loginUi.posters) {
-        const img = new Image();
-        img.referrerPolicy = "no-referrer";
-        img.src = posterThumb(film.poster, "w185");
-      }
     }
     loginUi.covers = {
       left: root.querySelector("[data-role=cover-left]"),
@@ -1860,6 +1940,7 @@
     loginUi.metrics = carouselMetrics();
     loginUi.unbind = bindCarouselPointer(root);
     window.addEventListener("resize", onCarouselResize);
+    root.classList.add("is-ready");
     if (!loginUi.autoPlayed) {
       loginUi.autoPlayed = true;
       startAutoSpin();
@@ -3155,6 +3236,7 @@
 
   seedIfNeeded();
   restoreSession();
+  ensureLoginPostersPreloaded();
   render();
   loadCatalog();
 
