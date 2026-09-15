@@ -2622,13 +2622,16 @@
     }
     document.body.classList.add("watch-sheet-open");
     syncWatchSheetTop();
+    const animateIn = watchSheetEl.hidden;
     watchSheetEl.hidden = false;
     watchSheetEl.innerHTML = renderWatchSheetHtml();
     const panel = watchSheetEl.querySelector("[data-role=sheet-panel]");
-    if (panel && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (animateIn && panel && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       panel.classList.add("is-enter");
       window.requestAnimationFrame(() => {
-        panel.classList.remove("is-enter");
+        window.requestAnimationFrame(() => {
+          panel.classList.remove("is-enter");
+        });
       });
     }
     const films = watchSheetFilms();
