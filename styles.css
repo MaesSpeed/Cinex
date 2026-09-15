@@ -985,6 +985,10 @@ body.on-lists .site-header {
   flex: 0 0 auto;
 }
 
+body.watch-sheet-open {
+  overflow: hidden;
+}
+
 body.watch-sheet-open .site-header {
   z-index: 90;
 }
@@ -1793,6 +1797,7 @@ body.has-footer.footer-open.watch-sheet-open .snackbar {
 
 .sheet-search-wrap input {
   touch-action: pan-x;
+  scroll-margin-top: var(--sheet-top);
 }
 
 .sheet-search-bar {

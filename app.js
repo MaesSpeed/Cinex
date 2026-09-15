@@ -2608,7 +2608,7 @@
   function syncWatchSheetTop() {
     const header = document.querySelector(".site-header");
     if (!header) return;
-    const top = Math.ceil(header.getBoundingClientRect().bottom) + 8;
+    const top = Math.ceil(header.getBoundingClientRect().bottom) + 12;
     document.documentElement.style.setProperty("--sheet-top", `${Math.max(top, 0)}px`);
   }
 
@@ -2639,7 +2639,7 @@
     if (state.watchSheet === "search") {
       const input = watchSheetEl.querySelector("[data-act=watch-search]");
       if (input) {
-        input.focus();
+        input.focus({ preventScroll: true });
         const len = input.value.length;
         try { input.setSelectionRange(len, len); } catch { /* ignore */ }
       }
