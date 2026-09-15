@@ -1615,7 +1615,35 @@
     metrics: { radius: 126, tilt: -20, hide: 48 },
     unbind: null,
     reduced: false,
+    ro: null,
   };
+
+  const LOGIN_CAROUSEL_BASE_RADIUS = 126;
+  const LOGIN_CAROUSEL_IDLE_H = 224;
+  const LOGIN_CAROUSEL_IDLE_H_WIDE = 248;
+  const LOGIN_CAROUSEL_IDLE_SCALE = 1.5;
+  const LOGIN_CAROUSEL_IDLE_SCALE_WIDE = 1.62;
+  const LOGIN_CAROUSEL_MIN_H = 132;
+
+  function loginIdleCarouselHeight() {
+    return window.matchMedia("(min-width: 640px)").matches
+      ? LOGIN_CAROUSEL_IDLE_H_WIDE
+      : LOGIN_CAROUSEL_IDLE_H;
+  }
+
+  function loginIdleCarouselScale() {
+    return window.matchMedia("(min-width: 640px)").matches
+      ? LOGIN_CAROUSEL_IDLE_SCALE_WIDE
+      : LOGIN_CAROUSEL_IDLE_SCALE;
+  }
+
+  function loginCarouselScale(height) {
+    const idleH = loginIdleCarouselHeight();
+    const idleScale = loginIdleCarouselScale();
+    const h = height || idleH;
+    if (h >= idleH - 8) return idleScale;
+    return h / 200;
+  }
 
   function posterThumb(url, size) {
     return String(url || "").replace(/\/w\d+\//, `/${size}/`);
@@ -1693,13 +1721,69 @@
     return loginPosterPreload;
   }
 
-  function carouselMetrics() {
-    const compact = document.body.classList.contains("login-focus");
+  function carouselMetrics(explicitH) {
+    const box = loginUi.root ? loginUi.root.getBoundingClientRect() : null;
+    const h = explicitH || (box && box.height) || loginIdleCarouselHeight();
+    const scale = loginCarouselScale(h);
+    const maxRadius = box && box.width
+      ? Math.max(96, Math.floor(box.width / 2) - 8)
+      : LOGIN_CAROUSEL_BASE_RADIUS;
     return {
-      radius: compact ? 82 : 126,
-      tilt: compact ? -16 : -20,
-      hide: compact ? 42 : 48,
+      radius: Math.min(maxRadius, Math.round(LOGIN_CAROUSEL_BASE_RADIUS * scale)),
+      tilt: -20,
+      hide: 48,
+      scale,
     };
+  }
+
+  function applyCarouselScale(explicitH) {
+    if (!loginUi.root) return;
+    const metrics = carouselMetrics(explicitH);
+    loginUi.metrics = metrics;
+    loginUi.root.style.setProperty("--login-scale", metrics.scale.toFixed(4));
+    const inner = loginUi.root.querySelector(".login-carousel-inner");
+    if (inner) {
+      const persp = `${Math.round(820 * metrics.scale)}px`;
+      inner.style.perspective = persp;
+      inner.style.webkitPerspective = persp;
+    }
+  }
+
+  function clearLoginViewport() {
+    ["--login-pad-bottom", "--login-vvh", "--login-vv-y", "--login-header-h"].forEach((prop) => {
+      document.documentElement.style.removeProperty(prop);
+    });
+  }
+
+  function syncLoginViewport() {
+    if (state.screen !== "login") {
+      clearLoginViewport();
+      return;
+    }
+    const vv = window.visualViewport;
+    const visH = vv ? vv.height : window.innerHeight;
+    const header = document.querySelector(".site-header");
+    const form = app.querySelector("[data-role=login-form]");
+    const headerH = header ? header.getBoundingClientRect().height : 56;
+    const formH = form ? Math.ceil(form.getBoundingClientRect().height) : 154;
+    const inset = vv ? Math.max(0, window.innerHeight - visH) : 0;
+    const idleH = loginIdleCarouselHeight();
+    const room = visH - headerH - formH - 2 - 8;
+    const tight = inset > 80 || room < idleH + 12;
+    const padBottom = tight ? 6 : 12;
+    const root = document.documentElement;
+    root.style.setProperty("--login-header-h", `${Math.round(headerH)}px`);
+    root.style.setProperty("--login-pad-bottom", `${padBottom}px`);
+    root.style.setProperty("--login-vvh", `${Math.round(visH)}px`);
+    root.style.setProperty("--login-vv-y", `${vv ? Math.round(vv.offsetTop) : 0}px`);
+    window.scrollTo(0, 0);
+    const apply = () => {
+      if (!loginUi.root) return;
+      applyCarouselScale(loginUi.root.getBoundingClientRect().height);
+      paintLoginCarousel();
+    };
+    apply();
+    window.requestAnimationFrame(apply);
   }
 
   function wrapDeg(deg) {
@@ -1756,9 +1840,7 @@
   }
 
   function onCarouselResize() {
-    if (!loginUi.root) return;
-    loginUi.metrics = carouselMetrics();
-    paintLoginCarousel();
+    syncLoginViewport();
   }
 
   function maybeSwipeHint() {
@@ -1955,6 +2037,10 @@
     if (loginUi.root) loginUi.root.classList.remove("is-ready");
     if (loginUi.unbind) loginUi.unbind();
     loginUi.unbind = null;
+    if (loginUi.ro) {
+      loginUi.ro.disconnect();
+      loginUi.ro = null;
+    }
     if (loginUi.raf) cancelAnimationFrame(loginUi.raf);
     loginUi.raf = 0;
     loginUi.root = null;
@@ -1965,6 +2051,11 @@
     loginUi.mode = "idle";
     loginUi.vel = 0;
     window.removeEventListener("resize", onCarouselResize);
+    if (window.visualViewport) {
+      window.visualViewport.removeEventListener("resize", onCarouselResize);
+      window.visualViewport.removeEventListener("scroll", onCarouselResize);
+    }
+    clearLoginViewport();
   }
 
   async function mountLoginCarousel() {
@@ -2002,9 +2093,20 @@
       center: root.querySelector("[data-role=cover-center]"),
       right: root.querySelector("[data-role=cover-right]"),
     };
-    loginUi.metrics = carouselMetrics();
     loginUi.unbind = bindCarouselPointer(root);
     window.addEventListener("resize", onCarouselResize);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", onCarouselResize);
+      window.visualViewport.addEventListener("scroll", onCarouselResize);
+    }
+    if (typeof ResizeObserver === "function") {
+      loginUi.ro = new ResizeObserver(() => {
+        applyCarouselScale();
+        paintLoginCarousel();
+      });
+      loginUi.ro.observe(root);
+    }
+    syncLoginViewport();
     root.classList.add("is-ready");
     if (!loginUi.autoPlayed) {
       loginUi.autoPlayed = true;
@@ -2056,12 +2158,15 @@
     if (!form) return;
     form.addEventListener("focusin", () => {
       document.body.classList.add("login-focus");
-      onCarouselResize();
+      window.scrollTo(0, 0);
+      syncLoginViewport();
+      window.requestAnimationFrame(syncLoginViewport);
     });
     form.addEventListener("focusout", (ev) => {
       if (!form.contains(ev.relatedTarget)) {
         document.body.classList.remove("login-focus");
-        onCarouselResize();
+        window.scrollTo(0, 0);
+        syncLoginViewport();
       }
     });
   }
@@ -2932,6 +3037,8 @@
     if (!onLogin) {
       document.body.classList.remove("login-focus");
       teardownLoginCarousel();
+    } else {
+      window.requestAnimationFrame(syncLoginViewport);
     }
     if (onLogin) {
       const existing = app.querySelector(".login-screen");
