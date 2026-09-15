@@ -2822,6 +2822,14 @@
     return score;
   }
 
+  function canonicalFranchiseScore(film) {
+    const title = filmSearchTitleTexts(film).join(" ");
+    let score = 0;
+    if (searchHasPhrase(title, "james bond")) score += 4;
+    if (searchHasPhrase(title, "007")) score += 2;
+    return score;
+  }
+
   function scoreSearchFilm(film, q) {
     if (!film || !q) return null;
     const titleKind = bestFieldMatchKind(filmSearchTitleTexts(film), q);
@@ -2838,13 +2846,15 @@
     const exactTitle = titleKind === 0;
     const minutes = filmMinutesOf(film);
     if (!exactTitle && minutes > 0 && minutes <= SEARCH_SHORT_MAX) return null;
-    return { film, rank, exactTitle, minutes };
+    return { film, rank, exactTitle, minutes, canonical: canonicalFranchiseScore(film) };
   }
 
   function compareSearchRows(a, b) {
     if (a.rank !== b.rank) return a.rank - b.rank;
     const length = filmLengthBucket(a.film) - filmLengthBucket(b.film);
     if (length) return length;
+    const canonical = (b.canonical || 0) - (a.canonical || 0);
+    if (canonical) return canonical;
     const recognition = filmRecognitionScore(b.film) - filmRecognitionScore(a.film);
     if (recognition) return recognition;
     const year = (Number(b.film.year) || 0) - (Number(a.film.year) || 0);
@@ -2865,7 +2875,7 @@
       if (!keepUnmatched) continue;
       const minutes = filmMinutesOf(film);
       if (minutes > 0 && minutes <= SEARCH_SHORT_MAX) continue;
-      rows.push({ film, rank: 5, exactTitle: false, minutes });
+      rows.push({ film, rank: 5, exactTitle: false, minutes, canonical: canonicalFranchiseScore(film) });
     }
     rows.sort(compareSearchRows);
     return rows.map((row) => row.film);
