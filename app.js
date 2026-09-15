@@ -15,6 +15,48 @@
     { id: "paramount", label: "Paramount+" },
   ];
 
+  const PROVIDER_NAME_MAP = {
+    "Amazon Prime Video": "Prime Video",
+    "Amazon Video": "Prime Video",
+    "Disney Plus": "Disney+",
+    "Disney+": "Disney+",
+    "Apple TV Plus": "Apple TV+",
+    "Apple TV+": "Apple TV+",
+    "Apple TV": "Apple TV+",
+    "Wow": "WOW",
+    "WOW": "WOW",
+    "Paramount Plus": "Paramount+",
+    "Paramount+ Amazon Channel": "Paramount+",
+    "Netflix": "Netflix",
+    "Netflix basic with Ads": "Netflix",
+  };
+
+  const FALLBACK_PROVIDERS = {
+    t120: ["Prime Video", "Disney+", "Netflix"],
+    t121: ["Prime Video", "Disney+", "Netflix"],
+    t122: ["Prime Video", "Disney+", "Netflix"],
+    t155: ["Netflix", "Prime Video", "Apple TV+"],
+    t27205: ["Netflix", "Prime Video", "Disney+"],
+    t157336: ["Prime Video", "Apple TV+", "Netflix"],
+    t603: ["Netflix", "Prime Video"],
+    t238: ["Netflix", "Prime Video"],
+    t680: ["Netflix", "Prime Video"],
+    t13: ["Netflix", "Disney+"],
+    t557: ["Disney+", "Prime Video", "Netflix"],
+    t569094: ["Disney+", "Netflix"],
+    t671: ["Disney+", "Prime Video"],
+    t872585: ["Prime Video", "Apple TV+"],
+    t693134: ["Prime Video", "Netflix"],
+    t361743: ["Netflix", "Paramount+", "Prime Video"],
+    t550: ["Netflix", "Prime Video"],
+    t278: ["Netflix", "Prime Video"],
+    t129: ["Netflix", "Disney+"],
+    t862: ["Disney+", "Prime Video"],
+    t496243: ["Netflix", "Prime Video"],
+    t597: ["Disney+", "Netflix"],
+    t19995: ["Disney+", "Prime Video"],
+  };
+
   const HERO_COVERS = [
     { tmdb: 155, src: "https://image.tmdb.org/t/p/w185/qJ2tW6WMUDux911r6m7haRef0WH.jpg" },
     { tmdb: 27205, src: "https://image.tmdb.org/t/p/w185/oYu4f6tE5z9PQ6aRthYx3ce2GwA.jpg" },
@@ -216,6 +258,9 @@
       const path = String(raw.poster_path).startsWith("/") ? raw.poster_path : `/${raw.poster_path}`;
       poster = `https://image.tmdb.org/t/p/w185${path}`;
     }
+    const providers = Array.isArray(raw.providers)
+      ? raw.providers.slice()
+      : (Array.isArray(raw.streaming) ? raw.streaming.slice() : []);
     return {
       id,
       tmdb: Number.isFinite(tmdbNum) ? tmdbNum : id,
@@ -232,6 +277,7 @@
       cast: filmCastNames(raw).slice(0, 4),
       year: Number(raw.year) || (raw.release_date ? Number(String(raw.release_date).slice(0, 4)) : 0) || 0,
       aliases: filmAliases(raw),
+      providers,
     };
   }
 
@@ -677,6 +723,7 @@
         year: n.year || prev.year,
         original_title: n.original_title || prev.original_title || "",
         aliases: uniqueAliasList([...(n.aliases || []), ...(prev.aliases || [])]),
+        providers: (n.providers && n.providers.length) ? n.providers : (prev.providers || []),
       });
     } else {
       state.catalog.push(n);
@@ -1463,17 +1510,23 @@
     render();
   }
 
-  function burstConfetti() {
+  function burstConfetti(origin) {
     const parts = [];
-    const colors = ["#0066B3", "#ffffff", "#22c55e", "#f6d56b", "#d7f3e4", "#e53935"];
+    const ember = !!(origin && origin.ember);
+    const colors = ember
+      ? ["#e3b07c", "#d4926a", "#c87a54", "#fff4e0", "#e53935", "#f6d56b"]
+      : ["#0066B3", "#ffffff", "#22c55e", "#f6d56b", "#d7f3e4", "#e53935"];
     const { innerWidth: w, innerHeight: h } = window;
     confettiCanvas.width = w;
     confettiCanvas.height = h;
-    for (let i = 0; i < 90; i += 1) {
+    const ox = origin && Number.isFinite(origin.x) ? origin.x : w * 0.5;
+    const oy = origin && Number.isFinite(origin.y) ? origin.y : h * 0.28;
+    const count = ember ? 58 : 90;
+    for (let i = 0; i < count; i += 1) {
       parts.push({
-        x: w * 0.5 + (Math.random() - 0.5) * 80,
-        y: h * 0.28,
-        vx: (Math.random() - 0.5) * 11,
+        x: ox + (Math.random() - 0.5) * (ember ? 46 : 80),
+        y: oy,
+        vx: (Math.random() - 0.5) * (ember ? 9 : 11),
         vy: Math.random() * -9 - 3,
         g: 0.18 + Math.random() * 0.12,
         s: 4 + Math.random() * 5,
@@ -1482,6 +1535,7 @@
       });
     }
     const start = performance.now();
+    const life = ember ? 900 : 1200;
     function frame(now) {
       const t = now - start;
       ctx.clearRect(0, 0, w, h);
@@ -1497,7 +1551,7 @@
         ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
         ctx.restore();
       }
-      if (t < 1200) requestAnimationFrame(frame);
+      if (t < life) requestAnimationFrame(frame);
       else ctx.clearRect(0, 0, w, h);
     }
     requestAnimationFrame(frame);
@@ -1644,6 +1698,31 @@
     if (h >= idleH - 8) return idleScale;
     return h / 200;
   }
+
+  const zufallUi = {
+    posters: [],
+    isFiller: [],
+    items: [],
+    pool: [],
+    angle: 0,
+    vel: 0,
+    mode: "idle",
+    phase: "idle",
+    raf: 0,
+    spinRaf: 0,
+    lastTs: 0,
+    drag: null,
+    root: null,
+    ring: null,
+    covers: null,
+    metrics: { radius: 202, tilt: -20, hide: 48 },
+    unbind: null,
+    reduced: false,
+    frontLocked: false,
+    front: null,
+    skipTimer: 0,
+    mountSeq: 0,
+  };
 
   function posterThumb(url, size) {
     return String(url || "").replace(/\/w\d+\//, `/${size}/`);
@@ -1803,40 +1882,65 @@
     el.title = film && film.title ? film.title : "";
   }
 
-  function paintLoginCarousel() {
-    const n = loginUi.items.length;
+  function carouselFrontIndex(ui) {
+    const n = ui.posters.length;
+    if (!n) return 0;
+    const step = 360 / n;
+    let idx = Math.round(((-ui.angle / step) % n));
+    if (idx < 0) idx += n;
+    return idx;
+  }
+
+  function paintCarouselView(ui) {
+    const n = ui.items.length;
     if (!n) return;
-    const { radius, tilt, hide } = loginUi.metrics;
-    const spin = loginUi.angle;
+    const { radius, tilt, hide } = ui.metrics;
+    const spin = ui.angle;
     const step = 360 / n;
     const fade = 10;
-    if (loginUi.ring) {
-      loginUi.ring.style.transform = `rotateX(${tilt}deg)`;
+    if (ui.ring) {
+      ui.ring.style.transform = `rotateX(${tilt}deg)`;
     }
+    const flags = ui.isFiller || [];
     for (let i = 0; i < n; i += 1) {
       const deg = (i * step) + spin;
       const facing = Math.abs(wrapDeg(deg));
       let vis = 1;
       if (facing < hide - fade) vis = 0;
       else if (facing < hide) vis = (facing - (hide - fade)) / fade;
-      const el = loginUi.items[i];
+      if (flags[i]) vis *= 0.48;
+      const el = ui.items[i];
       el.style.transform = `translate(-50%, -50%) rotateY(${deg.toFixed(2)}deg) translateZ(${radius}px) rotateY(${(-deg).toFixed(2)}deg)`;
       el.style.opacity = vis.toFixed(3);
       el.style.zIndex = String(10 + Math.round((180 - facing) / 4));
     }
-    const posters = loginUi.posters;
+    const posters = ui.posters;
     const pCount = posters.length;
-    if (!pCount || !loginUi.covers) return;
-    const pStep = 360 / pCount;
-    let idx = Math.round(((-loginUi.angle / pStep) % pCount));
-    if (idx < 0) idx += pCount;
-    const at = (delta) => posters[(idx + delta + pCount) % pCount];
-    setCover(loginUi.covers.left, at(-1));
-    setCover(loginUi.covers.center, at(0));
-    setCover(loginUi.covers.right, at(1));
-    if (loginUi.covers.center) {
-      loginUi.covers.center.classList.toggle("is-rest", loginUi.mode === "idle");
+    if (!pCount || !ui.covers) return;
+    let leftFilm;
+    let centerFilm;
+    let rightFilm;
+    if (ui.frontLocked && ui.front) {
+      leftFilm = ui.front.left;
+      centerFilm = ui.front.center;
+      rightFilm = ui.front.right;
+    } else {
+      const idx = carouselFrontIndex(ui);
+      const at = (delta) => posters[(idx + delta + pCount) % pCount];
+      leftFilm = at(-1);
+      centerFilm = at(0);
+      rightFilm = at(1);
     }
+    setCover(ui.covers.left, leftFilm);
+    setCover(ui.covers.center, centerFilm);
+    setCover(ui.covers.right, rightFilm);
+    if (ui.covers.center) {
+      ui.covers.center.classList.toggle("is-rest", ui.mode === "idle" && !ui.frontLocked);
+    }
+  }
+
+  function paintLoginCarousel() {
+    paintCarouselView(loginUi);
   }
 
   function onCarouselResize() {
@@ -1879,62 +1983,70 @@
     maybeSwipeHint();
   }
 
-  function snapLoginCarousel() {
-    const n = loginUi.posters.length;
+  function snapCarouselToStep(ui, paint, onRest) {
+    const n = ui.posters.length;
     if (!n) {
-      finishCarouselRest();
+      onRest();
       return;
     }
     const step = 360 / n;
-    const target = Math.round(loginUi.angle / step) * step;
-    const from = loginUi.angle;
-    if (loginUi.reduced || Math.abs(target - from) < 0.25) {
-      loginUi.angle = target;
-      finishCarouselRest();
+    const target = Math.round(ui.angle / step) * step;
+    const from = ui.angle;
+    if (ui.reduced || Math.abs(target - from) < 0.25) {
+      ui.angle = target;
+      onRest();
       return;
     }
-    loginUi.mode = "snap";
+    ui.mode = "snap";
     const t0 = performance.now();
     const dur = 260;
     function stepSnap(now) {
-      if (loginUi.mode !== "snap") return;
+      if (ui.mode !== "snap") return;
       const p = Math.min(1, (now - t0) / dur);
       const e = 1 - ((1 - p) * (1 - p));
-      loginUi.angle = from + ((target - from) * e);
-      paintLoginCarousel();
+      ui.angle = from + ((target - from) * e);
+      paint();
       if (p < 1) requestAnimationFrame(stepSnap);
       else {
-        loginUi.angle = target;
-        finishCarouselRest();
+        ui.angle = target;
+        onRest();
       }
     }
     requestAnimationFrame(stepSnap);
   }
 
-  function ensureCoastLoop() {
-    if (loginUi.raf) return;
-    loginUi.lastTs = 0;
-    loginUi.raf = requestAnimationFrame(function loop(ts) {
-      loginUi.raf = 0;
-      if (loginUi.mode !== "coast") return;
-      if (!loginUi.lastTs) loginUi.lastTs = ts;
-      const dt = Math.min(0.034, (ts - loginUi.lastTs) / 1000);
-      loginUi.lastTs = ts;
+  function ensureCarouselCoast(ui, paint, snapFn) {
+    if (ui.raf) return;
+    ui.lastTs = 0;
+    ui.raf = requestAnimationFrame(function loop(ts) {
+      ui.raf = 0;
+      if (ui.mode !== "coast") return;
+      if (!ui.lastTs) ui.lastTs = ts;
+      const dt = Math.min(0.034, (ts - ui.lastTs) / 1000);
+      ui.lastTs = ts;
       const decel = 215;
-      const v = loginUi.vel;
+      const v = ui.vel;
       if (Math.abs(v) < 10) {
-        snapLoginCarousel();
+        snapFn();
         return;
       }
       const sign = v < 0 ? -1 : 1;
-      loginUi.vel = v - (sign * decel * dt);
-      if (loginUi.vel * v < 0) loginUi.vel = 0;
-      loginUi.angle += loginUi.vel * dt;
-      paintLoginCarousel();
-      if (loginUi.mode === "coast") {
-        loginUi.raf = requestAnimationFrame(loop);
+      ui.vel = v - (sign * decel * dt);
+      if (ui.vel * v < 0) ui.vel = 0;
+      ui.angle += ui.vel * dt;
+      paint();
+      if (ui.mode === "coast") {
+        ui.raf = requestAnimationFrame(loop);
       }
     });
+  }
+
+  function snapLoginCarousel() {
+    snapCarouselToStep(loginUi, paintLoginCarousel, finishCarouselRest);
+  }
+
+  function ensureCoastLoop() {
+    ensureCarouselCoast(loginUi, paintLoginCarousel, snapLoginCarousel);
   }
 
   function startAutoSpin() {
@@ -1965,12 +2077,18 @@
     requestAnimationFrame(step);
   }
 
-  function bindCarouselPointer(root) {
+  function bindCarouselPointer(ui, root, hooks) {
+    hooks = hooks || {};
+    const paint = () => {
+      if (hooks.paint) hooks.paint();
+      else paintCarouselView(ui);
+    };
     const onDown = (ev) => {
       if (ev.pointerType === "mouse" && ev.button !== 0) return;
-      loginUi.mode = "drag";
-      loginUi.vel = 0;
-      loginUi.drag = {
+      if (hooks.canDrag && !hooks.canDrag()) return;
+      ui.mode = "drag";
+      ui.vel = 0;
+      ui.drag = {
         id: ev.pointerId,
         x: ev.clientX,
         lastX: ev.clientX,
@@ -1979,29 +2097,34 @@
         moved: false,
       };
       if (root.setPointerCapture) root.setPointerCapture(ev.pointerId);
+      if (hooks.onDragStart) hooks.onDragStart();
     };
     const onMove = (ev) => {
-      if (!loginUi.drag || ev.pointerId !== loginUi.drag.id) return;
-      const dx = ev.clientX - loginUi.drag.lastX;
-      if (Math.abs(ev.clientX - loginUi.drag.x) > 3) loginUi.drag.moved = true;
+      if (!ui.drag || ev.pointerId !== ui.drag.id) return;
+      const dx = ev.clientX - ui.drag.lastX;
+      if (Math.abs(ev.clientX - ui.drag.x) > 3) {
+        if (!ui.drag.moved && hooks.onUserSpin) hooks.onUserSpin();
+        ui.drag.moved = true;
+      }
       const now = performance.now();
-      loginUi.angle += dx * 0.44;
-      loginUi.drag.samples.push({ dx, dt: now - loginUi.drag.lastT, t: now });
-      if (loginUi.drag.samples.length > 7) loginUi.drag.samples.shift();
-      loginUi.drag.lastX = ev.clientX;
-      loginUi.drag.lastT = now;
-      paintLoginCarousel();
+      ui.angle += dx * 0.44;
+      ui.drag.samples.push({ dx, dt: now - ui.drag.lastT, t: now });
+      if (ui.drag.samples.length > 7) ui.drag.samples.shift();
+      ui.drag.lastX = ev.clientX;
+      ui.drag.lastT = now;
+      paint();
       ev.preventDefault();
     };
     const onUp = (ev) => {
-      if (!loginUi.drag || ev.pointerId !== loginUi.drag.id) return;
-      const samples = loginUi.drag.samples;
-      const moved = loginUi.drag.moved;
-      loginUi.drag = null;
+      if (!ui.drag || ev.pointerId !== ui.drag.id) return;
+      const samples = ui.drag.samples;
+      const moved = ui.drag.moved;
+      ui.drag = null;
       if (!moved) {
-        finishCarouselRest();
+        if (hooks.onRest) hooks.onRest({ moved: false });
         return;
       }
+      if (hooks.onUserSpin) hooks.onUserSpin();
       const cutoff = performance.now() - 130;
       const recent = samples.filter((s) => s.dt > 0 && s.t >= cutoff);
       const use = recent.length ? recent : samples.filter((s) => s.dt > 0);
@@ -2014,12 +2137,12 @@
       let vel = vx * 0.36;
       vel = Math.max(-800, Math.min(800, vel));
       if (Math.abs(vel) < 20) {
-        snapLoginCarousel();
+        if (hooks.snap) hooks.snap();
         return;
       }
-      loginUi.vel = vel;
-      loginUi.mode = "coast";
-      ensureCoastLoop();
+      ui.vel = vel;
+      ui.mode = "coast";
+      if (hooks.coast) hooks.coast();
     };
     root.addEventListener("pointerdown", onDown);
     root.addEventListener("pointermove", onMove);
@@ -2093,7 +2216,13 @@
       center: root.querySelector("[data-role=cover-center]"),
       right: root.querySelector("[data-role=cover-right]"),
     };
-    loginUi.unbind = bindCarouselPointer(root);
+    applyCarouselScale();
+    loginUi.unbind = bindCarouselPointer(loginUi, root, {
+      paint: paintLoginCarousel,
+      onRest: finishCarouselRest,
+      snap: snapLoginCarousel,
+      coast: ensureCoastLoop,
+    });
     window.addEventListener("resize", onCarouselResize);
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", onCarouselResize);
@@ -2572,6 +2701,7 @@
       year: n.year || prev.year,
       original_title: n.original_title || prev.original_title || "",
       aliases: uniqueAliasList([...(n.aliases || []), ...(prev.aliases || [])]),
+      providers: (n.providers && n.providers.length) ? n.providers : (prev.providers || []),
     }));
   }
 
@@ -2700,10 +2830,12 @@
     const rows = renderWatchRows();
     list.innerHTML = rows || `<p class="hint">Noch nichts auf der Watchlist.</p>`;
     enrichListCast(watchlistFilms());
+    paintZufallChip();
     scheduleFooterSync();
   }
 
   function renderWatchSheetHtml() {
+    if (state.watchSheet === "zufall") return renderZufallSheetHtml();
     const searching = state.watchSheet === "search";
     if (searching) {
       return `
@@ -2748,14 +2880,17 @@
   function paintWatchSheet() {
     if (!watchSheetEl) return;
     if (!state.watchSheet) {
+      teardownZufallCarousel();
       document.body.classList.remove("watch-sheet-open");
       watchSheetEl.hidden = true;
       watchSheetEl.innerHTML = "";
       return;
     }
     document.body.classList.add("watch-sheet-open");
+    document.body.classList.toggle("zufall-sheet-open", state.watchSheet === "zufall");
     syncWatchSheetTop();
     const animateIn = watchSheetEl.hidden;
+    teardownZufallCarousel();
     watchSheetEl.hidden = false;
     watchSheetEl.innerHTML = renderWatchSheetHtml();
     const panel = watchSheetEl.querySelector("[data-role=sheet-panel]");
@@ -2766,6 +2901,10 @@
           panel.classList.remove("is-enter");
         });
       });
+    }
+    if (state.watchSheet === "zufall") {
+      mountZufallCarousel();
+      return;
     }
     const films = watchSheetFilms();
     enrichListCast(films);
@@ -2797,12 +2936,14 @@
   function closeWatchSheet() {
     window.clearTimeout(searchTimer);
     searchSeq += 1;
+    teardownZufallCarousel();
     state.watchSheet = null;
     clearWatchSheetBaseline();
     state.watchSearch = "";
     state.searchHits = [];
     state.searchStatus = "";
     document.body.classList.remove("watch-sheet-open");
+    document.body.classList.remove("zufall-sheet-open");
     if (watchSheetEl) {
       watchSheetEl.hidden = true;
       watchSheetEl.innerHTML = "";
@@ -2889,14 +3030,616 @@
     paintWatchSheetList();
   }
 
+  function filmWithPoster(film) {
+    if (!film) return null;
+    if (film.poster) return film;
+    const id = filmId(film);
+    const loginHit = LOGIN_POSTERS.find((row) => filmId(row) === id);
+    if (loginHit && loginHit.poster) return Object.assign({}, film, { poster: loginHit.poster });
+    const known = findFilm(id);
+    if (known && known.poster) return Object.assign({}, film, { poster: known.poster });
+    return film;
+  }
+
+  function uniqueProviderNames(values) {
+    const seen = new Set();
+    const out = [];
+    for (const value of values || []) {
+      const text = String(value || "").trim();
+      if (!text) continue;
+      const mapped = PROVIDER_NAME_MAP[text] || text;
+      const key = mapped.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(mapped);
+    }
+    return out;
+  }
+
+  function fallbackProvidersFor(film) {
+    if (!film) return [];
+    const id = filmId(film);
+    if (FALLBACK_PROVIDERS[id]) return FALLBACK_PROVIDERS[id].slice();
+    const tmdb = Number(film.tmdb);
+    if (Number.isFinite(tmdb) && FALLBACK_PROVIDERS[`t${tmdb}`]) {
+      return FALLBACK_PROVIDERS[`t${tmdb}`].slice();
+    }
+    return uniqueProviderNames(film.providers || film.streaming || []);
+  }
+
+  function formatProviderLine(names) {
+    const list = uniqueProviderNames(names);
+    if (!list.length) return { text: "Keine Angabe", extra: false };
+    const shown = list.slice(0, 3);
+    return { text: shown.join(", "), extra: list.length > 3 };
+  }
+
+  async function loadFilmProviders(film) {
+    const fallback = fallbackProvidersFor(film);
+    if (film && Array.isArray(film.providers) && film.providers.length) {
+      return uniqueProviderNames(film.providers);
+    }
+    if (!film || !film.tmdb || !tmdbKey()) return fallback;
+    try {
+      const data = await tmdbFetch(`/movie/${film.tmdb}/watch/providers`);
+      const de = data && data.results && data.results.DE;
+      const rows = [].concat((de && de.flatrate) || [], (de && de.ads) || []);
+      const names = uniqueProviderNames(rows.map((row) => row && row.provider_name));
+      if (names.length) {
+        film.providers = names;
+        rememberFilm(film);
+        return names;
+      }
+    } catch {
+      /* keep fallback */
+    }
+    return fallback;
+  }
+
+  function zufallPoolFilms() {
+    return watchlistFilms().map(filmWithPoster).filter(Boolean);
+  }
+
+  function isZufallPoolFilm(film) {
+    if (!film) return false;
+    const id = filmId(film);
+    return zufallUi.pool.some((row) => filmId(row) === id);
+  }
+
+  function packZufallPosters(pool, fillers) {
+    const target = 96;
+    const packed = [];
+    const flags = [];
+    if (!pool.length) return { packed, flags };
+    const poolIds = new Set(pool.map((film) => filmId(film)));
+    const fillerSrc = (fillers || []).filter((film) => film && film.poster && !poolIds.has(filmId(film)));
+    const extras = fillerSrc.length ? fillerSrc : (fillers || []).filter((film) => film && film.poster);
+    const sprinkle = pool.length < 16 ? Math.max(2, Math.min(6, 18 - pool.length)) : 1;
+    let fi = 0;
+    while (packed.length < target) {
+      for (const film of pool) {
+        packed.push(film);
+        flags.push(false);
+        if (packed.length >= target) break;
+      }
+      if (packed.length >= target) break;
+      for (let k = 0; k < sprinkle && packed.length < target; k += 1) {
+        const extra = extras.length ? extras[fi % extras.length] : pool[fi % pool.length];
+        packed.push(extra);
+        flags.push(extras.length ? true : false);
+        fi += 1;
+      }
+    }
+    return { packed: packed.slice(0, target), flags: flags.slice(0, target) };
+  }
+
+  function zufallMetrics(settled) {
+    return {
+      radius: settled ? 186 : 202,
+      tilt: -20,
+      hide: 48,
+    };
+  }
+
+  function paintZufallCarousel() {
+    paintCarouselView(zufallUi);
+  }
+
+  function zufallSheetRoot() {
+    return watchSheetEl && watchSheetEl.querySelector("[data-role=zufall-carousel]");
+  }
+
+  function setZufallCues(on) {
+    const root = zufallSheetRoot();
+    if (!root) return;
+    root.classList.toggle("is-cuing", on);
+    const chevrons = root.querySelector("[data-role=zufall-chevrons]");
+    const swipen = watchSheetEl.querySelector("[data-role=zufall-swipen]");
+    if (chevrons) chevrons.hidden = !on;
+    if (swipen) {
+      swipen.hidden = !on;
+      swipen.classList.toggle("is-on", on);
+    }
+  }
+
+  function nudgeZufallCarousel() {
+    const inner = zufallSheetRoot() && zufallSheetRoot().querySelector(".login-carousel-inner");
+    if (!inner || zufallUi.reduced) return;
+    inner.classList.remove("is-hinting");
+    void inner.offsetWidth;
+    inner.classList.add("is-hinting");
+    window.setTimeout(() => inner.classList.remove("is-hinting"), 1300);
+  }
+
+  function paintZufallActions() {
+    if (!watchSheetEl) return;
+    const idle = watchSheetEl.querySelector("[data-role=zufall-idle-actions]");
+    const result = watchSheetEl.querySelector("[data-role=zufall-result]");
+    const push = watchSheetEl.querySelector("[data-act=zufall-push]");
+    const skip = watchSheetEl.querySelector("[data-act=zufall-skip]");
+    const spinning = zufallUi.phase === "spinning";
+    const done = zufallUi.phase === "result";
+    if (idle) idle.hidden = done;
+    if (result) result.hidden = !done;
+    if (push) push.hidden = spinning || done;
+    if (skip && (!spinning || done)) skip.hidden = true;
+    const root = zufallSheetRoot();
+    if (root) root.classList.toggle("is-settled", done);
+  }
+
+  function shortZufallTitle(film) {
+    if (!film || !film.title) return "";
+    const title = String(film.title);
+    if (title.length <= 28) return title;
+    return `${title.slice(0, 26).trim()}…`;
+  }
+
+  function paintZufallResult() {
+    const box = watchSheetEl && watchSheetEl.querySelector("[data-role=zufall-result]");
+    if (!box || !zufallUi.front) return;
+    const { left, center, right } = zufallUi.front;
+    const leftBtn = box.querySelector("[data-side=left]");
+    const rightBtn = box.querySelector("[data-side=right]");
+    const title = box.querySelector("[data-role=zufall-title-center]");
+    const providers = box.querySelector("[data-role=zufall-providers]");
+    const watch = box.querySelector("[data-act=choose]");
+    if (leftBtn) {
+      leftBtn.textContent = shortZufallTitle(left);
+      leftBtn.disabled = !left || filmId(left) === filmId(center);
+    }
+    if (rightBtn) {
+      rightBtn.textContent = shortZufallTitle(right);
+      rightBtn.disabled = !right || filmId(right) === filmId(center);
+    }
+    if (title) title.textContent = center ? center.title : "";
+    if (watch && center) watch.dataset.id = filmId(center);
+    if (providers) {
+      const line = formatProviderLine(center && (center.providers || fallbackProvidersFor(center)));
+      providers.innerHTML = line.extra
+        ? `${escapeHtml(line.text)}<span class="zufall-mehr">+ mehr</span>`
+        : escapeHtml(line.text);
+    }
+  }
+
+  async function refreshZufallProviders(film) {
+    const names = await loadFilmProviders(film);
+    if (!zufallUi.front || !film || filmId(zufallUi.front.center) !== filmId(film)) return;
+    zufallUi.front.center.providers = names;
+    paintZufallResult();
+  }
+
+  function otherPoolFilm(center, which) {
+    const pool = zufallUi.pool;
+    if (!pool.length) return center;
+    if (pool.length === 1) return pool[0];
+    const others = pool.filter((film) => filmId(film) !== filmId(center));
+    if (!others.length) return pool[0];
+    return others[which % others.length];
+  }
+
+  function tripletAt(index) {
+    const n = zufallUi.posters.length;
+    const center = zufallUi.posters[index];
+    const leftIdx = (index - 1 + n) % n;
+    const rightIdx = (index + 1) % n;
+    const leftPacked = zufallUi.posters[leftIdx];
+    const rightPacked = zufallUi.posters[rightIdx];
+    const left = (!zufallUi.isFiller[leftIdx] && isZufallPoolFilm(leftPacked))
+      ? leftPacked
+      : otherPoolFilm(center, 0);
+    const right = (!zufallUi.isFiller[rightIdx] && isZufallPoolFilm(rightPacked))
+      ? rightPacked
+      : otherPoolFilm(center, 1);
+    return { left, center, right };
+  }
+
+  function nearestPoolIndex(from) {
+    const n = zufallUi.posters.length;
+    if (!n) return 0;
+    for (let dist = 0; dist <= n; dist += 1) {
+      const signs = dist === 0 ? [0] : [-1, 1];
+      for (const sign of signs) {
+        const i = (from + sign * dist + n * 8) % n;
+        if (!zufallUi.isFiller[i] && isZufallPoolFilm(zufallUi.posters[i])) return i;
+      }
+    }
+    return from;
+  }
+
+  function findLandingIndex(winner) {
+    const n = zufallUi.posters.length;
+    const want = filmId(winner);
+    const ranked = [];
+    for (let i = 0; i < n; i += 1) {
+      if (zufallUi.isFiller[i] || filmId(zufallUi.posters[i]) !== want) continue;
+      const leftIdx = (i - 1 + n) % n;
+      const rightIdx = (i + 1) % n;
+      const lOk = !zufallUi.isFiller[leftIdx] && isZufallPoolFilm(zufallUi.posters[leftIdx]);
+      const rOk = !zufallUi.isFiller[rightIdx] && isZufallPoolFilm(zufallUi.posters[rightIdx]);
+      ranked.push({ i, score: (lOk ? 1 : 0) + (rOk ? 1 : 0) });
+    }
+    ranked.sort((a, b) => b.score - a.score);
+    return ranked.length ? ranked[0].i : nearestPoolIndex(carouselFrontIndex(zufallUi));
+  }
+
+  function burstZufallFireworks() {
+    const cover = zufallUi.covers && zufallUi.covers.center;
+    if (!cover) {
+      burstConfetti({ ember: true });
+      return;
+    }
+    const rect = cover.getBoundingClientRect();
+    burstConfetti({
+      ember: true,
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height * 0.35,
+    });
+  }
+
+  function settleZufallAt(index, opts) {
+    const quiet = !!(opts && opts.quiet);
+    const idx = nearestPoolIndex(index);
+    const step = 360 / Math.max(1, zufallUi.posters.length);
+    zufallUi.angle = -idx * step;
+    zufallUi.front = tripletAt(idx);
+    zufallUi.frontLocked = true;
+    zufallUi.phase = "result";
+    zufallUi.mode = "idle";
+    zufallUi.vel = 0;
+    zufallUi.metrics = zufallMetrics(true);
+    window.clearTimeout(zufallUi.skipTimer);
+    setZufallCues(false);
+    paintZufallCarousel();
+    paintZufallResult();
+    paintZufallActions();
+    if (!quiet) burstZufallFireworks();
+    refreshZufallProviders(zufallUi.front.center);
+  }
+
+  function settleZufallFromAngle() {
+    settleZufallAt(carouselFrontIndex(zufallUi));
+  }
+
+  function hideZufallIdleCues() {
+    setZufallCues(false);
+  }
+
+  function showZufallIdleCues() {
+    setZufallCues(true);
+    nudgeZufallCarousel();
+  }
+
+  function slotSpinEase(p) {
+    const split = 0.4;
+    const dist = 0.955;
+    if (p < split) {
+      const t = p / split;
+      return dist * (1 - ((1 - t) * (1 - t)));
+    }
+    const t = (p - split) / (1 - split);
+    return dist + ((1 - dist) * (1 - ((1 - t) ** 3)));
+  }
+
+  function stopZufallSpinRaf() {
+    if (zufallUi.spinRaf) cancelAnimationFrame(zufallUi.spinRaf);
+    zufallUi.spinRaf = 0;
+  }
+
+  function startZufallAutoSpin(opts) {
+    const skip = !!(opts && opts.skip);
+    if (!zufallUi.pool.length) return;
+    if (zufallUi.phase === "spinning" || zufallUi.phase === "result") return;
+    hideZufallIdleCues();
+    zufallUi.phase = "spinning";
+    zufallUi.frontLocked = false;
+    zufallUi.front = null;
+    zufallUi.metrics = zufallMetrics(false);
+    const root = zufallSheetRoot();
+    if (root) root.classList.remove("is-settled");
+    paintZufallActions();
+    const winner = zufallUi.pool[Math.floor(Math.random() * zufallUi.pool.length)];
+    const targetIdx = findLandingIndex(winner);
+    const n = zufallUi.posters.length;
+    const step = 360 / Math.max(1, n);
+    const from = zufallUi.angle;
+    let target = -targetIdx * step;
+    while (target > from) target -= 360;
+    const minTravel = skip ? 40 : 1080;
+    while (from - target < minTravel) target -= 360;
+    if (zufallUi.reduced || skip) {
+      settleZufallAt(targetIdx);
+      return;
+    }
+    window.clearTimeout(zufallUi.skipTimer);
+    zufallUi.skipTimer = window.setTimeout(() => {
+      const skipBtn = watchSheetEl && watchSheetEl.querySelector("[data-act=zufall-skip]");
+      if (skipBtn && zufallUi.phase === "spinning") skipBtn.hidden = false;
+    }, 2000);
+    const dur = 5000;
+    const t0 = performance.now();
+    zufallUi.mode = "auto";
+    stopZufallSpinRaf();
+    zufallUi.spinTargetIdx = targetIdx;
+    function stepSpin(now) {
+      if (zufallUi.mode !== "auto") return;
+      const p = Math.min(1, (now - t0) / dur);
+      zufallUi.angle = from + ((target - from) * slotSpinEase(p));
+      paintZufallCarousel();
+      if (p < 1) zufallUi.spinRaf = requestAnimationFrame(stepSpin);
+      else {
+        zufallUi.spinRaf = 0;
+        settleZufallAt(targetIdx);
+      }
+    }
+    zufallUi.spinRaf = requestAnimationFrame(stepSpin);
+  }
+
+  function skipZufallSpin() {
+    if (zufallUi.phase !== "spinning") return;
+    zufallUi.mode = "idle";
+    stopZufallSpinRaf();
+    const idx = Number.isFinite(zufallUi.spinTargetIdx)
+      ? zufallUi.spinTargetIdx
+      : nearestPoolIndex(carouselFrontIndex(zufallUi));
+    settleZufallAt(idx);
+  }
+
+  function resetZufallIdle() {
+    stopZufallSpinRaf();
+    window.clearTimeout(zufallUi.skipTimer);
+    zufallUi.phase = "idle";
+    zufallUi.mode = "idle";
+    zufallUi.frontLocked = false;
+    zufallUi.front = null;
+    zufallUi.vel = 0;
+    zufallUi.metrics = zufallMetrics(false);
+    const root = zufallSheetRoot();
+    if (root) root.classList.remove("is-settled");
+    paintZufallCarousel();
+    paintZufallActions();
+    showZufallIdleCues();
+  }
+
+  function swapZufallFront(side) {
+    if (zufallUi.phase !== "result" || !zufallUi.front) return;
+    const { left, center, right } = zufallUi.front;
+    if (side === "left" && left && filmId(left) !== filmId(center)) {
+      zufallUi.front = { left: center, center: left, right };
+    } else if (side === "right" && right && filmId(right) !== filmId(center)) {
+      zufallUi.front = { left, center: right, right: center };
+    } else {
+      return;
+    }
+    paintZufallCarousel();
+    paintZufallResult();
+    refreshZufallProviders(zufallUi.front.center);
+  }
+
+  function onZufallUserSpin() {
+    if (zufallUi.phase === "idle") {
+      zufallUi.phase = "spinning";
+      hideZufallIdleCues();
+      paintZufallActions();
+    }
+  }
+
+  function finishZufallRest(info) {
+    zufallUi.vel = 0;
+    zufallUi.mode = "idle";
+    paintZufallCarousel();
+    if (zufallUi.phase === "result") return;
+    if (info && info.moved === false && zufallUi.phase === "idle") return;
+    if (zufallUi.phase === "idle") return;
+    settleZufallFromAngle();
+  }
+
+  function snapZufallCarousel() {
+    snapCarouselToStep(zufallUi, paintZufallCarousel, () => finishZufallRest({ moved: true }));
+  }
+
+  function ensureZufallCoast() {
+    ensureCarouselCoast(zufallUi, paintZufallCarousel, snapZufallCarousel);
+  }
+
+  function onZufallResize() {
+    if (!zufallUi.root) return;
+    zufallUi.metrics = zufallMetrics(zufallUi.phase === "result");
+    paintZufallCarousel();
+  }
+
+  function teardownZufallCarousel() {
+    stopZufallSpinRaf();
+    window.clearTimeout(zufallUi.skipTimer);
+    if (zufallUi.unbind) zufallUi.unbind();
+    if (zufallUi.raf) cancelAnimationFrame(zufallUi.raf);
+    window.removeEventListener("resize", onZufallResize);
+    zufallUi.unbind = null;
+    zufallUi.raf = 0;
+    zufallUi.root = null;
+    zufallUi.ring = null;
+    zufallUi.items = [];
+    zufallUi.covers = null;
+    zufallUi.drag = null;
+    zufallUi.posters = [];
+    zufallUi.isFiller = [];
+    zufallUi.pool = [];
+    zufallUi.front = null;
+    zufallUi.frontLocked = false;
+    zufallUi.phase = "idle";
+    zufallUi.mode = "idle";
+    zufallUi.vel = 0;
+  }
+
+  async function mountZufallCarousel() {
+    const root = watchSheetEl && watchSheetEl.querySelector("[data-role=zufall-carousel]");
+    if (!root) return;
+    const seq = ++zufallUi.mountSeq;
+    teardownZufallCarousel();
+    zufallUi.root = root;
+    zufallUi.reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const pool = zufallPoolFilms().filter((film) => film && film.poster);
+    if (!pool.length) {
+      closeWatchSheet();
+      return;
+    }
+    const fillerRows = await ensureLoginPostersPreloaded();
+    await Promise.all(pool.map((film) => preloadLoginImage(loginPosterSrc(film))));
+    if (seq !== zufallUi.mountSeq) return;
+    if (state.watchSheet !== "zufall") return;
+    const packed = packZufallPosters(pool, fillerRows);
+    zufallUi.pool = pool;
+    zufallUi.posters = packed.packed;
+    zufallUi.isFiller = packed.flags;
+    const ring = root.querySelector("[data-role=login-ring]");
+    zufallUi.ring = ring;
+    zufallUi.items = [];
+    if (ring) {
+      const frag = document.createDocumentFragment();
+      packed.packed.forEach((film, i) => {
+        const src = loginPosterSrc(film);
+        const el = document.createElement("div");
+        el.className = packed.flags[i] ? "login-ring-item is-filler" : "login-ring-item";
+        if (src && loginPosterReady(src)) el.style.backgroundImage = `url("${src}")`;
+        frag.appendChild(el);
+        zufallUi.items.push(el);
+      });
+      ring.innerHTML = "";
+      ring.appendChild(frag);
+    }
+    zufallUi.covers = {
+      left: root.querySelector("[data-role=cover-left]"),
+      center: root.querySelector("[data-role=cover-center]"),
+      right: root.querySelector("[data-role=cover-right]"),
+    };
+    zufallUi.metrics = zufallMetrics(false);
+    zufallUi.angle = 0;
+    zufallUi.unbind = bindCarouselPointer(zufallUi, root, {
+      paint: paintZufallCarousel,
+      onRest: finishZufallRest,
+      snap: snapZufallCarousel,
+      coast: ensureZufallCoast,
+      onUserSpin: onZufallUserSpin,
+      canDrag: () => zufallUi.phase === "idle",
+    });
+    window.addEventListener("resize", onZufallResize);
+    root.classList.add("is-ready");
+    paintZufallCarousel();
+    paintZufallActions();
+    showZufallIdleCues();
+  }
+
+  function zufallChipTiles() {
+    const films = zufallPoolFilms().filter((film) => film.poster).slice(0, 3);
+    const fallback = HERO_COVERS.map((row) => ({ poster: row.src }));
+    const tiles = (films.length ? films.concat(fallback).slice(0, 3) : fallback);
+    return tiles.map((film) => (
+      `<img class="zufall-chip-tile" src="${escapeHtml(film.poster)}" alt="" width="24" height="36" referrerpolicy="no-referrer">`
+    )).join("");
+  }
+
+  function paintZufallChip() {
+    const btn = app.querySelector("[data-act=zufall-open]");
+    if (!btn) return;
+    const empty = watchlist().length < 1;
+    btn.disabled = empty;
+    btn.setAttribute("aria-disabled", empty ? "true" : "false");
+    btn.title = empty ? "Mind. 1 Film" : "Zufallswahl";
+    const hint = app.querySelector("[data-role=zufall-empty-hint]");
+    if (hint) hint.hidden = !empty;
+    const icon = btn.querySelector("[data-role=zufall-chip-icon]");
+    if (icon) icon.innerHTML = zufallChipTiles();
+  }
+
+  function openZufallSheet() {
+    if (watchlist().length < 1) return;
+    closeFilmMenus();
+    teardownZufallCarousel();
+    state.watchSheet = "zufall";
+    paintWatchSheet();
+  }
+
+  function renderZufallSheetHtml() {
+    return `
+      <div class="sheet-panel zufall-panel" data-role="sheet-panel">
+        <div class="sheet-head zufall-head" data-role="sheet-drag">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <h2 class="sheet-title">Zufallswahl</h2>
+          <button type="button" class="zufall-close" data-act="watch-sheet-close" aria-label="Schließen">${ICONS.close}</button>
+        </div>
+        <div class="zufall-body">
+          <div class="login-carousel zufall-carousel" data-role="zufall-carousel" aria-hidden="true">
+            <div class="login-carousel-inner">
+              <div class="login-carousel-stage">
+                <div class="login-carousel-ring" data-role="login-ring"></div>
+              </div>
+              <div class="login-carousel-front">
+                <div class="login-cover login-cover-side login-cover-left" data-role="cover-left"></div>
+                <div class="login-cover login-cover-center" data-role="cover-center"></div>
+                <div class="login-cover login-cover-side login-cover-right" data-role="cover-right"></div>
+              </div>
+            </div>
+            <div class="zufall-chevrons" data-role="zufall-chevrons">
+              <span class="zufall-chevron is-left" aria-hidden="true">‹‹‹‹</span>
+              <span class="zufall-chevron is-right" aria-hidden="true">››››</span>
+            </div>
+          </div>
+          <p class="zufall-swipen" data-role="zufall-swipen">Swipen</p>
+          <div class="zufall-idle-actions" data-role="zufall-idle-actions">
+            <button type="button" class="zufall-push" data-act="zufall-push">Push</button>
+            <button type="button" class="zufall-skip" data-act="zufall-skip" hidden>Überspringen</button>
+          </div>
+          <div class="zufall-result" data-role="zufall-result" hidden>
+            <div class="zufall-titles">
+              <button type="button" class="zufall-title-side" data-act="zufall-swap" data-side="left"></button>
+              <strong class="zufall-title-center" data-role="zufall-title-center"></strong>
+              <button type="button" class="zufall-title-side" data-act="zufall-swap" data-side="right"></button>
+            </div>
+            <div class="zufall-stream">
+              <p class="zufall-stream-label">verfügbar auf:</p>
+              <p class="zufall-providers" data-role="zufall-providers"></p>
+            </div>
+            <button type="button" class="btn btn-primary zufall-watch" data-act="choose" data-id="">Anschauen</button>
+            <button type="button" class="zufall-again" data-act="zufall-again">Nochmal drehen</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function renderWatchTab() {
     const rows = renderWatchRows();
+    const empty = watchlist().length < 1;
     return `
       <div class="list-toolbar">
         <button type="button" class="watch-add-chip" data-act="watch-sheet-open">
           <span class="watch-add-plus">${ICONS.plus}</span>
           Hinzufügen
         </button>
+        <button type="button" class="watch-add-chip watch-zufall-chip" data-act="zufall-open"${empty ? " disabled" : ""} title="${empty ? "Mind. 1 Film" : "Zufallswahl"}" aria-disabled="${empty ? "true" : "false"}">
+          <span class="watch-zufall-stack" data-role="zufall-chip-icon">${zufallChipTiles()}</span>
+          Zufall
+        </button>
+        <span class="watch-zufall-hint" data-role="zufall-empty-hint"${empty ? "" : " hidden"}>Mind. 1 Film</span>
       </div>
       <section class="film-list" data-role="film-list">${rows || `<p class="hint">Noch nichts auf der Watchlist.</p>`}</section>
     `;
@@ -3230,6 +3973,34 @@
     const act = t.dataset.act;
     if (act === "watch-sheet-open") {
       openWatchAddSheet();
+      return true;
+    }
+    if (act === "zufall-open") {
+      openZufallSheet();
+      return true;
+    }
+    if (act === "watch-sheet-close") {
+      dismissWatchSheet();
+      return true;
+    }
+    if (act === "zufall-push") {
+      startZufallAutoSpin();
+      return true;
+    }
+    if (act === "zufall-skip") {
+      skipZufallSpin();
+      return true;
+    }
+    if (act === "zufall-again") {
+      resetZufallIdle();
+      return true;
+    }
+    if (act === "zufall-swap") {
+      swapZufallFront(t.dataset.side);
+      return true;
+    }
+    if (act === "choose" && state.watchSheet === "zufall") {
+      chooseFilm(findFilm(t.dataset.id));
       return true;
     }
     if (act === "watch-search-open") {
@@ -3802,7 +4573,7 @@
 
   function sheetDragBlocked(event) {
     if (!state.watchSheet || !watchSheetEl || watchSheetEl.hidden) return true;
-    if (event.target.closest("[data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open]")) return true;
+    if (event.target.closest("button, a, input, [data-role=zufall-carousel], [data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open]")) return true;
     const list = event.target.closest("[data-role=watch-sheet-list]");
     if (list && list.scrollTop > 2) return true;
     return false;
