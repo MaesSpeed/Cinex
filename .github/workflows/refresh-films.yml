@@ -1,0 +1,55 @@
+name: Refresh films catalog
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly, Monday 04:17 UTC
+    - cron: "17 4 * * 1"
+
+concurrency:
+  group: refresh-films-catalog
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    name: Rebuild films.json
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Require TMDB_API_KEY secret
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: |
+          if [ -z "${TMDB_API_KEY}" ]; then
+            echo "::error::Secret TMDB_API_KEY is missing. Add it under Settings → Secrets and variables → Actions, then re-run this workflow. Do not put the key in config.js."
+            exit 1
+          fi
+
+      - name: Build films.json
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: node scripts/build-films-catalog.mjs
+
+      - name: Commit catalog if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add films.json
+          if git diff --staged --quiet; then
+            echo "films.json is unchanged."
+            exit 0
+          fi
+          git commit -m "chore: refresh films.json from TMDB"
+          git push origin HEAD:${{ github.event.repository.default_branch }}

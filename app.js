@@ -196,6 +196,15 @@
     return [];
   }
 
+  function filmAliases(raw) {
+    if (!raw) return [];
+    if (Array.isArray(raw.aliases)) {
+      return raw.aliases.map((row) => String(row || "").trim()).filter(Boolean);
+    }
+    if (typeof raw.aliases === "string" && raw.aliases.trim()) return [raw.aliases.trim()];
+    return [];
+  }
+
   function normalizeFilm(raw) {
     const tmdbNum = Number(raw.tmdb != null ? raw.tmdb : String(raw.id).replace(/^t/i, ""));
     const id = raw.id != null ? String(raw.id) : (Number.isFinite(tmdbNum) ? `t${tmdbNum}` : "");
@@ -222,6 +231,7 @@
       color: raw.color || "#1d4f91",
       cast: filmCastNames(raw).slice(0, 4),
       year: Number(raw.year) || (raw.release_date ? Number(String(raw.release_date).slice(0, 4)) : 0) || 0,
+      aliases: filmAliases(raw),
     };
   }
 
@@ -665,6 +675,7 @@
         cast: (n.cast && n.cast.length) ? n.cast : (prev.cast || []),
         year: n.year || prev.year,
         original_title: n.original_title || prev.original_title || "",
+        aliases: uniqueAliasList([...(n.aliases || []), ...(prev.aliases || [])]),
       });
     } else {
       state.catalog.push(n);
@@ -2376,12 +2387,28 @@
       .trim();
   }
 
+  function uniqueAliasList(values) {
+    const seen = new Set();
+    const out = [];
+    for (const value of values || []) {
+      const text = String(value || "").trim();
+      if (!text) continue;
+      const key = text.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(text);
+    }
+    return out;
+  }
+
   function filmSearchBlob(film) {
+    const aliases = filmAliases(film).join(" ");
     return foldSearch([
       film && film.title,
       film && film.original_title,
       film && film.originalTitle,
       film && film.name,
+      aliases,
     ].filter(Boolean).join(" "));
   }
 
@@ -2425,6 +2452,7 @@
       cast: (n.cast && n.cast.length) ? n.cast : (prev.cast || []),
       year: n.year || prev.year,
       original_title: n.original_title || prev.original_title || "",
+      aliases: uniqueAliasList([...(n.aliases || []), ...(prev.aliases || [])]),
     }));
   }
 
