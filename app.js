@@ -1715,7 +1715,7 @@
     root: null,
     ring: null,
     covers: null,
-    metrics: { radius: 218, tilt: -20, hide: 50 },
+    metrics: { radius: 168, tilt: -20, hide: 46 },
     unbind: null,
     reduced: false,
     frontLocked: false,
@@ -3133,12 +3133,33 @@
     return { packed: packed.slice(0, target), flags: flags.slice(0, target) };
   }
 
-  function zufallMetrics(settled) {
+  const ZUFALL_RADIUS_IDLE = 168;
+  const ZUFALL_RADIUS_SETTLED = 156;
+  const ZUFALL_PERSP = 1100;
+
+  function zufallMetrics(settled, mix) {
+    const t = settled ? 1 : Math.max(0, Math.min(1, mix || 0));
+    const box = zufallUi.root ? zufallUi.root.getBoundingClientRect() : null;
+    const maxRadius = box && box.width
+      ? Math.max(120, Math.floor(box.width / 2) - 10)
+      : ZUFALL_RADIUS_IDLE;
+    const desired = Math.round(
+      ZUFALL_RADIUS_IDLE + ((ZUFALL_RADIUS_SETTLED - ZUFALL_RADIUS_IDLE) * t)
+    );
     return {
-      radius: settled ? 200 : 218,
+      radius: Math.min(maxRadius, desired),
       tilt: -20,
-      hide: 50,
+      hide: 46,
     };
+  }
+
+  function applyZufallPerspective() {
+    const root = zufallUi.root || zufallSheetRoot();
+    const inner = root && root.querySelector(".login-carousel-inner");
+    if (!inner) return;
+    const persp = `${ZUFALL_PERSP}px`;
+    inner.style.perspective = persp;
+    inner.style.webkitPerspective = persp;
   }
 
   function paintZufallCarousel() {
@@ -3154,7 +3175,7 @@
     if (!root) return;
     root.classList.toggle("is-cuing", on);
     const chevrons = root.querySelector("[data-role=zufall-chevrons]");
-    const swipen = watchSheetEl.querySelector("[data-role=zufall-swipen]");
+    const swipen = root.querySelector("[data-role=zufall-swipen]");
     if (chevrons) chevrons.hidden = !on;
     if (swipen) {
       swipen.hidden = !on;
@@ -3329,15 +3350,24 @@
     nudgeZufallCarousel();
   }
 
+  function hermiteEase(p0, e0, v0, p1, e1, v1, p) {
+    const t = (p - p0) / (p1 - p0);
+    const t2 = t * t;
+    const t3 = t2 * t;
+    const dp = p1 - p0;
+    return (
+      ((2 * t3) - (3 * t2) + 1) * e0
+      + ((t3 - (2 * t2) + t) * dp * v0)
+      + (((-2 * t3) + (3 * t2)) * e1)
+      + ((t3 - t2) * dp * v1)
+    );
+  }
+
   function slotSpinEase(p) {
-    const split = 0.4;
-    const dist = 0.955;
-    if (p < split) {
-      const t = p / split;
-      return dist * (1 - ((1 - t) * (1 - t)));
-    }
-    const t = (p - split) / (1 - split);
-    return dist + ((1 - dist) * (1 - ((1 - t) ** 3)));
+    if (p <= 0) return 0;
+    if (p >= 1) return 1;
+    if (p < 0.4) return hermiteEase(0, 0, 2.55, 0.4, 0.78, 0.62, p);
+    return hermiteEase(0.4, 0.78, 0.62, 1, 1, 0, p);
   }
 
   function stopZufallSpinRaf() {
@@ -3384,6 +3414,8 @@
       if (zufallUi.mode !== "auto") return;
       const p = Math.min(1, (now - t0) / dur);
       zufallUi.angle = from + ((target - from) * slotSpinEase(p));
+      const settleMix = p < 0.78 ? 0 : ((p - 0.78) / 0.22);
+      zufallUi.metrics = zufallMetrics(false, settleMix * settleMix);
       paintZufallCarousel();
       if (p < 1) zufallUi.spinRaf = requestAnimationFrame(stepSpin);
       else {
@@ -3463,6 +3495,7 @@
 
   function onZufallResize() {
     if (!zufallUi.root) return;
+    applyZufallPerspective();
     zufallUi.metrics = zufallMetrics(zufallUi.phase === "result");
     paintZufallCarousel();
   }
@@ -3532,6 +3565,7 @@
       right: root.querySelector("[data-role=cover-right]"),
     };
     zufallUi.metrics = zufallMetrics(false);
+    applyZufallPerspective();
     zufallUi.angle = 0;
     zufallUi.unbind = bindCarouselPointer(zufallUi, root, {
       paint: paintZufallCarousel,
@@ -3598,13 +3632,17 @@
                 <div class="login-cover login-cover-side login-cover-right" data-role="cover-right"></div>
               </div>
             </div>
-            <div class="zufall-chevrons" data-role="zufall-chevrons">
-              <span class="zufall-chevron is-left" aria-hidden="true">‹‹‹‹</span>
-              <span class="zufall-chevron is-right" aria-hidden="true">››››</span>
+            <div class="zufall-cues" data-role="zufall-chevrons">
+              <div class="zufall-cue is-left">
+                <span class="zufall-chevron is-left" aria-hidden="true">‹‹‹‹</span>
+              </div>
+              <p class="zufall-swipen" data-role="zufall-swipen">Swipen</p>
+              <div class="zufall-cue is-right">
+                <span class="zufall-chevron is-right" aria-hidden="true">››››</span>
+              </div>
             </div>
           </div>
           <div class="zufall-idle-actions" data-role="zufall-idle-actions">
-            <p class="zufall-swipen" data-role="zufall-swipen">Swipen</p>
             <button type="button" class="zufall-push" data-act="zufall-push">Push</button>
             <button type="button" class="zufall-skip" data-act="zufall-skip" hidden>Überspringen</button>
           </div>

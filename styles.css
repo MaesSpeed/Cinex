@@ -993,6 +993,11 @@ body.watch-sheet-open .site-header {
   z-index: 90;
 }
 
+body.zufall-sheet-open,
+body.zufall-sheet-open .sheet {
+  overflow-x: hidden;
+}
+
 body.zufall-sheet-open #confetti {
   z-index: 96;
 }
@@ -2302,6 +2307,7 @@ body.on-login #app {
 
 .zufall-panel {
   padding-top: 2px;
+  overflow-x: hidden;
 }
 
 .zufall-head .sheet-title {
@@ -2336,24 +2342,30 @@ body.on-login #app {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .login-carousel.zufall-carousel {
   --login-scale: 1;
   flex: 1 1 auto;
   height: auto;
-  min-height: 260px;
-  max-height: 328px;
-  margin: 0 -16px 0;
+  min-height: 286px;
+  max-height: 354px;
+  margin: 0;
+  overflow: hidden;
+  overflow-x: hidden;
+  clip-path: inset(0);
   transition: min-height 0.28s ease, max-height 0.28s ease;
 }
 
 .login-carousel.zufall-carousel .login-carousel-stage {
-  bottom: 128px;
+  bottom: 154px;
 }
 
 .login-carousel.zufall-carousel .login-carousel-front {
+  bottom: 28px;
   height: 204px;
   pointer-events: none;
 }
@@ -2372,8 +2384,8 @@ body.on-login #app {
 }
 
 .login-carousel.zufall-carousel .login-ring-item {
-  width: 42px;
-  height: 63px;
+  width: 36px;
+  height: 54px;
 }
 
 .login-carousel.zufall-carousel .login-ring-item.is-filler {
@@ -2386,8 +2398,11 @@ body.on-login #app {
   max-height: 340px;
 }
 
-.login-carousel.zufall-carousel.is-settled .login-carousel-stage { bottom: 116px; }
-.login-carousel.zufall-carousel.is-settled .login-carousel-front { height: 186px; }
+.login-carousel.zufall-carousel.is-settled .login-carousel-stage { bottom: 140px; }
+.login-carousel.zufall-carousel.is-settled .login-carousel-front {
+  bottom: 8px;
+  height: 186px;
+}
 .login-carousel.zufall-carousel.is-settled .login-cover-side {
   width: 94px;
   height: 141px;
@@ -2407,25 +2422,49 @@ body.on-login #app {
   animation: ember-flicker 2s ease-in-out infinite;
 }
 .login-carousel.zufall-carousel.is-settled .login-ring-item {
-  width: 38px;
-  height: 57px;
+  width: 32px;
+  height: 48px;
 }
 
-.zufall-chevrons {
+.zufall-cues {
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  bottom: 2px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 7;
   pointer-events: none;
 }
 
-.zufall-chevrons[hidden] {
+.zufall-cues[hidden],
+.login-carousel.zufall-carousel.is-settled .zufall-cues,
+.login-carousel.zufall-carousel:not(.is-cuing) .zufall-cues {
   display: none !important;
 }
 
+.zufall-cue {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  overflow: hidden;
+}
+
+.zufall-cue.is-left {
+  width: 102px;
+  margin-right: -26px;
+}
+
+.zufall-cue.is-right {
+  width: 102px;
+  margin-left: -26px;
+}
+
 .zufall-chevron {
-  position: absolute;
-  top: auto;
-  bottom: 152px;
+  position: relative;
   overflow: hidden;
   white-space: nowrap;
   font-size: 1.28rem;
@@ -2438,13 +2477,11 @@ body.on-login #app {
 }
 
 .zufall-chevron.is-left {
-  right: calc(50% + 78px);
   width: 0.72em;
   text-align: right;
 }
 
 .zufall-chevron.is-right {
-  left: calc(50% + 78px);
   width: 0.72em;
   text-align: left;
 }
@@ -2466,7 +2503,8 @@ body.on-login #app {
 }
 
 .zufall-swipen {
-  margin: 8px 0 0;
+  width: 136px;
+  margin: 0;
   text-align: center;
   font-size: 0.78rem;
   font-weight: 600;
@@ -2501,7 +2539,7 @@ body.on-login #app {
 .zufall-push {
   width: 92px;
   height: 92px;
-  margin-top: 22px;
+  margin-top: 16px;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -2629,7 +2667,7 @@ body.on-login #app {
 
 @media (min-width: 640px) {
   .login-carousel.zufall-carousel {
-    max-height: 348px;
+    max-height: 374px;
   }
 }
 
