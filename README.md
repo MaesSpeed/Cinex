@@ -16,9 +16,9 @@ Danach **Wer schaut**: Tester, User No 1, Bot - Apptesti. Neue Profile: nur Name
 
 ## Katalog
 
-Suche und „Filme vorschlagen“ nutzen die öffentliche TMDB-API v3 (`language=de-DE`, `region=DE`, `include_adult=false`). Poster bleiben TMDB-Bild-URLs.
+Suche und „Filme vorschlagen“ können die öffentliche TMDB-API v3 nutzen (`language=de-DE`, `region=DE`, `include_adult=false`). Poster bleiben TMDB-Bild-URLs.
 
-Optionaler Schlüssel in `config.js` als `window.TMDB_KEY` (siehe `config.example.js`). Ist der Schlüssel leer, versucht die App die Anfrage trotzdem. Schlägt TMDB fehl: Suche zeigt **Katalog nicht erreichbar**, leere Treffer **Kein Treffer**. `films.json` ist nur der schnelle Offline-Fallback für Vorschläge.
+Optionaler Schlüssel in `config.js` als `window.TMDB_KEY` (siehe `config.example.js`). Die Suche läuft immer zuerst lokal: In-Memory-Katalog plus `films.json` (Präfix/Teilstring, auch deutsche Titel). Ist der Schlüssel leer, bleibt die lokale Suche vollständig nutzbar – Treffer wie Inception oder Interstellar kommen aus dem Katalog. TMDB reichert nur an, wenn ein Schlüssel gesetzt ist. Schlägt die Online-Suche fehl und es gibt keine lokalen Treffer, erscheint ein dezenter Hinweis statt einer harten Fehlermeldung.
 
 ## Ablauf
 

@@ -18,6 +18,7 @@
   --snack: #2e7d32;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --footer-height: calc(58px + var(--safe-bottom));
   --ember-border: #d4926a;
   --ember-gold: 232, 176, 112;
   --ember-rose: 196, 96, 72;
@@ -39,12 +40,12 @@ body {
 }
 
 body.has-footer.footer-open {
-  padding-bottom: calc(72px + var(--safe-bottom));
+  padding-bottom: var(--footer-height);
 }
 
 body.has-footer.footer-open .snackbar,
 .site-footer.is-visible ~ .snackbar:not([hidden]) {
-  bottom: calc(72px + var(--safe-bottom));
+  bottom: var(--footer-height);
 }
 
 button, input {
@@ -973,6 +974,11 @@ body.on-lists {
   padding-bottom: 0;
 }
 
+body.on-lists.has-footer,
+body.on-lists.has-footer.footer-open {
+  padding-bottom: 0;
+}
+
 body.on-lists .site-header {
   flex: 0 0 auto;
 }
@@ -988,11 +994,11 @@ body.on-lists #app {
 }
 
 body.on-lists.has-footer #app {
-  padding-bottom: calc(16px + var(--safe-bottom));
+  padding-bottom: 8px;
 }
 
 body.on-lists.has-footer.footer-open #app {
-  padding-bottom: calc(72px + var(--safe-bottom));
+  padding-bottom: var(--footer-height);
 }
 
 .lists-screen {
@@ -1629,11 +1635,16 @@ body.on-lists.has-footer.footer-open #app {
   }
 
   body.has-footer {
-    padding-bottom: calc(72px + var(--safe-bottom));
+    padding-bottom: var(--footer-height);
+  }
+
+  body.on-lists.has-footer,
+  body.on-lists.has-footer.footer-open {
+    padding-bottom: 0;
   }
 
   body.has-footer .snackbar {
-    bottom: calc(72px + var(--safe-bottom));
+    bottom: var(--footer-height);
   }
 }
 
@@ -1701,11 +1712,23 @@ body.has-footer.footer-open.watch-sheet-open .snackbar {
 
 .sheet-handle {
   flex: 0 0 auto;
+  position: relative;
   width: 40px;
   height: 5px;
   margin: 4px auto 10px;
   border-radius: 99px;
   background: #c5d0da;
+  touch-action: none;
+}
+
+.sheet-handle::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 140px;
+  height: 36px;
+  transform: translate(-50%, -50%);
 }
 
 .sheet-head {
@@ -1758,6 +1781,10 @@ body.has-footer.footer-open.watch-sheet-open .snackbar {
   border-radius: 12px;
   border: 1px solid var(--border);
   background: #fff;
+}
+
+.sheet-search-wrap input {
+  touch-action: pan-x;
 }
 
 .sheet-search-bar {

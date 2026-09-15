@@ -117,22 +117,22 @@
   );
 
   const FILMS = [
-    f(238, "Der Pate", ["Krimi", "Drama"], 175, 8.7, ["Marlon Brando", "Al Pacino", "James Caan"]),
+    f(238, "Der Pate", ["Krimi", "Drama"], 175, 8.7, ["Marlon Brando", "Al Pacino", "James Caan"], "The Godfather"),
     f(680, "Pulp Fiction", ["Krimi", "Drama"], 154, 8.5, ["John Travolta", "Samuel L. Jackson", "Uma Thurman"]),
     f(13, "Forrest Gump", ["Drama", "Romanze"], 142, 8.5, ["Tom Hanks", "Robin Wright", "Gary Sinise"]),
-    f(603, "Matrix", ["Sci-Fi", "Action"], 136, 8.2, ["Keanu Reeves", "Laurence Fishburne", "Carrie-Anne Moss"]),
+    f(603, "Matrix", ["Sci-Fi", "Action"], 136, 8.2, ["Keanu Reeves", "Laurence Fishburne", "Carrie-Anne Moss"], "The Matrix"),
     f(27205, "Inception", ["Sci-Fi", "Action"], 148, 8.4, ["Leonardo DiCaprio", "Joseph Gordon-Levitt", "Elliot Page"]),
     f(157336, "Interstellar", ["Sci-Fi", "Drama"], 169, 8.4, ["Matthew McConaughey", "Anne Hathaway", "Jessica Chastain"]),
     f(496243, "Parasite", ["Thriller", "Drama"], 132, 8.5, ["Song Kang-ho", "Lee Sun-kyun", "Cho Yeo-jeong"]),
     f(597, "Titanic", ["Drama", "Romanze"], 194, 7.9, ["Leonardo DiCaprio", "Kate Winslet", "Billy Zane"]),
     f(19995, "Avatar", ["Sci-Fi", "Abenteuer"], 162, 7.6, ["Sam Worthington", "Zoe Saldana", "Sigourney Weaver"]),
-    f(120, "Der Herr der Ringe: Die Gefährten", ["Fantasy", "Abenteuer"], 178, 8.4, ["Elijah Wood", "Ian McKellen", "Viggo Mortensen"]),
+    f(120, "Der Herr der Ringe: Die Gefährten", ["Fantasy", "Abenteuer"], 178, 8.4, ["Elijah Wood", "Ian McKellen", "Viggo Mortensen"], "The Lord of the Rings: The Fellowship of the Ring"),
     f(155, "The Dark Knight", ["Action", "Krimi"], 152, 8.5, ["Christian Bale", "Heath Ledger", "Aaron Eckhart"]),
-    f(671, "Harry Potter und der Stein der Weisen", ["Fantasy", "Abenteuer"], 152, 7.6, ["Daniel Radcliffe", "Rupert Grint", "Emma Watson"]),
+    f(671, "Harry Potter und der Stein der Weisen", ["Fantasy", "Abenteuer"], 152, 7.6, ["Daniel Radcliffe", "Rupert Grint", "Emma Watson"], "Harry Potter and the Philosopher's Stone"),
     f(862, "Toy Story", ["Animation", "Komödie"], 81, 8.0, ["Tom Hanks", "Tim Allen", "Don Rickles"]),
-    f(129, "Chihiros Reise ins Zauberland", ["Animation", "Fantasy"], 125, 8.5, ["Rumi Hiiragi", "Miyu Irino", "Mari Natsuki"]),
+    f(129, "Chihiros Reise ins Zauberland", ["Animation", "Fantasy"], 125, 8.5, ["Rumi Hiiragi", "Miyu Irino", "Mari Natsuki"], "Spirited Away"),
     f(550, "Fight Club", ["Drama", "Thriller"], 139, 8.4, ["Brad Pitt", "Edward Norton", "Helena Bonham Carter"]),
-    f(278, "Die Verurteilten", ["Drama"], 142, 8.7, ["Tim Robbins", "Morgan Freeman", "Bob Gunton"]),
+    f(278, "Die Verurteilten", ["Drama"], 142, 8.7, ["Tim Robbins", "Morgan Freeman", "Bob Gunton"], "The Shawshank Redemption"),
     f(872585, "Oppenheimer", ["Drama", "Historie"], 180, 8.1, ["Cillian Murphy", "Emily Blunt", "Robert Downey Jr."]),
     f(569094, "Spider-Man: Across the Spider-Verse", ["Animation", "Action"], 140, 8.4, ["Shameik Moore", "Hailee Steinfeld", "Brian Tyree Henry"]),
     f(693134, "Dune: Part Two", ["Sci-Fi", "Abenteuer"], 166, 8.1, ["Timothée Chalamet", "Zendaya", "Rebecca Ferguson"]),
@@ -172,11 +172,12 @@
     return [];
   }
 
-  function f(id, title, genres, runtime, vote_average, cast) {
+  function f(id, title, genres, runtime, vote_average, cast, originalTitle) {
     return {
       id: `t${id}`,
       tmdb: id,
       title,
+      original_title: originalTitle || "",
       genre: genres[0] || "Film",
       genres,
       minutes: runtime,
@@ -210,6 +211,7 @@
       id,
       tmdb: Number.isFinite(tmdbNum) ? tmdbNum : id,
       title: raw.title,
+      original_title: raw.original_title || raw.originalTitle || "",
       genre: raw.genre || genres[0] || "Film",
       genres: genres.slice(),
       minutes,
@@ -662,6 +664,7 @@
         genres: n.genres && n.genres.length ? n.genres : prev.genres,
         cast: (n.cast && n.cast.length) ? n.cast : (prev.cast || []),
         year: n.year || prev.year,
+        original_title: n.original_title || prev.original_title || "",
       });
     } else {
       state.catalog.push(n);
@@ -2358,9 +2361,47 @@
 
   function searchStatusText() {
     if (state.searchStatus === "empty") return "Kein Treffer";
-    if (state.searchStatus === "offline") return "Katalog nicht erreichbar";
+    if (state.searchStatus === "offline") return "Kein Treffer im lokalen Katalog. Online-Suche nicht verfügbar.";
     if (state.searchStatus === "loading") return "Suche…";
     return "";
+  }
+
+  function foldSearch(value) {
+    return String(value || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/ß/g, "ss")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  }
+
+  function filmSearchBlob(film) {
+    return foldSearch([
+      film && film.title,
+      film && film.original_title,
+      film && film.originalTitle,
+      film && film.name,
+    ].filter(Boolean).join(" "));
+  }
+
+  function titleMatchRank(film, query) {
+    const q = foldSearch(query);
+    if (!q) return -1;
+    const title = foldSearch(film && film.title);
+    const blob = filmSearchBlob(film);
+    if (!blob) return -1;
+    if (title.startsWith(q) || blob.startsWith(q)) return 0;
+    if (` ${title}`.includes(` ${q}`) || ` ${blob}`.includes(` ${q}`)) return 1;
+    if (title.includes(q) || blob.includes(q)) return 2;
+    const tokens = q.split(/\s+/).filter(Boolean);
+    if (tokens.length > 1 && tokens.every((tok) => blob.includes(tok))) return 3;
+    return -1;
+  }
+
+  function withoutWatchlisted(films) {
+    const listed = new Set(watchlist().map((row) => String(row.id)));
+    return (films || []).filter((film) => film && !listed.has(filmId(film)));
   }
 
   function mergeKnownFilm(map, row) {
@@ -2383,6 +2424,7 @@
       genres: n.genres && n.genres.length ? n.genres : prev.genres,
       cast: (n.cast && n.cast.length) ? n.cast : (prev.cast || []),
       year: n.year || prev.year,
+      original_title: n.original_title || prev.original_title || "",
     }));
   }
 
@@ -2402,7 +2444,7 @@
   }
 
   function watchCategoryFilms(cat) {
-    const all = allKnownFilms();
+    const all = withoutWatchlisted(allKnownFilms());
     if (cat === "action") {
       return all.filter((film) => filmGenres(film).includes("Action"));
     }
@@ -2435,26 +2477,25 @@
   }
 
   function catalogTitleHits(query) {
-    const q = String(query || "").trim().toLowerCase();
+    const q = foldSearch(query);
     if (!q) return [];
-    const hits = allKnownFilms().filter((film) => film.title && film.title.toLowerCase().includes(q));
+    const hits = allKnownFilms()
+      .map((film) => ({ film, rank: titleMatchRank(film, q) }))
+      .filter((row) => row.rank >= 0);
     hits.sort((a, b) => {
-      const at = a.title.toLowerCase();
-      const bt = b.title.toLowerCase();
-      const rank = (title) => (title.startsWith(q) ? 0 : title.includes(` ${q}`) ? 1 : 2);
-      const diff = rank(at) - rank(bt);
+      const diff = a.rank - b.rank;
       if (diff) return diff;
-      return at.localeCompare(bt, "de");
+      return String(a.film.title || "").localeCompare(String(b.film.title || ""), "de");
     });
-    return hits;
+    return withoutWatchlisted(hits.map((row) => row.film));
   }
 
   function watchSheetFilms() {
     if (state.watchSheet === "search") {
       if (!state.watchSearch.trim()) return [];
-      return state.searchHits || [];
+      return withoutWatchlisted(state.searchHits || []);
     }
-    return watchCategoryFilms(state.watchCat || "blockbuster");
+    return withoutWatchlisted(watchCategoryFilms(state.watchCat || "blockbuster"));
   }
 
   function watchSheetEmptyText() {
@@ -2518,7 +2559,9 @@
     if (searching) {
       return `
         <div class="sheet-panel is-search" data-role="sheet-panel">
-          <div class="sheet-handle" aria-hidden="true"></div>
+          <div class="sheet-head" data-role="sheet-drag">
+            <div class="sheet-handle" aria-hidden="true"></div>
+          </div>
           <div class="sheet-search-wrap">
             <span class="sheet-search-icon">${ICONS.search}</span>
             <input data-act="watch-search" placeholder="Film suchen" value="${escapeHtml(state.watchSearch)}" autocomplete="off" enterkeyhint="search">
@@ -2532,8 +2575,8 @@
     `).join("");
     return `
       <div class="sheet-panel" data-role="sheet-panel">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <div class="sheet-head">
+        <div class="sheet-head" data-role="sheet-drag">
+          <div class="sheet-handle" aria-hidden="true"></div>
           <h2 class="sheet-title">Zu Watchlist hinzufügen</h2>
         </div>
         <div class="sheet-cats">${chips}</div>
@@ -2636,9 +2679,16 @@
       paintWatchSheetList();
       return;
     }
-    state.searchHits = catalogTitleHits(q);
-    state.searchHits.forEach((film) => rememberFilm(film));
-    state.searchStatus = state.searchHits.length ? "ok" : "loading";
+    const local = catalogTitleHits(q);
+    state.searchHits = local;
+    local.forEach((film) => rememberFilm(film));
+    if (!tmdbKey()) {
+      searchSeq += 1;
+      state.searchStatus = local.length ? "ok" : "empty";
+      paintWatchSheetList();
+      return;
+    }
+    state.searchStatus = local.length ? "ok" : "loading";
     paintWatchSheetList();
     searchTimer = window.setTimeout(() => {
       runTitleSearch(q);
@@ -2648,10 +2698,16 @@
   async function runTitleSearch(query) {
     const seq = ++searchSeq;
     const local = catalogTitleHits(query);
+    state.searchHits = local;
+    if (!tmdbKey()) {
+      state.searchStatus = local.length ? "ok" : "empty";
+      paintWatchSheetList();
+      return;
+    }
     try {
       const data = await tmdbFetch("/search/movie", { query });
       if (seq !== searchSeq) return;
-      const remote = (data.results || []).map(fromTmdbMovie).filter((film) => film && film.title);
+      const remote = withoutWatchlisted((data.results || []).map(fromTmdbMovie).filter((film) => film && film.title));
       const seen = new Set(local.map((film) => filmId(film)));
       const merged = local.slice();
       for (const film of remote) {
@@ -2660,8 +2716,8 @@
         merged.push(film);
         rememberFilm(film);
       }
-      state.searchHits = merged;
-      state.searchStatus = merged.length ? "ok" : "empty";
+      state.searchHits = withoutWatchlisted(merged);
+      state.searchStatus = state.searchHits.length ? "ok" : "empty";
     } catch {
       if (seq !== searchSeq) return;
       state.searchHits = local;
@@ -2977,12 +3033,14 @@
       saveWatchlist(watchlist().filter((row) => String(row.id) !== filmId(film)));
       paintWatchToggles();
       refreshWatchList();
+      if (state.watchSheet) paintWatchSheetList();
       showSnack(`${film.title} von Watchlist entfernt`, "danger");
       return;
     }
     addWatch(film);
     paintWatchToggles();
     refreshWatchList();
+    if (state.watchSheet) paintWatchSheetList();
     showSnack(`${film.title} zur Watchlist hinzugefügt`);
   }
 
@@ -3571,20 +3629,88 @@
 
   let sheetDrag = null;
 
-  function sheetDragAllowed(event) {
-    if (!state.watchSheet) return false;
-    if (event.target.closest("input, textarea, [data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open]")) return false;
-    const list = event.target.closest("[data-role=watch-sheet-list]");
-    if (list && list.scrollTop > 2) return false;
-    return true;
+  function sheetEventPoint(event) {
+    const touch = (event.touches && event.touches[0]) || (event.changedTouches && event.changedTouches[0]);
+    if (touch) return { x: touch.clientX, y: touch.clientY };
+    return { x: event.clientX, y: event.clientY };
   }
 
-  function endSheetDrag(event) {
-    if (!sheetDrag || (event && event.pointerId !== sheetDrag.id)) return;
-    const panel = sheetDrag.panel;
-    const dy = event ? event.clientY - sheetDrag.startY : 0;
-    const dragging = sheetDrag.dragging;
+  function sheetDragBlocked(event) {
+    if (!state.watchSheet || !watchSheetEl || watchSheetEl.hidden) return true;
+    if (event.target.closest("[data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open]")) return true;
+    const list = event.target.closest("[data-role=watch-sheet-list]");
+    if (list && list.scrollTop > 2) return true;
+    return false;
+  }
+
+  function unbindSheetDragWindow() {
+    window.removeEventListener("pointermove", onSheetPointerMove);
+    window.removeEventListener("pointerup", onSheetPointerUp);
+    window.removeEventListener("pointercancel", onSheetPointerUp);
+    window.removeEventListener("touchmove", onSheetTouchMove);
+    window.removeEventListener("touchend", onSheetTouchEnd);
+    window.removeEventListener("touchcancel", onSheetTouchEnd);
+  }
+
+  function bindSheetDragWindow() {
+    window.addEventListener("pointermove", onSheetPointerMove, { passive: false });
+    window.addEventListener("pointerup", onSheetPointerUp);
+    window.addEventListener("pointercancel", onSheetPointerUp);
+    window.addEventListener("touchmove", onSheetTouchMove, { passive: false });
+    window.addEventListener("touchend", onSheetTouchEnd);
+    window.addEventListener("touchcancel", onSheetTouchEnd);
+  }
+
+  function beginSheetDrag(event) {
+    if (event.button && event.button !== 0) return;
+    if (sheetDrag) {
+      if (event.pointerId != null) sheetDrag.id = event.pointerId;
+      return;
+    }
+    if (sheetDragBlocked(event)) return;
+    if (!event.target.closest("[data-role=sheet-panel]")) return;
+    const panel = watchSheetEl.querySelector("[data-role=sheet-panel]");
+    if (!panel) return;
+    const pt = sheetEventPoint(event);
+    sheetDrag = {
+      id: event.pointerId,
+      startX: pt.x,
+      startY: pt.y,
+      panel,
+      dragging: false,
+    };
+    bindSheetDragWindow();
+  }
+
+  function moveSheetDrag(event) {
+    if (!sheetDrag) return;
+    if (event.pointerId != null && sheetDrag.id != null && event.pointerId !== sheetDrag.id) return;
+    const pt = sheetEventPoint(event);
+    const dy = pt.y - sheetDrag.startY;
+    const dx = pt.x - sheetDrag.startX;
+    if (!sheetDrag.dragging) {
+      if (dy < 12) return;
+      if (Math.abs(dx) > dy) {
+        finishSheetDrag(0, false);
+        return;
+      }
+      sheetDrag.dragging = true;
+      const active = document.activeElement;
+      if (active && watchSheetEl.contains(active) && typeof active.blur === "function") active.blur();
+    }
+    if (dy < 0) {
+      sheetDrag.panel.style.transform = "";
+      return;
+    }
+    sheetDrag.panel.style.transition = "none";
+    sheetDrag.panel.style.transform = `translateY(${dy}px)`;
+    if (event.cancelable) event.preventDefault();
+  }
+
+  function finishSheetDrag(dy, dragging) {
+    const panel = sheetDrag && sheetDrag.panel;
     sheetDrag = null;
+    unbindSheetDragWindow();
     if (!panel) return;
     if (!dragging || dy <= 72) {
       panel.style.transition = "transform 0.2s ease";
@@ -3598,36 +3724,33 @@
     dismissWatchSheet();
   }
 
-  watchSheetEl.addEventListener("pointerdown", (event) => {
-    if (event.button && event.button !== 0) return;
-    if (!sheetDragAllowed(event)) return;
-    const panel = watchSheetEl.querySelector("[data-role=sheet-panel]");
-    if (!panel) return;
-    sheetDrag = {
-      id: event.pointerId,
-      startY: event.clientY,
-      panel,
-      dragging: false,
-    };
-    try { panel.setPointerCapture(event.pointerId); } catch { /* ignore */ }
-  });
+  function endSheetDrag(event) {
+    if (!sheetDrag) return;
+    if (event && event.pointerId != null && sheetDrag.id != null && event.pointerId !== sheetDrag.id) return;
+    const pt = event ? sheetEventPoint(event) : { y: sheetDrag.startY };
+    const dy = pt.y - sheetDrag.startY;
+    const dragging = sheetDrag.dragging;
+    finishSheetDrag(dy, dragging);
+  }
 
-  watchSheetEl.addEventListener("pointermove", (event) => {
-    if (!sheetDrag || event.pointerId !== sheetDrag.id) return;
-    const dy = event.clientY - sheetDrag.startY;
-    if (!sheetDrag.dragging && dy < 10) return;
-    if (dy < 0) {
-      sheetDrag.panel.style.transform = "";
-      return;
-    }
-    sheetDrag.dragging = true;
-    sheetDrag.panel.style.transition = "none";
-    sheetDrag.panel.style.transform = `translateY(${dy}px)`;
-    event.preventDefault();
-  }, { passive: false });
+  function onSheetPointerMove(event) {
+    moveSheetDrag(event);
+  }
 
-  watchSheetEl.addEventListener("pointerup", endSheetDrag);
-  watchSheetEl.addEventListener("pointercancel", endSheetDrag);
+  function onSheetPointerUp(event) {
+    endSheetDrag(event);
+  }
+
+  function onSheetTouchMove(event) {
+    moveSheetDrag(event);
+  }
+
+  function onSheetTouchEnd(event) {
+    endSheetDrag(event);
+  }
+
+  watchSheetEl.addEventListener("pointerdown", beginSheetDrag);
+  watchSheetEl.addEventListener("touchstart", beginSheetDrag, { passive: true });
 
   desktopNavMq.addEventListener("change", () => {
     scheduleFooterSync({ reset: !isDesktopNav() });
