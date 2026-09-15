@@ -18,7 +18,25 @@ Danach **Wer schaut**: Tester, User No 1, Bot - Apptesti. Neue Profile: nur Name
 
 Suche und „Filme vorschlagen“ können die öffentliche TMDB-API v3 nutzen (`language=de-DE`, `region=DE`, `include_adult=false`). Poster bleiben TMDB-Bild-URLs.
 
-Optionaler Schlüssel in `config.js` als `window.TMDB_KEY` (siehe `config.example.js`). Die Suche läuft immer zuerst lokal: In-Memory-Katalog plus `films.json` (Präfix/Teilstring, auch deutsche Titel). Ist der Schlüssel leer, bleibt die lokale Suche vollständig nutzbar – Treffer wie Inception oder Interstellar kommen aus dem Katalog. TMDB reichert nur an, wenn ein Schlüssel gesetzt ist. Schlägt die Online-Suche fehl und es gibt keine lokalen Treffer, erscheint ein dezenter Hinweis statt einer harten Fehlermeldung.
+Optionaler Schlüssel in `config.js` als `window.TMDB_KEY` (siehe `config.example.js`). Die Suche läuft immer zuerst lokal: In-Memory-Katalog plus `films.json` (Präfix/Teilstring, auch deutsche Titel und Franchise-Aliase wie Bond/007). Ist der Schlüssel leer, bleibt die lokale Suche vollständig nutzbar – Treffer wie Inception oder Interstellar kommen aus dem Katalog. TMDB reichert nur an, wenn ein Schlüssel gesetzt ist. Schlägt die Online-Suche fehl und es gibt keine lokalen Treffer, erscheint ein dezenter Hinweis statt einer harten Fehlermeldung.
+
+**Wichtig:** Die öffentliche GitHub-Pages-Seite darf **keinen** TMDB-Schlüssel in `config.js` haben (`window.TMDB_KEY` bleibt leer). Sonst wäre der Key im Browser sichtbar. Franchise-Suchen wie „Bond“ funktionieren offline, sobald die Titel in `films.json` stehen (ggf. mit `aliases`).
+
+### Katalog aktualisieren (GitHub Actions)
+
+`films.json` wird serverseitig gebaut. Der TMDB-Schlüssel liegt nur als Repository-Secret, nie im Code.
+
+1. Im GitHub-Repo: **Settings → Secrets and variables → Actions**
+2. Secret **`TMDB_API_KEY`** anlegen (TMDB API v3 Key)
+3. **Actions → „Refresh films catalog“ → Run workflow**
+
+Der Workflow läuft zusätzlich wöchentlich und committet `films.json` auf den Default-Zweig (`main`), wenn sich der Katalog geändert hat.
+
+Lokal denselben Lauf (Schlüssel nur in der Shell, nicht in `config.js`):
+
+```bash
+TMDB_API_KEY=… node scripts/build-films-catalog.mjs
+```
 
 ## Ablauf
 
