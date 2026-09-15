@@ -2,7 +2,7 @@
 /**
  * Build a lean offline films.json from TMDB v3.
  *
- * Reads TMDB_API_KEY from the environment only. Never write the key to
+ * Reads TMDB_API_KEY from the environment only (classic v3 api_key or v4 Read Access Token / Bearer JWT). Never write the key to
  * config.js, films.json, or any committed file.
  *
  * Usage:
@@ -269,7 +269,8 @@ async function takeToken() {
 
 async function tmdb(pathname, params = {}, { optional = false } = {}) {
   const url = new URL(`${API}${pathname.startsWith("/") ? pathname : `/${pathname}`}`);
-  url.searchParams.set("api_key", KEY);
+  const useBearer = KEY.length > 64 || KEY.startsWith("eyJ");
+  if (!useBearer) url.searchParams.set("api_key", KEY);
   url.searchParams.set("language", LANG);
   url.searchParams.set("region", REGION);
   url.searchParams.set("include_adult", "false");
@@ -278,9 +279,11 @@ async function tmdb(pathname, params = {}, { optional = false } = {}) {
       url.searchParams.set(name, String(value));
     }
   }
+  const headers = { Accept: "application/json" };
+  if (useBearer) headers.Authorization = `Bearer ${KEY}`;
   for (let attempt = 0; attempt < 6; attempt += 1) {
     await takeToken();
-    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    const res = await fetch(url, { headers });
     if (res.status === 404 && optional) return null;
     if (res.status === 429) {
       const retryAfter = Number(res.headers.get("retry-after")) || 1.5;

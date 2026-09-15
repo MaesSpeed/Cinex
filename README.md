@@ -27,7 +27,7 @@ Optionaler Schlüssel in `config.js` als `window.TMDB_KEY` (siehe `config.exampl
 `films.json` wird serverseitig gebaut. Der TMDB-Schlüssel liegt nur als Repository-Secret, nie im Code.
 
 1. Im GitHub-Repo: **Settings → Secrets and variables → Actions**
-2. Secret **`TMDB_API_KEY`** anlegen (TMDB API v3 Key)
+2. Secret **`TMDB_API_KEY`** anlegen — entweder der klassische kurze TMDB-v3-`api_key` **oder** ein langer v4 Read Access Token (JWT, beginnt mit `eyJ` / länger als 64 Zeichen). Das Build-Skript erkennt die Form selbst: Bearer-Token gehen als `Authorization: Bearer …` ohne Query-Parameter, der v3-Key als `api_key`.
 3. **Actions → „Refresh films catalog“ → Run workflow**
 
 Der Workflow läuft zusätzlich wöchentlich und committet `films.json` auf den Default-Zweig (`main`), wenn sich der Katalog geändert hat.
