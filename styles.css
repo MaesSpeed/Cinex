@@ -1898,10 +1898,37 @@ body.has-footer.footer-open.watch-sheet-open .snackbar {
   place-items: center;
 }
 
-.sheet-search-icon svg {
-  width: 18px;
-  height: 18px;
-  display: block;
+.sheet-more {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 10px 2px 6px;
+}
+
+.sheet-more-btn {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #e8f1f8;
+  color: var(--blue);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sheet-more-btn:hover,
+.sheet-more-btn:focus-visible {
+  background: #d7e8f4;
+}
+
+.sheet-more-sentinel {
+  height: 1px;
+  width: 100%;
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

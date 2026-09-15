@@ -188,6 +188,8 @@
     { id: "action", label: "Action" },
     { id: "klassiker", label: "Klassiker" },
   ];
+  const WATCH_PAGE_SIZE = 20;
+  const SEARCH_SHORT_MAX = 39;
 
   const BLOCKBUSTER_IDS = [
     27205, 157336, 299534, 604, 120, 155, 24428, 19995, 597, 361743,
@@ -277,6 +279,8 @@
       cast: filmCastNames(raw).slice(0, 4),
       year: Number(raw.year) || (raw.release_date ? Number(String(raw.release_date).slice(0, 4)) : 0) || 0,
       aliases: filmAliases(raw),
+      popularity: Number(raw.popularity) || 0,
+      vote_count: Number(raw.vote_count) || 0,
       providers,
     };
   }
@@ -364,6 +368,8 @@
       poster_path: raw.poster_path,
       year: raw.release_date ? Number(String(raw.release_date).slice(0, 4)) : 0,
       release_date: raw.release_date || "",
+      popularity: Number(raw.popularity) || 0,
+      vote_count: Number(raw.vote_count) || 0,
     });
   }
 
@@ -580,6 +586,7 @@
     watchSheetBaselineIds: null,
     watchCat: "blockbuster",
     watchSearch: "",
+    watchVisibleCount: WATCH_PAGE_SIZE,
     discoverPage: 0,
     discoverTotalPages: 1,
     catalogLive: false,
@@ -790,6 +797,8 @@
         year: n.year || prev.year,
         original_title: n.original_title || prev.original_title || "",
         aliases: uniqueAliasList([...(n.aliases || []), ...(prev.aliases || [])]),
+        popularity: Math.max(Number(n.popularity) || 0, Number(prev.popularity) || 0),
+        vote_count: Math.max(Number(n.vote_count) || 0, Number(prev.vote_count) || 0),
         providers: (n.providers && n.providers.length) ? n.providers : (prev.providers || []),
       });
     } else {
@@ -2729,7 +2738,7 @@
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/ß/g, "ss")
-      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
       .trim();
   }
 
@@ -2747,29 +2756,129 @@
     return out;
   }
 
-  function filmSearchBlob(film) {
-    const aliases = filmAliases(film).join(" ");
-    return foldSearch([
-      film && film.title,
-      film && film.original_title,
-      film && film.originalTitle,
-      film && film.name,
-      aliases,
-    ].filter(Boolean).join(" "));
+  function searchHasPhrase(haystack, needle) {
+    if (!haystack || !needle) return false;
+    if (haystack === needle) return true;
+    return (` ${haystack} `).includes(` ${needle} `);
   }
 
-  function titleMatchRank(film, query) {
-    const q = foldSearch(query);
-    if (!q) return -1;
-    const title = foldSearch(film && film.title);
-    const blob = filmSearchBlob(film);
-    if (!blob) return -1;
-    if (title.startsWith(q) || blob.startsWith(q)) return 0;
-    if (` ${title}`.includes(` ${q}`) || ` ${blob}`.includes(` ${q}`)) return 1;
-    if (title.includes(q) || blob.includes(q)) return 2;
+  function filmSearchTitleTexts(film) {
+    return uniqueAliasList([
+      foldSearch(film && film.title),
+      foldSearch(film && film.original_title),
+      foldSearch(film && film.originalTitle),
+      foldSearch(film && film.name),
+    ].filter(Boolean));
+  }
+
+  function filmSearchAliasTexts(film) {
+    return uniqueAliasList((filmAliases(film) || []).map((row) => foldSearch(row)).filter(Boolean));
+  }
+
+  function fieldMatchKind(text, q) {
+    if (!text || !q) return -1;
+    if (text === q) return 0;
+    if (text.startsWith(q)) return 1;
+    if (searchHasPhrase(text, q)) return 2;
     const tokens = q.split(/\s+/).filter(Boolean);
-    if (tokens.length > 1 && tokens.every((tok) => blob.includes(tok))) return 3;
+    if (tokens.length > 1 && tokens.every((tok) => searchHasPhrase(text, tok))) return 2;
+    if (text.includes(q)) return 4;
+    if (tokens.length > 1 && tokens.every((tok) => text.includes(tok))) return 4;
     return -1;
+  }
+
+  function bestFieldMatchKind(texts, q) {
+    let best = -1;
+    for (const text of texts || []) {
+      const kind = fieldMatchKind(text, q);
+      if (kind < 0) continue;
+      if (best < 0 || kind < best) best = kind;
+    }
+    return best;
+  }
+
+  function filmMinutesOf(film) {
+    return Number((film && (film.minutes || film.runtime)) || 0) || 0;
+  }
+
+  function filmLengthBucket(film) {
+    const minutes = filmMinutesOf(film);
+    if (minutes >= 70) return 0;
+    if (!minutes) return 1;
+    if (minutes >= 40) return 2;
+    return 3;
+  }
+
+  function filmRecognitionScore(film) {
+    const popularity = Number(film && film.popularity) || 0;
+    const votes = Number(film && film.vote_count) || 0;
+    const rating = Number((film && (film.rating != null ? film.rating : film.vote_average)) || 0) || 0;
+    const year = Number(film && film.year) || 0;
+    let score = 0;
+    if (popularity > 0) score += popularity * 100;
+    if (votes > 0) score += (Math.log(1 + votes) / Math.log(10)) * 50;
+    score += rating * 14;
+    if (year > 0) score += Math.max(0, Math.min(year, 2030) - 1950) * 0.05;
+    return score;
+  }
+
+  function canonicalFranchiseScore(film) {
+    const title = filmSearchTitleTexts(film).join(" ");
+    let score = 0;
+    if (searchHasPhrase(title, "james bond")) score += 4;
+    if (searchHasPhrase(title, "007")) score += 2;
+    return score;
+  }
+
+  function scoreSearchFilm(film, q) {
+    if (!film || !q) return null;
+    const titleKind = bestFieldMatchKind(filmSearchTitleTexts(film), q);
+    const aliasKind = bestFieldMatchKind(filmSearchAliasTexts(film), q);
+    let rank = -1;
+    if (titleKind === 0) rank = 0;
+    else if (titleKind === 1) rank = 1;
+    else if (titleKind === 2) rank = 2;
+    else if (aliasKind >= 0 && aliasKind <= 2) rank = 3;
+    else if (titleKind === 4 || aliasKind === 4) rank = 4;
+    else return null;
+    const multi = q.split(/\s+/).filter(Boolean).length > 1;
+    if (!multi && (rank === 1 || rank === 2)) rank = 2;
+    const exactTitle = titleKind === 0;
+    const minutes = filmMinutesOf(film);
+    if (!exactTitle && minutes > 0 && minutes <= SEARCH_SHORT_MAX) return null;
+    return { film, rank, exactTitle, minutes, canonical: canonicalFranchiseScore(film) };
+  }
+
+  function compareSearchRows(a, b) {
+    if (a.rank !== b.rank) return a.rank - b.rank;
+    const length = filmLengthBucket(a.film) - filmLengthBucket(b.film);
+    if (length) return length;
+    const canonical = (b.canonical || 0) - (a.canonical || 0);
+    if (canonical) return canonical;
+    const recognition = filmRecognitionScore(b.film) - filmRecognitionScore(a.film);
+    if (recognition) return recognition;
+    const year = (Number(b.film.year) || 0) - (Number(a.film.year) || 0);
+    if (year) return year;
+    return String(a.film.title || "").localeCompare(String(b.film.title || ""), "de");
+  }
+
+  function rankSearchFilms(films, query, keepUnmatched) {
+    const q = foldSearch(query);
+    if (!q) return [];
+    const rows = [];
+    for (const film of films || []) {
+      const scored = scoreSearchFilm(film, q);
+      if (scored) {
+        rows.push(scored);
+        continue;
+      }
+      if (!keepUnmatched) continue;
+      const minutes = filmMinutesOf(film);
+      if (minutes > 0 && minutes <= SEARCH_SHORT_MAX) continue;
+      rows.push({ film, rank: 5, exactTitle: false, minutes, canonical: canonicalFranchiseScore(film) });
+    }
+    rows.sort(compareSearchRows);
+    return rows.map((row) => row.film);
   }
 
   function watchSheetHiddenIds() {
@@ -2812,6 +2921,8 @@
       year: n.year || prev.year,
       original_title: n.original_title || prev.original_title || "",
       aliases: uniqueAliasList([...(n.aliases || []), ...(prev.aliases || [])]),
+      popularity: Math.max(Number(n.popularity) || 0, Number(prev.popularity) || 0),
+      vote_count: Math.max(Number(n.vote_count) || 0, Number(prev.vote_count) || 0),
       providers: (n.providers && n.providers.length) ? n.providers : (prev.providers || []),
     }));
   }
@@ -2834,13 +2945,22 @@
   function watchCategoryFilms(cat) {
     const all = withoutWatchlisted(allKnownFilms());
     if (cat === "action") {
-      return all.filter((film) => filmGenres(film).includes("Action"));
+      return all
+        .filter((film) => filmGenres(film).includes("Action"))
+        .sort((a, b) => {
+          const rec = filmRecognitionScore(b) - filmRecognitionScore(a);
+          if (rec) return rec;
+          return (Number(b.year) || 0) - (Number(a.year) || 0);
+        });
     }
     if (cat === "top") {
       return all
         .filter((film) => (Number(film.rating) || Number(film.vote_average) || 0) > 0)
-        .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0))
-        .slice(0, 40);
+        .sort((a, b) => {
+          const rating = (Number(b.rating) || 0) - (Number(a.rating) || 0);
+          if (rating) return rating;
+          return filmRecognitionScore(b) - filmRecognitionScore(a);
+        });
     }
     if (cat === "neu") {
       return all
@@ -2848,42 +2968,127 @@
         .sort((a, b) => {
           const year = (Number(b.year) || 0) - (Number(a.year) || 0);
           if (year) return year;
-          return (Number(b.tmdb) || 0) - (Number(a.tmdb) || 0);
-        })
-        .slice(0, 40);
+          return filmRecognitionScore(b) - filmRecognitionScore(a);
+        });
     }
     if (cat === "klassiker") {
       const curated = filmsByTmdbIds(KLASSIKER_IDS, all);
       const seen = new Set(curated.map((film) => filmId(film)));
       const rest = all.filter((film) => !seen.has(filmId(film)) && (Number(film.year) || 0) > 0 && (Number(film.year) || 0) < 2000);
-      return curated.concat(rest).slice(0, 40);
+      return curated.concat(rest);
     }
     const curated = filmsByTmdbIds(BLOCKBUSTER_IDS, all);
     const seen = new Set(curated.map((film) => filmId(film)));
     const rest = all.filter((film) => !seen.has(filmId(film)) && (Number(film.rating) || 0) >= 7.6);
-    return curated.concat(rest).slice(0, 40);
+    return curated.concat(rest);
   }
 
   function catalogTitleHits(query) {
-    const q = foldSearch(query);
-    if (!q) return [];
-    const hits = allKnownFilms()
-      .map((film) => ({ film, rank: titleMatchRank(film, q) }))
-      .filter((row) => row.rank >= 0);
-    hits.sort((a, b) => {
-      const diff = a.rank - b.rank;
-      if (diff) return diff;
-      return String(a.film.title || "").localeCompare(String(b.film.title || ""), "de");
-    });
-    return withoutWatchlisted(hits.map((row) => row.film));
+    return withoutWatchlisted(rankSearchFilms(allKnownFilms(), query));
   }
 
-  function watchSheetFilms() {
+  function watchSheetAllFilms() {
     if (state.watchSheet === "search") {
       if (!state.watchSearch.trim()) return [];
       return withoutWatchlisted(state.searchHits || []);
     }
     return withoutWatchlisted(watchCategoryFilms(state.watchCat || "blockbuster"));
+  }
+
+  function watchSheetFilms() {
+    return watchSheetAllFilms().slice(0, state.watchVisibleCount || WATCH_PAGE_SIZE);
+  }
+
+  function watchSheetHasMore() {
+    return watchSheetAllFilms().length > (state.watchVisibleCount || WATCH_PAGE_SIZE);
+  }
+
+  let watchMoreLock = false;
+  let watchMoreObserver = null;
+
+  function resetWatchSheetPage() {
+    state.watchVisibleCount = WATCH_PAGE_SIZE;
+    watchMoreLock = false;
+  }
+
+  function unbindWatchMoreSentinel() {
+    if (watchMoreObserver) {
+      watchMoreObserver.disconnect();
+      watchMoreObserver = null;
+    }
+  }
+
+  function bindWatchMoreSentinel() {
+    unbindWatchMoreSentinel();
+    if (!watchSheetEl || watchSheetEl.hidden) return;
+    const sentinel = watchSheetEl.querySelector("[data-role=watch-more-sentinel]");
+    const list = watchSheetEl.querySelector("[data-role=watch-sheet-list]");
+    if (!sentinel || !list) return;
+    if (typeof IntersectionObserver !== "function") return;
+    watchMoreObserver = new IntersectionObserver((entries) => {
+      if (watchMoreLock) return;
+      if (!entries.some((entry) => entry.isIntersecting && entry.target === sentinel)) return;
+      loadMoreWatchSheetFilms();
+    }, {
+      root: list,
+      rootMargin: "120px 0px",
+      threshold: 0,
+    });
+    watchMoreObserver.observe(sentinel);
+  }
+
+  function loadMoreWatchSheetFilms() {
+    if (watchMoreLock) return false;
+    if (!state.watchSheet || state.watchSheet === "zufall") return false;
+    const all = watchSheetAllFilms();
+    const from = state.watchVisibleCount || WATCH_PAGE_SIZE;
+    if (from >= all.length) return false;
+    watchMoreLock = true;
+    unbindWatchMoreSentinel();
+    const to = Math.min(from + WATCH_PAGE_SIZE, all.length);
+    state.watchVisibleCount = to;
+    const extra = all.slice(from, to);
+    const list = watchSheetEl && watchSheetEl.querySelector("[data-role=watch-sheet-list]");
+    if (!list) {
+      watchMoreLock = false;
+      return false;
+    }
+    const moreWrap = list.querySelector("[data-role=watch-more]");
+    const html = extra.map((film) => renderListRow(film, { toggle: true })).join("");
+    if (moreWrap) moreWrap.insertAdjacentHTML("beforebegin", html);
+    else list.insertAdjacentHTML("beforeend", html);
+    if (to >= all.length) {
+      if (moreWrap) moreWrap.remove();
+    }
+    observeListPostersSoon(list);
+    enrichListCast(extra);
+    bindWatchMoreSentinel();
+    window.requestAnimationFrame(() => {
+      watchMoreLock = false;
+      const nextSentinel = watchSheetEl && watchSheetEl.querySelector("[data-role=watch-more-sentinel]");
+      const nextList = watchSheetEl && watchSheetEl.querySelector("[data-role=watch-sheet-list]");
+      if (!nextSentinel || !nextList || !watchSheetHasMore()) return;
+      const listRect = nextList.getBoundingClientRect();
+      const sentRect = nextSentinel.getBoundingClientRect();
+      if (sentRect.top <= listRect.bottom + 120) loadMoreWatchSheetFilms();
+    });
+    return true;
+  }
+
+  function renderWatchMore(hasMore) {
+    if (!hasMore) return "";
+    return `
+      <div class="sheet-more" data-role="watch-more">
+        <button type="button" class="sheet-more-btn" data-act="watch-more">Weitere anzeigen</button>
+        <div class="sheet-more-sentinel" data-role="watch-more-sentinel" aria-hidden="true"></div>
+      </div>
+    `;
+  }
+
+  function renderWatchSheetListInner() {
+    const all = watchSheetAllFilms();
+    const films = all.slice(0, state.watchVisibleCount || WATCH_PAGE_SIZE);
+    return renderWatchSheetRows(films) + renderWatchMore(all.length > films.length);
   }
 
   function watchSheetEmptyText() {
@@ -2905,10 +3110,12 @@
     if (!list) return;
     const scrollTop = list.scrollTop;
     const films = watchSheetFilms();
-    list.innerHTML = renderWatchSheetRows(films);
+    unbindWatchMoreSentinel();
+    list.innerHTML = renderWatchSheetRows(films) + renderWatchMore(watchSheetHasMore());
     list.scrollTop = scrollTop;
     observeListPostersSoon(list);
     enrichListCast(films);
+    bindWatchMoreSentinel();
   }
 
   function paintWatchToggles() {
@@ -2960,7 +3167,7 @@
             <span class="sheet-search-icon">${ICONS.search}</span>
             <input data-act="watch-search" placeholder="Film suchen" value="${escapeHtml(state.watchSearch)}" autocomplete="off" enterkeyhint="search">
           </div>
-          <section class="film-list" data-role="watch-sheet-list">${renderWatchSheetRows(watchSheetFilms())}</section>
+          <section class="film-list" data-role="watch-sheet-list">${renderWatchSheetListInner()}</section>
         </div>
       `;
     }
@@ -2974,7 +3181,7 @@
           <h2 class="sheet-title">Zu Watchlist hinzufügen</h2>
         </div>
         <div class="sheet-cats">${chips}</div>
-        <section class="film-list" data-role="watch-sheet-list">${renderWatchSheetRows(watchSheetFilms())}</section>
+        <section class="film-list" data-role="watch-sheet-list">${renderWatchSheetListInner()}</section>
         <button type="button" class="sheet-search-bar" data-act="watch-search-open">
           <span class="sheet-search-icon">${ICONS.search}</span>
           Film suchen
@@ -2992,6 +3199,7 @@
 
   function paintWatchSheet() {
     if (!watchSheetEl) return;
+    unbindWatchMoreSentinel();
     if (!state.watchSheet) {
       teardownZufallCarousel();
       document.body.classList.remove("watch-sheet-open");
@@ -3022,6 +3230,7 @@
     const films = watchSheetFilms();
     observeListPostersSoon(watchSheetEl);
     enrichListCast(films);
+    bindWatchMoreSentinel();
     if (state.watchSheet === "search") {
       const input = watchSheetEl.querySelector("[data-act=watch-search]");
       if (input) {
@@ -3037,6 +3246,7 @@
     if (!state.watchSheet) captureWatchSheetBaseline();
     state.watchSheet = "add";
     state.watchCat = state.watchCat || "blockbuster";
+    resetWatchSheetPage();
     paintWatchSheet();
     if (!state.catalog.length) {
       loadCatalog().then(() => {
@@ -3048,6 +3258,7 @@
   function openWatchSearchSheet() {
     if (!state.watchSheetBaselineIds) captureWatchSheetBaseline();
     state.watchSheet = "search";
+    resetWatchSheetPage();
     paintWatchSheet();
     if (state.watchSearch.trim()) scheduleTitleSearch(state.watchSearch);
   }
@@ -3055,12 +3266,14 @@
   function closeWatchSheet() {
     window.clearTimeout(searchTimer);
     searchSeq += 1;
+    unbindWatchMoreSentinel();
     teardownZufallCarousel();
     state.watchSheet = null;
     clearWatchSheetBaseline();
     state.watchSearch = "";
     state.searchHits = [];
     state.searchStatus = "";
+    resetWatchSheetPage();
     document.body.classList.remove("watch-sheet-open");
     document.body.classList.remove("zufall-sheet-open");
     if (watchSheetEl) {
@@ -3075,6 +3288,7 @@
     const finish = () => {
       if (state.watchSheet === "search") {
         state.watchSheet = "add";
+        resetWatchSheetPage();
         paintWatchSheet();
         return;
       }
@@ -3094,20 +3308,23 @@
 
   function scheduleTitleSearch(query) {
     window.clearTimeout(searchTimer);
+    searchSeq += 1;
+    resetWatchSheetPage();
     const q = String(query || "").trim();
+    const seq = searchSeq;
     if (!q) {
-      searchSeq += 1;
       state.searchHits = [];
       state.searchStatus = "";
       paintWatchSheetList();
       return;
     }
     const applyLocal = () => {
+      if (seq !== searchSeq) return false;
+      if (state.watchSheet !== "search") return false;
+      if (String(state.watchSearch || "").trim() !== q) return false;
       const local = catalogTitleHits(q);
       state.searchHits = local;
-      local.forEach((film) => rememberFilm(film));
       if (!tmdbKey()) {
-        searchSeq += 1;
         state.searchStatus = local.length ? "ok" : "empty";
         paintWatchSheetList();
         return false;
@@ -3118,10 +3335,12 @@
     };
     if (!state.catalog.length) {
       loadCatalog().then(() => {
+        if (seq !== searchSeq) return;
         if (state.watchSheet !== "search" || String(state.watchSearch || "").trim() !== q) return;
         if (applyLocal()) {
           searchTimer = window.setTimeout(() => {
-            runTitleSearch(q);
+            if (seq !== searchSeq) return;
+            runTitleSearch(q, seq);
           }, 200);
         }
       });
@@ -3129,14 +3348,17 @@
     }
     if (!applyLocal()) return;
     searchTimer = window.setTimeout(() => {
-      runTitleSearch(q);
+      if (seq !== searchSeq) return;
+      runTitleSearch(q, seq);
     }, 200);
   }
 
-  async function runTitleSearch(query) {
+  async function runTitleSearch(query, scheduledSeq) {
     if (!state.catalog.length) await loadCatalog();
-    const seq = ++searchSeq;
+    const seq = scheduledSeq || searchSeq;
+    if (seq !== searchSeq) return;
     const local = catalogTitleHits(query);
+    if (seq !== searchSeq) return;
     state.searchHits = local;
     if (!tmdbKey()) {
       state.searchStatus = local.length ? "ok" : "empty";
@@ -3147,21 +3369,23 @@
       const data = await tmdbFetch("/search/movie", { query });
       if (seq !== searchSeq) return;
       const remote = withoutWatchlisted((data.results || []).map(fromTmdbMovie).filter((film) => film && film.title));
-      const seen = new Set(local.map((film) => filmId(film)));
-      const merged = local.slice();
-      for (const film of remote) {
-        if (seen.has(filmId(film))) continue;
-        seen.add(filmId(film));
+      remote.forEach((film) => rememberFilm(film));
+      const merged = [];
+      const seen = new Set();
+      for (const film of local.concat(remote)) {
+        const id = filmId(film);
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
         merged.push(film);
-        rememberFilm(film);
       }
-      state.searchHits = withoutWatchlisted(merged);
+      state.searchHits = withoutWatchlisted(rankSearchFilms(merged, query, true));
       state.searchStatus = state.searchHits.length ? "ok" : "empty";
     } catch {
       if (seq !== searchSeq) return;
       state.searchHits = local;
       state.searchStatus = local.length ? "ok" : "offline";
     }
+    if (seq !== searchSeq) return;
     paintWatchSheetList();
   }
 
@@ -4188,10 +4412,15 @@
     if (act === "watch-cat") {
       if (state.watchCat === t.dataset.id) return true;
       state.watchCat = t.dataset.id;
+      resetWatchSheetPage();
       watchSheetEl.querySelectorAll("[data-act=watch-cat]").forEach((btn) => {
         btn.setAttribute("aria-pressed", btn.dataset.id === state.watchCat ? "true" : "false");
       });
       paintWatchSheetList();
+      return true;
+    }
+    if (act === "watch-more") {
+      loadMoreWatchSheetFilms();
       return true;
     }
     if (act === "watch-toggle") {
@@ -4465,6 +4694,7 @@
       state.searchStatus = "";
       window.clearTimeout(searchTimer);
       searchSeq += 1;
+      resetWatchSheetPage();
       render();
       return;
     }
@@ -4751,7 +4981,7 @@
 
   function sheetDragBlocked(event) {
     if (!state.watchSheet || !watchSheetEl || watchSheetEl.hidden) return true;
-    if (event.target.closest("button, a, input, [data-role=zufall-carousel], [data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open]")) return true;
+    if (event.target.closest("button, a, input, [data-role=zufall-carousel], [data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open], [data-act=watch-more], [data-role=watch-more]")) return true;
     const list = event.target.closest("[data-role=watch-sheet-list]");
     if (list && list.scrollTop > 2) return true;
     return false;

@@ -468,7 +468,8 @@ function seedExisting() {
         release_date: row.year ? `${row.year}-01-01` : "",
         year: row.year,
         adult: false,
-        popularity: 1,
+        popularity: Number(row.popularity) || 1,
+        vote_count: Number(row.vote_count) || 0,
       }, { aliases: row.aliases || [], pinned: true }));
     }
     console.log(`Seeded ${existing.length} titles from existing films.json`);
@@ -494,6 +495,8 @@ function toOutputFilm(row) {
   if (row.year) film.year = row.year;
   if (row.genres && row.genres.length > 1) film.genres = row.genres.slice(0, 4);
   if (row.aliases && row.aliases.length) film.aliases = row.aliases;
+  if (Number(row.popularity) > 0) film.popularity = Math.round(Number(row.popularity) * 100) / 100;
+  if (Number(row.vote_count) > 0) film.vote_count = Math.round(Number(row.vote_count));
   return film;
 }
 
