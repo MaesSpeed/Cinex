@@ -2642,11 +2642,12 @@
 
   function watchlistFilms() {
     return watchlist()
-      .map((row) => findFilm(row.id))
+      .map((row) => filmWithPoster(findFilm(row.id)))
       .filter(Boolean);
   }
 
   function renderListRow(film, opts) {
+    film = filmWithPoster(film) || film;
     const extra = opts.extra || "";
     const unrated = opts.unrated;
     const runtime = durationPill(film);
