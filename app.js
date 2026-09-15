@@ -464,6 +464,7 @@
     searchHits: [],
     searchStatus: "",
     watchSheet: null,
+    watchSheetBaselineIds: null,
     watchCat: "blockbuster",
     watchSearch: "",
     discoverPage: 0,
@@ -2426,9 +2427,22 @@
     return -1;
   }
 
+  function watchSheetHiddenIds() {
+    if (state.watchSheetBaselineIds) return state.watchSheetBaselineIds;
+    return new Set(watchlist().map((row) => String(row.id)));
+  }
+
   function withoutWatchlisted(films) {
-    const listed = new Set(watchlist().map((row) => String(row.id)));
+    const listed = watchSheetHiddenIds();
     return (films || []).filter((film) => film && !listed.has(filmId(film)));
+  }
+
+  function captureWatchSheetBaseline() {
+    state.watchSheetBaselineIds = new Set(watchlist().map((row) => String(row.id)));
+  }
+
+  function clearWatchSheetBaseline() {
+    state.watchSheetBaselineIds = null;
   }
 
   function mergeKnownFilm(map, row) {
@@ -2543,8 +2557,10 @@
     if (!watchSheetEl || !state.watchSheet) return;
     const list = watchSheetEl.querySelector("[data-role=watch-sheet-list]");
     if (!list) return;
+    const scrollTop = list.scrollTop;
     const films = watchSheetFilms();
     list.innerHTML = renderWatchSheetRows(films);
+    list.scrollTop = scrollTop;
     enrichListCast(films);
   }
 
@@ -2617,6 +2633,13 @@
     `;
   }
 
+  function syncWatchSheetTop() {
+    const header = document.querySelector(".site-header");
+    if (!header) return;
+    const top = Math.ceil(header.getBoundingClientRect().bottom) + 12;
+    document.documentElement.style.setProperty("--sheet-top", `${Math.max(top, 0)}px`);
+  }
+
   function paintWatchSheet() {
     if (!watchSheetEl) return;
     if (!state.watchSheet) {
@@ -2626,13 +2649,17 @@
       return;
     }
     document.body.classList.add("watch-sheet-open");
+    syncWatchSheetTop();
+    const animateIn = watchSheetEl.hidden;
     watchSheetEl.hidden = false;
     watchSheetEl.innerHTML = renderWatchSheetHtml();
     const panel = watchSheetEl.querySelector("[data-role=sheet-panel]");
-    if (panel && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (animateIn && panel && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       panel.classList.add("is-enter");
       window.requestAnimationFrame(() => {
-        panel.classList.remove("is-enter");
+        window.requestAnimationFrame(() => {
+          panel.classList.remove("is-enter");
+        });
       });
     }
     const films = watchSheetFilms();
@@ -2640,7 +2667,7 @@
     if (state.watchSheet === "search") {
       const input = watchSheetEl.querySelector("[data-act=watch-search]");
       if (input) {
-        input.focus();
+        input.focus({ preventScroll: true });
         const len = input.value.length;
         try { input.setSelectionRange(len, len); } catch { /* ignore */ }
       }
@@ -2649,12 +2676,14 @@
 
   function openWatchAddSheet() {
     closeFilmMenus();
+    if (!state.watchSheet) captureWatchSheetBaseline();
     state.watchSheet = "add";
     state.watchCat = state.watchCat || "blockbuster";
     paintWatchSheet();
   }
 
   function openWatchSearchSheet() {
+    if (!state.watchSheetBaselineIds) captureWatchSheetBaseline();
     state.watchSheet = "search";
     paintWatchSheet();
     if (state.watchSearch.trim()) scheduleTitleSearch(state.watchSearch);
@@ -2664,6 +2693,7 @@
     window.clearTimeout(searchTimer);
     searchSeq += 1;
     state.watchSheet = null;
+    clearWatchSheetBaseline();
     state.watchSearch = "";
     state.searchHits = [];
     state.searchStatus = "";
@@ -3787,6 +3817,7 @@
   window.addEventListener("resize", () => {
     scheduleFooterSync();
     paintChipOverflow();
+    if (state.watchSheet) syncWatchSheetTop();
   });
 
   app.addEventListener("pointerdown", (event) => {
