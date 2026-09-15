@@ -2342,37 +2342,37 @@ body.on-login #app {
 .login-carousel.zufall-carousel {
   flex: 1 1 auto;
   height: auto;
-  min-height: 248px;
-  max-height: 360px;
-  margin: 0 -12px 0;
+  min-height: 260px;
+  max-height: 328px;
+  margin: 0 -16px 0;
   transition: min-height 0.28s ease, max-height 0.28s ease;
 }
 
 .login-carousel.zufall-carousel .login-carousel-stage {
-  bottom: 118px;
+  bottom: 128px;
 }
 
 .login-carousel.zufall-carousel .login-carousel-front {
-  height: 186px;
+  height: 204px;
   pointer-events: none;
 }
 
 .login-carousel.zufall-carousel .login-cover-side {
-  width: 92px;
-  height: 138px;
+  width: 102px;
+  height: 153px;
 }
 
-.login-carousel.zufall-carousel .login-cover-left { margin-right: -22px; }
-.login-carousel.zufall-carousel .login-cover-right { margin-left: -22px; }
+.login-carousel.zufall-carousel .login-cover-left { margin-right: -26px; }
+.login-carousel.zufall-carousel .login-cover-right { margin-left: -26px; }
 
 .login-carousel.zufall-carousel .login-cover-center {
-  width: 122px;
-  height: 183px;
+  width: 136px;
+  height: 204px;
 }
 
 .login-carousel.zufall-carousel .login-ring-item {
-  width: 38px;
-  height: 57px;
+  width: 42px;
+  height: 63px;
 }
 
 .login-carousel.zufall-carousel .login-ring-item.is-filler {
@@ -2381,19 +2381,19 @@ body.on-login #app {
 
 .login-carousel.zufall-carousel.is-settled {
   flex: 0 1 auto;
-  min-height: 228px;
-  max-height: 310px;
+  min-height: 248px;
+  max-height: 340px;
 }
 
-.login-carousel.zufall-carousel.is-settled .login-carousel-stage { bottom: 108px; }
-.login-carousel.zufall-carousel.is-settled .login-carousel-front { height: 172px; }
+.login-carousel.zufall-carousel.is-settled .login-carousel-stage { bottom: 116px; }
+.login-carousel.zufall-carousel.is-settled .login-carousel-front { height: 186px; }
 .login-carousel.zufall-carousel.is-settled .login-cover-side {
-  width: 84px;
-  height: 126px;
+  width: 94px;
+  height: 141px;
 }
 .login-carousel.zufall-carousel.is-settled .login-cover-center {
-  width: 112px;
-  height: 168px;
+  width: 124px;
+  height: 186px;
   border: 2px solid var(--ember-border);
   animation: ember-flicker 2s ease-in-out infinite;
 }
@@ -2401,8 +2401,8 @@ body.on-login #app {
   animation: ember-flicker 2s ease-in-out infinite;
 }
 .login-carousel.zufall-carousel.is-settled .login-ring-item {
-  width: 34px;
-  height: 51px;
+  width: 38px;
+  height: 57px;
 }
 
 .zufall-chevrons {
@@ -2418,7 +2418,8 @@ body.on-login #app {
 
 .zufall-chevron {
   position: absolute;
-  top: 44%;
+  top: auto;
+  bottom: 152px;
   overflow: hidden;
   white-space: nowrap;
   font-size: 1.28rem;
@@ -2431,13 +2432,13 @@ body.on-login #app {
 }
 
 .zufall-chevron.is-left {
-  right: calc(50% + 68px);
+  right: calc(50% + 78px);
   width: 0.72em;
   text-align: right;
 }
 
 .zufall-chevron.is-right {
-  left: calc(50% + 68px);
+  left: calc(50% + 78px);
   width: 0.72em;
   text-align: left;
 }
@@ -2459,7 +2460,7 @@ body.on-login #app {
 }
 
 .zufall-swipen {
-  margin: 26px 0 0;
+  margin: 8px 0 0;
   text-align: center;
   font-size: 0.78rem;
   font-weight: 600;
@@ -2486,14 +2487,15 @@ body.on-login #app {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 24px;
+  margin-top: auto;
   margin-bottom: 8px;
+  flex: 0 0 auto;
 }
 
 .zufall-push {
   width: 92px;
   height: 92px;
-  margin-top: 8px;
+  margin-top: 22px;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -2533,7 +2535,8 @@ body.on-login #app {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  margin-top: 4px;
+  margin-top: 2px;
+  flex: 0 0 auto;
 }
 
 .zufall-result[hidden] {
@@ -2620,7 +2623,7 @@ body.on-login #app {
 
 @media (min-width: 640px) {
   .login-carousel.zufall-carousel {
-    max-height: 400px;
+    max-height: 348px;
   }
 }
 

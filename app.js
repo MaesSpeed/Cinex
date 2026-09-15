@@ -1715,7 +1715,7 @@
     root: null,
     ring: null,
     covers: null,
-    metrics: { radius: 202, tilt: -20, hide: 48 },
+    metrics: { radius: 218, tilt: -20, hide: 50 },
     unbind: null,
     reduced: false,
     frontLocked: false,
@@ -3135,9 +3135,9 @@
 
   function zufallMetrics(settled) {
     return {
-      radius: settled ? 186 : 202,
+      radius: settled ? 200 : 218,
       tilt: -20,
-      hide: 48,
+      hide: 50,
     };
   }
 
@@ -3603,8 +3603,8 @@
               <span class="zufall-chevron is-right" aria-hidden="true">››››</span>
             </div>
           </div>
-          <p class="zufall-swipen" data-role="zufall-swipen">Swipen</p>
           <div class="zufall-idle-actions" data-role="zufall-idle-actions">
+            <p class="zufall-swipen" data-role="zufall-swipen">Swipen</p>
             <button type="button" class="zufall-push" data-act="zufall-push">Push</button>
             <button type="button" class="zufall-skip" data-act="zufall-skip" hidden>Überspringen</button>
           </div>
