@@ -318,10 +318,20 @@
     return res.json();
   }
 
-  function tmdbPoster(path) {
+  const TMDB_POSTER_BASE = "https://image.tmdb.org/t/p/";
+  const POSTER_SIZE_CARD = "w185";
+  const POSTER_SIZE_THUMB = "w92";
+
+  function tmdbPoster(path, size) {
     if (!path) return "";
     const normalized = String(path).startsWith("/") ? path : `/${path}`;
-    return `https://image.tmdb.org/t/p/w185${normalized}`;
+    return `${TMDB_POSTER_BASE}${size || POSTER_SIZE_CARD}${normalized}`;
+  }
+
+  function withPosterSize(src, size) {
+    if (!src) return "";
+    if (!size) return String(src);
+    return String(src).replace(/^(https:\/\/image\.tmdb\.org\/t\/p\/)w\d+\//, `$1${size}/`);
   }
 
   function fromTmdbMovie(raw) {
@@ -379,24 +389,81 @@
     if (state.screen === "home" || state.screen === "suggest") render();
   }
 
-  function posterUrl(film) {
-    return film && film.poster ? film.poster : "";
+  function posterUrl(film, size) {
+    const src = film && film.poster ? String(film.poster) : "";
+    return size ? withPosterSize(src, size) : src;
   }
 
-  function posterStyle(film) {
-    const src = posterUrl(film);
+  function posterTile(film, opts) {
+    const lazy = !!(opts && opts.lazy);
+    const size = (opts && opts.size) || (lazy ? POSTER_SIZE_THUMB : POSTER_SIZE_CARD);
+    const src = posterUrl(film, size);
     const color = (film && film.color) || "#1d4f91";
-    return src
-      ? `background-color:${color};background-image:url("${src}");background-size:cover;background-position:center`
-      : `background-color:${color}`;
+    let img = "";
+    if (src) {
+      const dims = lazy
+        ? `width="92" height="138"`
+        : `width="185" height="278"`;
+      const srcAttr = lazy
+        ? `data-poster-src="${escapeHtml(src)}"`
+        : `src="${escapeHtml(src)}"`;
+      img = `<img ${srcAttr} alt="" ${dims} decoding="async"${lazy ? ' loading="lazy"' : ""} referrerpolicy="no-referrer">`;
+    }
+    return `<div class="poster" style="background-color:${color}" role="img" aria-label="">${img}</div>`;
   }
 
-  function posterTile(film) {
-    const src = posterUrl(film);
-    const img = src
-      ? `<img src="${escapeHtml(src)}" alt="" width="185" height="278" referrerpolicy="no-referrer">`
-      : "";
-    return `<div class="poster" style="${posterStyle(film)}" role="img" aria-label="">${img}</div>`;
+  const posterObserversByList = new WeakMap();
+
+  function revealPosterImg(img) {
+    if (!img) return;
+    const src = img.getAttribute("data-poster-src");
+    if (!src) return;
+    img.src = src;
+    img.removeAttribute("data-poster-src");
+  }
+
+  function observeListPosters(scope) {
+    const root = scope || document;
+    const imgs = root.querySelectorAll ? root.querySelectorAll("img[data-poster-src]") : [];
+    if (!imgs.length) return;
+    if (typeof IntersectionObserver !== "function") {
+      imgs.forEach(revealPosterImg);
+      return;
+    }
+    const groups = new Map();
+    imgs.forEach((img) => {
+      const list = img.closest(".film-list") || root;
+      if (!groups.has(list)) groups.set(list, []);
+      groups.get(list).push(img);
+    });
+    groups.forEach((group, list) => {
+      const prev = posterObserversByList.get(list);
+      if (prev) prev.disconnect();
+      const scrollRoot = list && list.classList && list.classList.contains("film-list") && list.clientHeight
+        ? list
+        : null;
+      const obs = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          revealPosterImg(entry.target);
+          obs.unobserve(entry.target);
+        }
+      }, {
+        root: scrollRoot,
+        rootMargin: "160px 0px",
+        threshold: 0.01,
+      });
+      group.forEach((img) => obs.observe(img));
+      posterObserversByList.set(list, obs);
+    });
+  }
+
+  function observeListPostersSoon(scope) {
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => observeListPosters(scope));
+    } else {
+      observeListPosters(scope);
+    }
   }
 
   const AVATARS = {
@@ -1159,13 +1226,13 @@
     return params;
   }
 
-  function addFilmsToCatalog(films) {
+  function addFilmsToCatalog(films, alreadyNormalized) {
     const seen = new Set(state.catalog.map(filmId));
     for (const film of films) {
-      const n = normalizeFilm(film);
-      if (!n.id) continue;
+      const n = alreadyNormalized ? film : normalizeFilm(film);
+      if (!n || !n.id) continue;
       if (seen.has(filmId(n))) {
-        rememberFilm(n);
+        if (!alreadyNormalized) rememberFilm(n);
         continue;
       }
       seen.add(filmId(n));
@@ -1219,13 +1286,34 @@
     return state.catalogLive;
   }
 
+  function yieldToPaint() {
+    if (typeof scheduler !== "undefined" && typeof scheduler.yield === "function") {
+      return scheduler.yield();
+    }
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  async function normalizeFilmsChunked(rows) {
+    const out = new Array(rows.length);
+    const chunk = 80;
+    for (let i = 0; i < rows.length; i += chunk) {
+      const end = Math.min(rows.length, i + chunk);
+      for (let j = i; j < end; j += 1) out[j] = normalizeFilm(rows[j]);
+      if (end < rows.length) await yieldToPaint();
+    }
+    return out;
+  }
+
   async function loadOfflineFallback() {
     try {
       const res = await fetch("./films.json");
       if (!res.ok) throw new Error("catalog");
-      const data = await res.json();
+      const text = await res.text();
+      await yieldToPaint();
+      const data = JSON.parse(text);
+      await yieldToPaint();
       if (Array.isArray(data) && data.length > 20) {
-        offlineFilms = data.map((row) => normalizeFilm(row));
+        offlineFilms = await normalizeFilmsChunked(data);
       }
     } catch {
       offlineFilms = cloneFilms(FILMS);
@@ -1236,11 +1324,11 @@
     if (catalogInFlight) return catalogInFlight;
     catalogInFlight = (async () => {
       await loadOfflineFallback();
-      addFilmsToCatalog(cloneFilms(offlineFilms));
-      addFilmsToCatalog(cloneFilms(FILMS));
+      addFilmsToCatalog(offlineFilms, true);
+      addFilmsToCatalog(FILMS);
       const live = await ensureDiscoverPool(80);
       if (!live && !state.catalogLive) {
-        if (!state.catalog.length) state.catalog = cloneFilms(offlineFilms);
+        if (!state.catalog.length) state.catalog = offlineFilms.slice();
         state.catalogLive = false;
       }
       mergeKnownIntoCatalog();
@@ -1252,6 +1340,28 @@
     } finally {
       catalogInFlight = null;
     }
+  }
+
+  function scheduleCatalogLoad() {
+    const start = () => { loadCatalog(); };
+    const afterPaint = (fn) => {
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(() => setTimeout(fn, 0));
+      } else {
+        setTimeout(fn, 0);
+      }
+    };
+    if (state.screen === "login") {
+      ensureLoginPostersPreloaded().finally(() => {
+        if (typeof requestIdleCallback === "function") {
+          requestIdleCallback(() => start(), { timeout: 1800 });
+        } else {
+          afterPaint(start);
+        }
+      });
+      return;
+    }
+    afterPaint(start);
   }
 
   function anyFilterOn() {
@@ -2532,11 +2642,12 @@
 
   function watchlistFilms() {
     return watchlist()
-      .map((row) => findFilm(row.id))
+      .map((row) => filmWithPoster(findFilm(row.id)))
       .filter(Boolean);
   }
 
   function renderListRow(film, opts) {
+    film = filmWithPoster(film) || film;
     const extra = opts.extra || "";
     const unrated = opts.unrated;
     const runtime = durationPill(film);
@@ -2560,7 +2671,7 @@
     }
     return `
       <article class="film-row${unrated ? " is-unrated" : ""}"${opts.toggle ? "" : " data-swipe-row"} data-id="${id}">
-        ${posterTile(film)}
+        ${posterTile(film, { lazy: true, size: POSTER_SIZE_THUMB })}
         <div class="film-row-body">
           <div class="film-row-titleline">
             <h3 class="film-row-title">${escapeHtml(film.title)}</h3>
@@ -2706,11 +2817,11 @@
   }
 
   function allKnownFilms() {
+    if (state.catalog && state.catalog.length) return state.catalog;
     const map = new Map();
     LOGIN_POSTERS.forEach((row) => mergeKnownFilm(map, row));
-    cloneFilms(FILMS).forEach((row) => mergeKnownFilm(map, row));
+    FILMS.forEach((row) => mergeKnownFilm(map, row));
     (offlineFilms || []).forEach((row) => mergeKnownFilm(map, row));
-    (state.catalog || []).forEach((row) => mergeKnownFilm(map, row));
     Object.values(loadKnownFilms()).forEach((row) => mergeKnownFilm(map, row));
     return Array.from(map.values());
   }
@@ -2796,6 +2907,7 @@
     const films = watchSheetFilms();
     list.innerHTML = renderWatchSheetRows(films);
     list.scrollTop = scrollTop;
+    observeListPostersSoon(list);
     enrichListCast(films);
   }
 
@@ -2829,6 +2941,7 @@
     if (!list) return;
     const rows = renderWatchRows();
     list.innerHTML = rows || `<p class="hint">Noch nichts auf der Watchlist.</p>`;
+    observeListPostersSoon(list);
     enrichListCast(watchlistFilms());
     paintZufallChip();
     scheduleFooterSync();
@@ -2907,6 +3020,7 @@
       return;
     }
     const films = watchSheetFilms();
+    observeListPostersSoon(watchSheetEl);
     enrichListCast(films);
     if (state.watchSheet === "search") {
       const input = watchSheetEl.querySelector("[data-act=watch-search]");
@@ -2924,6 +3038,11 @@
     state.watchSheet = "add";
     state.watchCat = state.watchCat || "blockbuster";
     paintWatchSheet();
+    if (!state.catalog.length) {
+      loadCatalog().then(() => {
+        if (state.watchSheet === "add") paintWatchSheetList();
+      });
+    }
   }
 
   function openWatchSearchSheet() {
@@ -2983,23 +3102,39 @@
       paintWatchSheetList();
       return;
     }
-    const local = catalogTitleHits(q);
-    state.searchHits = local;
-    local.forEach((film) => rememberFilm(film));
-    if (!tmdbKey()) {
-      searchSeq += 1;
-      state.searchStatus = local.length ? "ok" : "empty";
+    const applyLocal = () => {
+      const local = catalogTitleHits(q);
+      state.searchHits = local;
+      local.forEach((film) => rememberFilm(film));
+      if (!tmdbKey()) {
+        searchSeq += 1;
+        state.searchStatus = local.length ? "ok" : "empty";
+        paintWatchSheetList();
+        return false;
+      }
+      state.searchStatus = local.length ? "ok" : "loading";
       paintWatchSheetList();
+      return true;
+    };
+    if (!state.catalog.length) {
+      loadCatalog().then(() => {
+        if (state.watchSheet !== "search" || String(state.watchSearch || "").trim() !== q) return;
+        if (applyLocal()) {
+          searchTimer = window.setTimeout(() => {
+            runTitleSearch(q);
+          }, 200);
+        }
+      });
       return;
     }
-    state.searchStatus = local.length ? "ok" : "loading";
-    paintWatchSheetList();
+    if (!applyLocal()) return;
     searchTimer = window.setTimeout(() => {
       runTitleSearch(q);
     }, 200);
   }
 
   async function runTitleSearch(query) {
+    if (!state.catalog.length) await loadCatalog();
     const seq = ++searchSeq;
     const local = catalogTitleHits(query);
     state.searchHits = local;
@@ -3589,9 +3724,10 @@
     const films = zufallPoolFilms().filter((film) => film.poster).slice(0, 3);
     const fallback = HERO_COVERS.map((row) => ({ poster: row.src }));
     const tiles = (films.length ? films.concat(fallback).slice(0, 3) : fallback);
-    return tiles.map((film) => (
-      `<img class="zufall-chip-tile" src="${escapeHtml(film.poster)}" alt="" width="24" height="36" referrerpolicy="no-referrer">`
-    )).join("");
+    return tiles.map((film) => {
+      const src = posterUrl(film, POSTER_SIZE_THUMB) || film.poster;
+      return `<img class="zufall-chip-tile" src="${escapeHtml(src)}" alt="" width="24" height="36" decoding="async" referrerpolicy="no-referrer">`;
+    }).join("");
   }
 
   function paintZufallChip() {
@@ -3846,6 +3982,7 @@
     else if (state.screen === "lists") {
       app.innerHTML = renderLists();
       bindFilmListScroll();
+      observeListPostersSoon(app);
       const shown = app.querySelectorAll(".film-row");
       const films = [...shown].map((row) => findFilm(row.dataset.id)).filter(Boolean);
       enrichListCast(films);
@@ -4752,7 +4889,7 @@
   restoreSession();
   ensureLoginPostersPreloaded();
   render();
-  loadCatalog();
+  scheduleCatalogLoad();
 
   window.CinexTmdb = {
     url: tmdbUrl,

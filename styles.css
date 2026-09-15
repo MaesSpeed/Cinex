@@ -871,6 +871,12 @@ body.on-home #app {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+.poster img:not([src]) {
+  visibility: hidden;
 }
 
 .film-meta { min-width: 0; flex: 1; }
