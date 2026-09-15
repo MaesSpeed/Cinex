@@ -2395,6 +2395,11 @@ body.on-login #app {
   width: 124px;
   height: 186px;
   border: 2px solid var(--ember-border);
+  box-shadow:
+    0 0 0 2px rgba(var(--ember-gold), 0.42),
+    0 0 16px 4px rgba(212, 128, 80, 0.34),
+    0 0 32px 10px rgba(var(--ember-rose), 0.18),
+    0 6px 14px rgba(16, 32, 48, 0.26);
   animation: ember-flicker 2s ease-in-out infinite;
 }
 .login-carousel.zufall-carousel.is-settled .login-cover-center.is-rest {
