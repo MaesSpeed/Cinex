@@ -454,6 +454,7 @@
     searchHits: [],
     searchStatus: "",
     watchSheet: null,
+    watchSheetBaselineIds: null,
     watchCat: "blockbuster",
     watchSearch: "",
     discoverPage: 0,
@@ -2399,9 +2400,22 @@
     return -1;
   }
 
+  function watchSheetHiddenIds() {
+    if (state.watchSheetBaselineIds) return state.watchSheetBaselineIds;
+    return new Set(watchlist().map((row) => String(row.id)));
+  }
+
   function withoutWatchlisted(films) {
-    const listed = new Set(watchlist().map((row) => String(row.id)));
+    const listed = watchSheetHiddenIds();
     return (films || []).filter((film) => film && !listed.has(filmId(film)));
+  }
+
+  function captureWatchSheetBaseline() {
+    state.watchSheetBaselineIds = new Set(watchlist().map((row) => String(row.id)));
+  }
+
+  function clearWatchSheetBaseline() {
+    state.watchSheetBaselineIds = null;
   }
 
   function mergeKnownFilm(map, row) {
@@ -2515,8 +2529,10 @@
     if (!watchSheetEl || !state.watchSheet) return;
     const list = watchSheetEl.querySelector("[data-role=watch-sheet-list]");
     if (!list) return;
+    const scrollTop = list.scrollTop;
     const films = watchSheetFilms();
     list.innerHTML = renderWatchSheetRows(films);
+    list.scrollTop = scrollTop;
     enrichListCast(films);
   }
 
@@ -2621,12 +2637,14 @@
 
   function openWatchAddSheet() {
     closeFilmMenus();
+    if (!state.watchSheet) captureWatchSheetBaseline();
     state.watchSheet = "add";
     state.watchCat = state.watchCat || "blockbuster";
     paintWatchSheet();
   }
 
   function openWatchSearchSheet() {
+    if (!state.watchSheetBaselineIds) captureWatchSheetBaseline();
     state.watchSheet = "search";
     paintWatchSheet();
     if (state.watchSearch.trim()) scheduleTitleSearch(state.watchSearch);
@@ -2636,6 +2654,7 @@
     window.clearTimeout(searchTimer);
     searchSeq += 1;
     state.watchSheet = null;
+    clearWatchSheetBaseline();
     state.watchSearch = "";
     state.searchHits = [];
     state.searchStatus = "";
