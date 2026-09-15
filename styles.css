@@ -2340,6 +2340,7 @@ body.on-login #app {
 }
 
 .login-carousel.zufall-carousel {
+  --login-scale: 1;
   flex: 1 1 auto;
   height: auto;
   min-height: 260px;
