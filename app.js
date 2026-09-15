@@ -3321,7 +3321,10 @@
     const quiet = !!(opts && opts.quiet);
     const idx = nearestPoolIndex(index);
     const step = 360 / Math.max(1, zufallUi.posters.length);
-    zufallUi.angle = -idx * step;
+    const snapped = -idx * step;
+    let turns = Math.round((zufallUi.angle - snapped) / 360);
+    if (!Number.isFinite(turns)) turns = 0;
+    zufallUi.angle = snapped + (turns * 360);
     zufallUi.front = tripletAt(idx);
     zufallUi.frontLocked = true;
     zufallUi.phase = "result";
