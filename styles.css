@@ -2510,6 +2510,8 @@ body.on-login #app {
   white-space: nowrap;
   flex: 0 0 auto;
 }
+
+.zufall-sources .chip.is-origin {
   border-color: var(--ember-border);
   background: #fffaf5;
   animation: ember-flicker 2s ease-in-out infinite;
@@ -2623,7 +2625,7 @@ body.on-login #app {
 
 .login-carousel.zufall-carousel.is-settled .login-carousel-stage { bottom: 140px; }
 .login-carousel.zufall-carousel.is-settled .login-carousel-front {
-  bottom: 8px;
+  bottom: 28px;
   height: 186px;
 }
 .login-carousel.zufall-carousel.is-settled .login-cover-side {
@@ -2665,6 +2667,10 @@ body.on-login #app {
 .zufall-cues[hidden],
 .login-carousel.zufall-carousel:not(.is-cuing):not(.is-settled) .zufall-cues {
   display: none !important;
+}
+
+.login-carousel.zufall-carousel.is-settled .zufall-cue {
+  visibility: hidden;
 }
 
 .zufall-cue {
