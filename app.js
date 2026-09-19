@@ -3710,7 +3710,6 @@
     if (swipen) {
       swipen.hidden = !on;
       swipen.classList.toggle("is-on", on && !ember);
-      swipen.classList.toggle("is-ember", ember);
     }
   }
 

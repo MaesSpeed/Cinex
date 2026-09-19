@@ -2738,7 +2738,10 @@ body.on-login #app {
   font-weight: 600;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--blue);
+  color: var(--ember-border);
+  text-shadow:
+    0 0 8px rgba(var(--ember-gold), 0.72),
+    0 0 14px rgba(var(--ember-rose), 0.35);
   opacity: 0;
 }
 
@@ -2746,17 +2749,15 @@ body.on-login #app {
   animation: zufall-swipen-pulse 3s ease-in-out infinite;
 }
 
-.zufall-swipen.is-ember,
+.login-carousel.zufall-carousel.is-settled .zufall-swipen {
+  opacity: 0.95;
+}
+
 .zufall-title-center.is-ember {
   color: var(--ember-border);
   text-shadow:
     0 0 8px rgba(var(--ember-gold), 0.72),
     0 0 14px rgba(var(--ember-rose), 0.35);
-}
-
-.zufall-swipen.is-ember {
-  animation: none;
-  opacity: 0.95;
 }
 
 .zufall-swipen[hidden] {
