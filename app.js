@@ -159,26 +159,26 @@
   );
 
   const FILMS = [
-    f(238, "Der Pate", ["Krimi", "Drama"], 175, 8.7, ["Marlon Brando", "Al Pacino", "James Caan"], "The Godfather"),
-    f(680, "Pulp Fiction", ["Krimi", "Drama"], 154, 8.5, ["John Travolta", "Samuel L. Jackson", "Uma Thurman"]),
-    f(13, "Forrest Gump", ["Drama", "Romanze"], 142, 8.5, ["Tom Hanks", "Robin Wright", "Gary Sinise"]),
-    f(603, "Matrix", ["Sci-Fi", "Action"], 136, 8.2, ["Keanu Reeves", "Laurence Fishburne", "Carrie-Anne Moss"], "The Matrix"),
-    f(27205, "Inception", ["Sci-Fi", "Action"], 148, 8.4, ["Leonardo DiCaprio", "Joseph Gordon-Levitt", "Elliot Page"]),
-    f(157336, "Interstellar", ["Sci-Fi", "Drama"], 169, 8.4, ["Matthew McConaughey", "Anne Hathaway", "Jessica Chastain"]),
-    f(496243, "Parasite", ["Thriller", "Drama"], 132, 8.5, ["Song Kang-ho", "Lee Sun-kyun", "Cho Yeo-jeong"]),
-    f(597, "Titanic", ["Drama", "Romanze"], 194, 7.9, ["Leonardo DiCaprio", "Kate Winslet", "Billy Zane"]),
-    f(19995, "Avatar", ["Sci-Fi", "Abenteuer"], 162, 7.6, ["Sam Worthington", "Zoe Saldana", "Sigourney Weaver"]),
-    f(120, "Der Herr der Ringe: Die Gefährten", ["Fantasy", "Abenteuer"], 178, 8.4, ["Elijah Wood", "Ian McKellen", "Viggo Mortensen"], "The Lord of the Rings: The Fellowship of the Ring"),
-    f(155, "The Dark Knight", ["Action", "Krimi"], 152, 8.5, ["Christian Bale", "Heath Ledger", "Aaron Eckhart"]),
-    f(671, "Harry Potter und der Stein der Weisen", ["Fantasy", "Abenteuer"], 152, 7.6, ["Daniel Radcliffe", "Rupert Grint", "Emma Watson"], "Harry Potter and the Philosopher's Stone"),
-    f(862, "Toy Story", ["Animation", "Komödie"], 81, 8.0, ["Tom Hanks", "Tim Allen", "Don Rickles"]),
-    f(129, "Chihiros Reise ins Zauberland", ["Animation", "Fantasy"], 125, 8.5, ["Rumi Hiiragi", "Miyu Irino", "Mari Natsuki"], "Spirited Away"),
-    f(550, "Fight Club", ["Drama", "Thriller"], 139, 8.4, ["Brad Pitt", "Edward Norton", "Helena Bonham Carter"]),
-    f(278, "Die Verurteilten", ["Drama"], 142, 8.7, ["Tim Robbins", "Morgan Freeman", "Bob Gunton"], "The Shawshank Redemption"),
-    f(872585, "Oppenheimer", ["Drama", "Historie"], 180, 8.1, ["Cillian Murphy", "Emily Blunt", "Robert Downey Jr."]),
-    f(569094, "Spider-Man: Across the Spider-Verse", ["Animation", "Action"], 140, 8.4, ["Shameik Moore", "Hailee Steinfeld", "Brian Tyree Henry"]),
-    f(693134, "Dune: Part Two", ["Sci-Fi", "Abenteuer"], 166, 8.1, ["Timothée Chalamet", "Zendaya", "Rebecca Ferguson"]),
-    f(361743, "Top Gun: Maverick", ["Action"], 131, 8.2, ["Tom Cruise", "Miles Teller", "Jennifer Connelly"]),
+    f(238, "Der Pate", ["Krimi", "Drama"], 175, 8.7, ["Marlon Brando", "Al Pacino", "James Caan"], "The Godfather", "Der alternde Don Corleone übergibt sein New Yorker Mafia-Imperium an den Sohn, der eigentlich rausbleiben wollte."),
+    f(680, "Pulp Fiction", ["Krimi", "Drama"], 154, 8.5, ["John Travolta", "Samuel L. Jackson", "Uma Thurman"], "", "Verwobene Gangster-Episoden in Los Angeles: Koffer, Boxkampf, Diners und ein Paar auf Raubzug."),
+    f(13, "Forrest Gump", ["Drama", "Romanze"], 142, 8.5, ["Tom Hanks", "Robin Wright", "Gary Sinise"], "", "Forrest stolpert durch Jahrzehnte US-Geschichte – mit Laufschuhen, Pralinen und einer großen Liebe."),
+    f(603, "Matrix", ["Sci-Fi", "Action"], 136, 8.2, ["Keanu Reeves", "Laurence Fishburne", "Carrie-Anne Moss"], "The Matrix", "Ein Hacker erkennt, dass die Welt Simulation ist, und schließt sich dem Widerstand gegen die Maschinen an."),
+    f(27205, "Inception", ["Sci-Fi", "Action"], 148, 8.4, ["Leonardo DiCaprio", "Joseph Gordon-Levitt", "Elliot Page"], "", "Diebe steigen in Träume ein, um Ideen zu pflanzen – je tiefer die Ebene, desto brüchiger die Realität."),
+    f(157336, "Interstellar", ["Sci-Fi", "Drama"], 169, 8.4, ["Matthew McConaughey", "Anne Hathaway", "Jessica Chastain"], "", "Mit der Erde am Ende fliegt eine Crew durch ein Wurmloch, um der Menschheit eine neue Heimat zu finden."),
+    f(496243, "Parasite", ["Thriller", "Drama"], 132, 8.5, ["Song Kang-ho", "Lee Sun-kyun", "Cho Yeo-jeong"], "", "Eine arme Familie schleust sich in den Haushalt der Reichen ein – der Klassengraben kippt ins Absurde."),
+    f(597, "Titanic", ["Drama", "Romanze"], 194, 7.9, ["Leonardo DiCaprio", "Kate Winslet", "Billy Zane"], "", "An Bord der Titanic verlieben sich Jack und Rose, während das Schiff auf den Eisberg zusteuert."),
+    f(19995, "Avatar", ["Sci-Fi", "Abenteuer"], 162, 7.6, ["Sam Worthington", "Zoe Saldana", "Sigourney Weaver"], "", "Ein gelähmter Marine wird als Avatar nach Pandora geschickt und stellt sich auf die Seite der Na’vi."),
+    f(120, "Der Herr der Ringe: Die Gefährten", ["Fantasy", "Abenteuer"], 178, 8.4, ["Elijah Wood", "Ian McKellen", "Viggo Mortensen"], "The Lord of the Rings: The Fellowship of the Ring", "Frodo soll den Einen Ring vernichten. Eine Gefährtengruppe geleitet ihn aus dem Auenland nach Mordor."),
+    f(155, "The Dark Knight", ["Action", "Krimi"], 152, 8.5, ["Christian Bale", "Heath Ledger", "Aaron Eckhart"], "", "Batman, Gordon und Harvey Dent jagen den Joker, der Gotham in Chaos und moralische Fallen stürzt."),
+    f(671, "Harry Potter und der Stein der Weisen", ["Fantasy", "Abenteuer"], 152, 7.6, ["Daniel Radcliffe", "Rupert Grint", "Emma Watson"], "Harry Potter and the Philosopher's Stone", "Harry erfährt, dass er ein Zauberer ist, und erlebt sein erstes Jahr in Hogwarts – samt Stein der Weisen."),
+    f(862, "Toy Story", ["Animation", "Komödie"], 81, 8.0, ["Tom Hanks", "Tim Allen", "Don Rickles"], "", "Spielzeug wird lebendig, sobald niemand hinsieht. Sheriff Woody fürchtet den neuen Liebling Buzz Lightyear."),
+    f(129, "Chihiros Reise ins Zauberland", ["Animation", "Fantasy"], 125, 8.5, ["Rumi Hiiragi", "Miyu Irino", "Mari Natsuki"], "Spirited Away", "Chihiro gerät in eine Geisterwelt und muss in einem Badehaus arbeiten, um ihre in Schweine verwandelten Eltern zu retten."),
+    f(550, "Fight Club", ["Drama", "Thriller"], 139, 8.4, ["Brad Pitt", "Edward Norton", "Helena Bonham Carter"], "", "Ein schlafloser Angestellter gründet mit dem chaotischen Tyler Durden einen Untergrund-Kampfclub."),
+    f(278, "Die Verurteilten", ["Drama"], 142, 8.7, ["Tim Robbins", "Morgan Freeman", "Bob Gunton"], "The Shawshank Redemption", "Unschuldig in Shawshank, hält Andy an Hoffnung und einer langen, stillen Flucht fest."),
+    f(872585, "Oppenheimer", ["Drama", "Historie"], 180, 8.1, ["Cillian Murphy", "Emily Blunt", "Robert Downey Jr."], "", "Robert Oppenheimer leitet das Manhattan-Projekt – und trägt danach die Last der Atombombe."),
+    f(569094, "Spider-Man: Across the Spider-Verse", ["Animation", "Action"], 140, 8.4, ["Shameik Moore", "Hailee Steinfeld", "Brian Tyree Henry"], "", "Miles Morales trifft Spider-People aus anderen Universen und muss gegen ein festgeschriebenes Schicksal ankämpfen."),
+    f(693134, "Dune: Part Two", ["Sci-Fi", "Abenteuer"], 166, 8.1, ["Timothée Chalamet", "Zendaya", "Rebecca Ferguson"], "", "Paul Atreides geht unter den Fremen auf Arrakis seinen Weg – zwischen Rache, Prophezeiung und Wüstenkrieg."),
+    f(361743, "Top Gun: Maverick", ["Action"], 131, 8.2, ["Tom Cruise", "Miles Teller", "Jennifer Connelly"], "", "Pete „Maverick“ Mitchell trainiert Top-Gun-Piloten für eine fast unmögliche Mission – darunter der Sohn seines alten Freundes."),
   ];
 
   const WATCH_CATS = [
@@ -216,7 +216,7 @@
     return [];
   }
 
-  function f(id, title, genres, runtime, vote_average, cast, originalTitle) {
+  function f(id, title, genres, runtime, vote_average, cast, originalTitle, overview) {
     return {
       id: `t${id}`,
       tmdb: id,
@@ -231,6 +231,7 @@
       poster: "",
       color: "#1d4f91",
       cast: Array.isArray(cast) ? cast.slice() : [],
+      overview: overview || "",
     };
   }
 
@@ -282,6 +283,7 @@
       popularity: Number(raw.popularity) || 0,
       vote_count: Number(raw.vote_count) || 0,
       providers,
+      overview: String(raw.overview || raw.plot || raw.tagline || "").trim(),
     };
   }
 
@@ -370,6 +372,7 @@
       release_date: raw.release_date || "",
       popularity: Number(raw.popularity) || 0,
       vote_count: Number(raw.vote_count) || 0,
+      overview: String(raw.overview || "").trim(),
     });
   }
 
@@ -538,6 +541,7 @@
     eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.7 12S6.1 6.6 12 6.6 21.3 12 21.3 12 17.9 17.4 12 17.4 2.7 12 2.7 12z"/><circle cx="12" cy="12" r="2.35"/></svg>`,
     eyeOff: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5.1 19.4 20.5"/><path d="M10.1 10.4a2.35 2.35 0 0 0 3.4 3.3"/><path d="M7.1 7.6C5 8.9 3.4 11.1 2.7 12c0 0 3.4 5.4 9.3 5.4 1.6 0 3-.3 4.2-.8"/><path d="M16.8 16.1c1.8-1.2 3.2-3 3.8-4.1 0 0-1.6-2.6-4.5-4.2"/></svg>`,
     menu: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>`,
+    chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`,
   };
 
   function rateIcon(id) {
@@ -606,6 +610,7 @@
     tagEditId: null,
     editTagName: "",
     editTagColor: "#0066B3",
+    expandedFilmId: null,
   };
 
   const app = document.getElementById("app");
@@ -816,6 +821,7 @@
         popularity: Math.max(Number(n.popularity) || 0, Number(prev.popularity) || 0),
         vote_count: Math.max(Number(n.vote_count) || 0, Number(prev.vote_count) || 0),
         providers: (n.providers && n.providers.length) ? n.providers : (prev.providers || []),
+        overview: n.overview || prev.overview || "",
       });
     } else {
       state.catalog.push(n);
@@ -876,6 +882,20 @@
       names = filmCastNames(fallback).slice(0, 3);
     }
     return names.join(", ");
+  }
+
+  function filmOverview(film) {
+    const text = String((film && (film.overview || film.plot || film.tagline)) || "").trim();
+    if (text) return text;
+    const fallback = film && FILMS.find((row) => filmId(row) === filmId(film));
+    return String((fallback && fallback.overview) || "").trim();
+  }
+
+  function clipPlot(text, max) {
+    const t = String(text || "").replace(/\s+/g, " ").trim();
+    const limit = max || 280;
+    if (t.length <= limit) return t;
+    return `${t.slice(0, limit - 1).replace(/\s+\S*$/, "").trim()}…`;
   }
 
   const castFetchTried = new Set();
@@ -1635,6 +1655,7 @@
     state.tagFilter = [id];
     state.screen = "lists";
     state.tagEditId = null;
+    state.expandedFilmId = null;
     render();
   }
 
@@ -1652,6 +1673,7 @@
     closeModal();
     state.user = null;
     state.profile = null;
+    state.expandedFilmId = null;
     state.screen = "login";
     persistSession();
     render();
@@ -2803,36 +2825,49 @@
     const sub = extra && extra !== cast ? extra : "";
     const line = [cast, sub].filter(Boolean).join(" · ");
     const id = escapeHtml(filmId(film));
+    const hid = filmId(film);
     const onWatch = isOnWatchlist(film);
+    const expandable = !opts.toggle;
+    const open = expandable && state.expandedFilmId === hid;
     let control;
     let menuPop = "";
     if (opts.toggle) {
       control = `<button type="button" class="watch-toggle${onWatch ? " is-on" : ""}" data-act="watch-toggle" data-id="${id}" aria-pressed="${onWatch}" aria-label="${onWatch ? "Von Watchlist entfernen" : "Zur Watchlist hinzufügen"}">${onWatch ? ICONS.check : ICONS.plus}</button>`;
-    } else {
-      let menuInner = opts.menu;
-      if (!menuInner) {
-        if (opts.rates || unrated) menuInner = `<div class="film-row-rates">${renderRates(film, true)}</div>`;
-        else menuInner = `<p class="film-menu-placeholder">Menü folgt</p>`;
-      }
+    } else if (opts.menu) {
       control = `<button type="button" class="film-row-menu" data-act="film-menu" data-id="${id}" aria-label="Filmmenü" aria-expanded="false">${ICONS.menu}</button>`;
-      menuPop = `<div class="film-menu-pop" hidden>${menuInner}</div>`;
+      menuPop = `<div class="film-menu-pop" hidden>${opts.menu}</div>`;
+    } else {
+      control = `<button type="button" class="film-row-chevron" data-act="film-expand" data-id="${id}" aria-expanded="${open}" aria-label="${open ? "Zuklappen" : "Aufklappen"}">${ICONS.chevron}</button>`;
     }
-    const article = `
-      <article class="film-row${unrated ? " is-unrated" : ""}${opts.swipeMode ? " swipe-front" : ""}"${opts.swipeMode ? "" : " data-swipe-row"} data-id="${id}"${opts.gesehen ? ' data-seen="1"' : ""}>
-        ${posterTile(film, { lazy: true, size: POSTER_SIZE_THUMB })}
-        <div class="film-row-body">
-          <div class="film-row-titleline">
-            <h3 class="film-row-title">${escapeHtml(film.title)}</h3>
-            ${runtime ? `<span class="duration-pill">${escapeHtml(runtime)}</span>` : ""}
-          </div>
-          ${line ? `<p class="film-row-cast">${escapeHtml(line)}</p>` : ""}
+    const plot = clipPlot(filmOverview(film));
+    const tags = expandable ? renderFilmTagChips(film) : "";
+    const expand = expandable ? `
+        <div class="film-row-expand"${open ? "" : " hidden"}>
+          ${plot ? `<p class="film-row-plot">${escapeHtml(plot)}</p>` : ""}
+          ${tags ? `<div class="film-menu-tags">${tags}</div>` : ""}
+          <div class="film-row-rates">${renderRates(film, true)}</div>
+          <button type="button" class="film-row-fold" data-act="film-expand" data-id="${id}">Zuklappen</button>
         </div>
-        ${control}
-        ${menuPop}
+      ` : "";
+    const article = `
+      <article class="film-row${unrated ? " is-unrated" : ""}${opts.swipeMode ? " swipe-front" : ""}${expandable ? " is-expandable" : ""}${open ? " is-open" : ""}"${opts.swipeMode ? "" : " data-swipe-row"} data-id="${id}"${opts.gesehen ? ' data-seen="1"' : ""}>
+        <div class="film-row-head"${expandable ? ` data-act="film-expand" data-id="${id}" aria-expanded="${open}"` : ""}>
+          ${posterTile(film, { lazy: true, size: POSTER_SIZE_THUMB })}
+          <div class="film-row-body">
+            <div class="film-row-titleline">
+              <h3 class="film-row-title">${escapeHtml(film.title)}</h3>
+              ${runtime ? `<span class="duration-pill">${escapeHtml(runtime)}</span>` : ""}
+            </div>
+            ${line ? `<p class="film-row-cast">${escapeHtml(line)}</p>` : ""}
+          </div>
+          ${control}
+          ${menuPop}
+        </div>
+        ${expand}
       </article>
     `;
     if (!opts.swipeMode) return article;
-    return wrapSwipeTrack(article, filmId(film), opts.swipeMode);
+    return wrapSwipeTrack(article, hid, opts.swipeMode);
   }
 
   function wrapSwipeTrack(inner, id, mode) {
@@ -3084,6 +3119,7 @@
       popularity: Math.max(Number(n.popularity) || 0, Number(prev.popularity) || 0),
       vote_count: Math.max(Number(n.vote_count) || 0, Number(prev.vote_count) || 0),
       providers: (n.providers && n.providers.length) ? n.providers : (prev.providers || []),
+      overview: n.overview || prev.overview || "",
     }));
   }
 
@@ -3291,13 +3327,11 @@
 
   function renderWatchRows() {
     return watchlistFilms().map((film) => {
-      const tags = renderFilmTagChips(film);
       return renderListRow(film, {
         swipeMode: "watch",
         menu: `
           <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Anschauen</button>
           <button type="button" class="btn btn-compact" data-act="watch-remove" data-id="${escapeHtml(filmId(film))}">Streichen</button>
-          ${tags ? `<div class="film-menu-tags">${tags}</div>` : ""}
         `,
       });
     }).join("");
@@ -3321,6 +3355,7 @@
     paintZufallChip();
     updateFooter();
     scheduleFooterSync();
+    if (state.expandedFilmId) enrichExpandedOverview(state.expandedFilmId);
   }
 
   function renderWatchSheetHtml() {
@@ -4334,13 +4369,11 @@
 
   function renderQueueRows() {
     return queueFilms().map((film) => {
-      const tags = renderFilmTagChips(film);
       return renderListRow(film, {
         swipeMode: "queue",
         menu: `
           <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Anschauen</button>
           <button type="button" class="btn btn-compact" data-act="queue-remove" data-id="${escapeHtml(filmId(film))}">Streichen</button>
-          ${tags ? `<div class="film-menu-tags">${tags}</div>` : ""}
         `,
       });
     }).join("");
@@ -4543,6 +4576,7 @@
       const shown = app.querySelectorAll(".film-row");
       const films = [...shown].map((row) => findFilm(row.dataset.id)).filter(Boolean);
       if (state.listTab !== "seen") enrichListCast(films);
+      if (state.expandedFilmId) enrichExpandedOverview(state.expandedFilmId);
     }
     else if (state.screen === "tags") app.innerHTML = renderTagsManage();
     else if (state.screen === "done") app.innerHTML = renderDone();
@@ -4616,12 +4650,42 @@
     if (state.profile) loadCatalog();
   }
 
+  async function fetchFilmOverview(film) {
+    const have = filmOverview(film);
+    if (have) return have;
+    if (!film || !film.tmdb || !tmdbKey()) return "";
+    try {
+      const data = await tmdbFetch(`/movie/${film.tmdb}`);
+      const text = String((data && data.overview) || "").trim();
+      if (text) {
+        rememberFilm({ ...film, overview: text });
+        return text;
+      }
+    } catch {
+      /* keep empty plot */
+    }
+    return "";
+  }
+
+  async function enrichExpandedOverview(id) {
+    const film = findFilm(id);
+    if (!film || state.expandedFilmId !== filmId(film)) return;
+    if (filmOverview(film)) return;
+    const text = await fetchFilmOverview(film);
+    if (!text || state.expandedFilmId !== filmId(film) || state.screen !== "lists") return;
+    const box = app.querySelector(".film-row.is-open .film-row-expand");
+    if (!box || box.querySelector(".film-row-plot")) return;
+    box.insertAdjacentHTML("afterbegin", `<p class="film-row-plot">${escapeHtml(clipPlot(text))}</p>`);
+  }
+
   async function enrichFilm(film) {
     if (!film || !film.tmdb) return film;
     if (film.runtime && film.poster && film.genres && film.genres.length) return film;
     try {
       const data = await tmdbFetch(`/movie/${film.tmdb}`);
-      return rememberFilm(fromTmdbMovie(data)) || film;
+      const next = fromTmdbMovie(data);
+      if (next && data && data.overview) next.overview = String(data.overview).trim();
+      return rememberFilm(next) || film;
     } catch {
       return film;
     }
@@ -4841,6 +4905,7 @@
       if (!profile) return;
       state.profile = profile;
       resetSessionPicks();
+      state.expandedFilmId = null;
       state.screen = "home";
       persistSession();
       render();
@@ -4958,6 +5023,7 @@
       state.searchHits = [];
       state.searchStatus = "";
       state.screen = "lists";
+      state.expandedFilmId = null;
       render();
       return;
     }
@@ -4973,6 +5039,7 @@
     }
     if (act === "switch") {
       state.profile = null;
+      state.expandedFilmId = null;
       state.screen = "profiles";
       persistSession();
       render();
@@ -5029,6 +5096,14 @@
       render();
       return;
     }
+    if (act === "film-expand") {
+      const hid = filmId(t.dataset.id);
+      state.expandedFilmId = state.expandedFilmId === hid ? null : hid;
+      closeFilmMenus();
+      render();
+      if (state.expandedFilmId) enrichExpandedOverview(state.expandedFilmId);
+      return;
+    }
     if (act === "film-menu") {
       const row = t.closest(".film-row");
       const pop = row ? row.querySelector(".film-menu-pop") : null;
@@ -5068,6 +5143,7 @@
     }
     if (act === "list-tab") {
       state.listTab = t.dataset.id;
+      state.expandedFilmId = null;
       render();
       return;
     }
@@ -5204,6 +5280,7 @@
     if (t.dataset.act === "back") goBack();
     if (t.dataset.act === "switch") {
       state.profile = null;
+      state.expandedFilmId = null;
       state.screen = "profiles";
       persistSession();
       render();
@@ -5315,6 +5392,7 @@
       state.searchHits = [];
       state.searchStatus = "";
       state.screen = "lists";
+      state.expandedFilmId = null;
       render();
       return;
     }
@@ -5382,7 +5460,8 @@
     if (event.pointerType === "mouse" && event.button !== 0) return;
     const row = event.target.closest("[data-swipe-row]");
     if (!row || !row.dataset.swipeMode) return;
-    if (event.target.closest("[data-act=film-menu], .film-menu-pop, [data-act=watch-toggle]")) return;
+    if (event.target.closest("[data-act=film-menu], .film-menu-pop, [data-act=watch-toggle], .film-row-expand, [data-act=rate], [data-act=film-tag]")) return;
+    if (event.target.closest(".film-row.is-open")) return;
     if (swipeDrag) return;
     swipeDrag = {
       id: event.pointerId,
