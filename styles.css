@@ -1331,15 +1331,36 @@ body.on-lists.has-footer.footer-open #app {
   overflow: hidden;
 }
 
+.film-row.is-open {
+  box-shadow: 0 4px 14px rgba(0, 102, 179, 0.12);
+  border: 1px solid rgba(0, 102, 179, 0.18);
+}
+
+.swipe-track:has(.film-row.is-open) {
+  overflow: visible;
+  box-shadow: 0 4px 14px rgba(0, 102, 179, 0.12);
+  border: 1px solid rgba(0, 102, 179, 0.18);
+}
+
+.swipe-track:has(.film-row.is-open) .film-row.is-open {
+  box-shadow: none;
+  border: 0;
+}
+
 .film-row-head {
   display: flex;
   align-items: stretch;
   gap: 8px;
   min-height: 56px;
+  height: 56px;
   width: 100%;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
   cursor: pointer;
+}
+
+.film-row.is-open .film-row-head {
+  border-bottom: 1px solid var(--border);
 }
 
 .film-row.is-expandable .film-row-head {
@@ -1347,6 +1368,8 @@ body.on-lists.has-footer.footer-open #app {
 }
 
 .film-row:not(.is-expandable) .film-row-head {
+  height: auto;
+  min-height: 56px;
   cursor: default;
 }
 
@@ -1370,60 +1393,153 @@ body.on-lists.has-footer.footer-open #app {
   width: 18px;
   height: 18px;
   display: block;
-  transition: transform 0.16s ease;
 }
 
-.film-row.is-open .film-row-chevron svg {
-  transform: rotate(180deg);
+.film-row.is-open .film-row-chevron {
+  color: var(--blue);
+  background: var(--blue-soft);
 }
 
 .film-row-expand {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 10px 10px 48px;
-  border-top: 1px solid #e6edf3;
-  background: #fbfcfd;
+  gap: 0;
+  padding: 10px 12px;
+  background: #f7fafc;
 }
 
 .film-row-expand[hidden] {
   display: none !important;
 }
 
-.film-row-plot {
-  margin: 0;
-  font-size: 0.78rem;
-  color: var(--muted);
+.film-expand-plot {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
   line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.film-row-expand .film-menu-tags {
-  margin-top: 0;
+.film-expand-meta {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--muted);
+  line-height: 1.3;
 }
 
-.film-row-expand .film-row-rates,
-.film-row-expand .rates {
-  margin-top: 0;
+.film-expand-meta strong {
+  color: #0b3a63;
+  font-weight: 750;
+}
+
+.film-expand-seen {
+  margin: -4px 0 10px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.film-expand-in {
+  margin: 0 0 10px;
+}
+
+.film-expand-in-label,
+.film-expand-stream-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 550;
+  color: var(--muted);
+}
+
+.film-expand-in-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 0;
+}
+
+.film-expand-in .chip.is-lava {
+  box-shadow: inset 0 0 0 1.5px var(--ember-border);
+  background: #fffaf5;
+  color: #7a4a32;
+  animation: none;
+  cursor: default;
+}
+
+.film-expand-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.film-expand-tags .chip {
+  padding: 5px 10px;
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.film-expand-rates {
+  margin: 0 0 8px;
+}
+
+.film-expand-rates .rates {
+  margin: 0;
+  align-items: center;
+}
+
+.film-expand-stream {
+  margin: 2px 0 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+}
+
+.film-expand-stream[hidden] {
+  display: none !important;
+}
+
+.film-expand-stream-names {
+  margin: 2px 0 0;
+  font-size: 11px;
+  font-weight: 650;
+  color: #0b3a63;
+}
+
+.film-expand-collapse {
+  display: flex;
+  justify-content: center;
+  margin-top: 2px;
 }
 
 .film-row-fold {
-  align-self: flex-start;
-  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
   border: 0;
-  background: none;
+  border-radius: 999px;
+  background: transparent;
   color: var(--blue);
-  font-size: 0.72rem;
-  font-weight: 650;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
   cursor: pointer;
-  text-decoration: underline;
+}
+
+.film-row-fold svg {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 .film-row.is-unrated {
   background: #fff8e8;
-}
-
-.film-row.is-expandable .poster {
-  border-radius: 10px 0 0 0;
 }
 
 .film-row .poster {
@@ -1434,6 +1550,15 @@ body.on-lists.has-footer.footer-open #app {
   align-self: stretch;
   border-radius: 10px 0 0 10px;
   overflow: hidden;
+}
+
+.film-row.is-expandable .poster {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 56px;
+  min-height: 56px;
+  align-self: flex-start;
+  border-radius: 10px 0 0 10px;
 }
 
 .film-row-body {

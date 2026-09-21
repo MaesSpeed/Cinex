@@ -542,6 +542,7 @@
     eyeOff: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5.1 19.4 20.5"/><path d="M10.1 10.4a2.35 2.35 0 0 0 3.4 3.3"/><path d="M7.1 7.6C5 8.9 3.4 11.1 2.7 12c0 0 3.4 5.4 9.3 5.4 1.6 0 3-.3 4.2-.8"/><path d="M16.8 16.1c1.8-1.2 3.2-3 3.8-4.1 0 0-1.6-2.6-4.5-4.2"/></svg>`,
     menu: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>`,
     chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`,
+    chevronUp: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>`,
   };
 
   function rateIcon(id) {
@@ -2816,6 +2817,15 @@
     return originPoolCount() > 0;
   }
 
+  function lastSeenEntry(film) {
+    const hid = filmId(film);
+    return history().find((row) => String(row.id) === hid) || null;
+  }
+
+  function filmGenreLine(film) {
+    return filmGenres(film).slice(0, 2).join(" · ");
+  }
+
   function renderListRow(film, opts) {
     film = filmWithPoster(film) || film;
     const extra = opts.extra || "";
@@ -2830,23 +2840,46 @@
     const expandable = !opts.toggle;
     const open = expandable && state.expandedFilmId === hid;
     let control;
-    let menuPop = "";
     if (opts.toggle) {
       control = `<button type="button" class="watch-toggle${onWatch ? " is-on" : ""}" data-act="watch-toggle" data-id="${id}" aria-pressed="${onWatch}" aria-label="${onWatch ? "Von Watchlist entfernen" : "Zur Watchlist hinzufügen"}">${onWatch ? ICONS.check : ICONS.plus}</button>`;
-    } else if (opts.menu) {
-      control = `<button type="button" class="film-row-menu" data-act="film-menu" data-id="${id}" aria-label="Filmmenü" aria-expanded="false">${ICONS.menu}</button>`;
-      menuPop = `<div class="film-menu-pop" hidden>${opts.menu}</div>`;
     } else {
-      control = `<button type="button" class="film-row-chevron" data-act="film-expand" data-id="${id}" aria-expanded="${open}" aria-label="${open ? "Zuklappen" : "Aufklappen"}">${ICONS.chevron}</button>`;
+      control = `<button type="button" class="film-row-chevron" data-act="film-expand" data-id="${id}" aria-expanded="${open}" aria-label="${open ? "Zuklappen" : "Aufklappen"}">${open ? ICONS.chevronUp : ICONS.chevron}</button>`;
     }
     const plot = clipPlot(filmOverview(film));
     const tags = expandable ? renderFilmTagChips(film) : "";
+    const genre = filmGenreLine(film);
+    const seen = lastSeenEntry(film);
+    const seenDate = seen ? formatSeenOn(seen.at) : "";
+    const seenLine = seenDate ? `<p class="film-expand-seen">Zuletzt gesehen: ${escapeHtml(seenDate)}</p>` : "";
+    const inQueue = isOnQueue(film);
+    const listsBlock = inQueue ? `
+          <div class="film-expand-in">
+            <p class="film-expand-in-label">Enthalten in:</p>
+            <div class="film-expand-in-chips">
+              <span class="chip is-lava">Demnächst</span>
+            </div>
+          </div>
+        ` : "";
+    const meta = genre ? `<p class="film-expand-meta"><strong>${escapeHtml(genre)}</strong></p>` : "";
+    const providerLine = formatProviderLine(film && (film.providers || fallbackProvidersFor(film)));
+    const stream = providerLine.text
+      ? `<div class="film-expand-stream" data-role="film-expand-stream">
+            <p class="film-expand-stream-label">verfügbar auf:</p>
+            <p class="film-expand-stream-names">${escapeHtml(providerLine.text)}${providerLine.extra ? `<span class="zufall-mehr">+ mehr</span>` : ""}</p>
+          </div>`
+      : `<div class="film-expand-stream" data-role="film-expand-stream" hidden></div>`;
     const expand = expandable ? `
         <div class="film-row-expand"${open ? "" : " hidden"}>
-          ${plot ? `<p class="film-row-plot">${escapeHtml(plot)}</p>` : ""}
-          ${tags ? `<div class="film-menu-tags">${tags}</div>` : ""}
-          <div class="film-row-rates">${renderRates(film, true)}</div>
-          <button type="button" class="film-row-fold" data-act="film-expand" data-id="${id}">Zuklappen</button>
+          ${plot ? `<p class="film-expand-plot">${escapeHtml(plot)}</p>` : ""}
+          ${meta}
+          ${seenLine}
+          ${listsBlock}
+          ${tags ? `<div class="film-expand-tags">${tags}</div>` : ""}
+          <div class="film-expand-rates">${renderRates(film, true)}</div>
+          ${stream}
+          <div class="film-expand-collapse">
+            <button type="button" class="film-row-fold" data-act="film-expand" data-id="${id}" aria-label="Zuklappen">${ICONS.chevronUp} Zuklappen</button>
+          </div>
         </div>
       ` : "";
     const article = `
@@ -2861,7 +2894,6 @@
             ${line ? `<p class="film-row-cast">${escapeHtml(line)}</p>` : ""}
           </div>
           ${control}
-          ${menuPop}
         </div>
         ${expand}
       </article>
@@ -3326,15 +3358,7 @@
   }
 
   function renderWatchRows() {
-    return watchlistFilms().map((film) => {
-      return renderListRow(film, {
-        swipeMode: "watch",
-        menu: `
-          <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Anschauen</button>
-          <button type="button" class="btn btn-compact" data-act="watch-remove" data-id="${escapeHtml(filmId(film))}">Streichen</button>
-        `,
-      });
-    }).join("");
+    return watchlistFilms().map((film) => renderListRow(film, { swipeMode: "watch" })).join("");
   }
 
   function refreshWatchList() {
@@ -3355,7 +3379,7 @@
     paintZufallChip();
     updateFooter();
     scheduleFooterSync();
-    if (state.expandedFilmId) enrichExpandedOverview(state.expandedFilmId);
+    if (state.expandedFilmId) enrichExpandedFilm(state.expandedFilmId);
   }
 
   function renderWatchSheetHtml() {
@@ -4368,15 +4392,7 @@
   }
 
   function renderQueueRows() {
-    return queueFilms().map((film) => {
-      return renderListRow(film, {
-        swipeMode: "queue",
-        menu: `
-          <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Anschauen</button>
-          <button type="button" class="btn btn-compact" data-act="queue-remove" data-id="${escapeHtml(filmId(film))}">Streichen</button>
-        `,
-      });
-    }).join("");
+    return queueFilms().map((film) => renderListRow(film, { swipeMode: "queue" })).join("");
   }
 
   function renderQueueTab() {
@@ -4576,7 +4592,7 @@
       const shown = app.querySelectorAll(".film-row");
       const films = [...shown].map((row) => findFilm(row.dataset.id)).filter(Boolean);
       if (state.listTab !== "seen") enrichListCast(films);
-      if (state.expandedFilmId) enrichExpandedOverview(state.expandedFilmId);
+      if (state.expandedFilmId) enrichExpandedFilm(state.expandedFilmId);
     }
     else if (state.screen === "tags") app.innerHTML = renderTagsManage();
     else if (state.screen === "done") app.innerHTML = renderDone();
@@ -4667,15 +4683,29 @@
     return "";
   }
 
-  async function enrichExpandedOverview(id) {
+  async function enrichExpandedFilm(id) {
     const film = findFilm(id);
-    if (!film || state.expandedFilmId !== filmId(film)) return;
-    if (filmOverview(film)) return;
-    const text = await fetchFilmOverview(film);
-    if (!text || state.expandedFilmId !== filmId(film) || state.screen !== "lists") return;
+    if (!film || state.expandedFilmId !== filmId(film) || state.screen !== "lists") return;
     const box = app.querySelector(".film-row.is-open .film-row-expand");
-    if (!box || box.querySelector(".film-row-plot")) return;
-    box.insertAdjacentHTML("afterbegin", `<p class="film-row-plot">${escapeHtml(clipPlot(text))}</p>`);
+    if (!box) return;
+    if (!filmOverview(film)) {
+      const text = await fetchFilmOverview(film);
+      if (text && state.expandedFilmId === filmId(film) && !box.querySelector(".film-expand-plot")) {
+        box.insertAdjacentHTML("afterbegin", `<p class="film-expand-plot">${escapeHtml(clipPlot(text))}</p>`);
+      }
+    }
+    const names = await loadFilmProviders(film);
+    if (state.expandedFilmId !== filmId(film)) return;
+    const stream = box.querySelector("[data-role=film-expand-stream]");
+    if (!stream) return;
+    const line = formatProviderLine(names);
+    if (!line.text) {
+      stream.hidden = true;
+      stream.innerHTML = "";
+      return;
+    }
+    stream.hidden = false;
+    stream.innerHTML = `<p class="film-expand-stream-label">verfügbar auf:</p><p class="film-expand-stream-names">${escapeHtml(line.text)}${line.extra ? `<span class="zufall-mehr">+ mehr</span>` : ""}</p>`;
   }
 
   async function enrichFilm(film) {
@@ -5101,7 +5131,7 @@
       state.expandedFilmId = state.expandedFilmId === hid ? null : hid;
       closeFilmMenus();
       render();
-      if (state.expandedFilmId) enrichExpandedOverview(state.expandedFilmId);
+      if (state.expandedFilmId) enrichExpandedFilm(state.expandedFilmId);
       return;
     }
     if (act === "film-menu") {
