@@ -159,26 +159,26 @@
   );
 
   const FILMS = [
-    f(238, "Der Pate", ["Krimi", "Drama"], 175, 8.7, ["Marlon Brando", "Al Pacino", "James Caan"], "The Godfather"),
-    f(680, "Pulp Fiction", ["Krimi", "Drama"], 154, 8.5, ["John Travolta", "Samuel L. Jackson", "Uma Thurman"]),
-    f(13, "Forrest Gump", ["Drama", "Romanze"], 142, 8.5, ["Tom Hanks", "Robin Wright", "Gary Sinise"]),
-    f(603, "Matrix", ["Sci-Fi", "Action"], 136, 8.2, ["Keanu Reeves", "Laurence Fishburne", "Carrie-Anne Moss"], "The Matrix"),
-    f(27205, "Inception", ["Sci-Fi", "Action"], 148, 8.4, ["Leonardo DiCaprio", "Joseph Gordon-Levitt", "Elliot Page"]),
-    f(157336, "Interstellar", ["Sci-Fi", "Drama"], 169, 8.4, ["Matthew McConaughey", "Anne Hathaway", "Jessica Chastain"]),
-    f(496243, "Parasite", ["Thriller", "Drama"], 132, 8.5, ["Song Kang-ho", "Lee Sun-kyun", "Cho Yeo-jeong"]),
-    f(597, "Titanic", ["Drama", "Romanze"], 194, 7.9, ["Leonardo DiCaprio", "Kate Winslet", "Billy Zane"]),
-    f(19995, "Avatar", ["Sci-Fi", "Abenteuer"], 162, 7.6, ["Sam Worthington", "Zoe Saldana", "Sigourney Weaver"]),
-    f(120, "Der Herr der Ringe: Die Gefährten", ["Fantasy", "Abenteuer"], 178, 8.4, ["Elijah Wood", "Ian McKellen", "Viggo Mortensen"], "The Lord of the Rings: The Fellowship of the Ring"),
-    f(155, "The Dark Knight", ["Action", "Krimi"], 152, 8.5, ["Christian Bale", "Heath Ledger", "Aaron Eckhart"]),
-    f(671, "Harry Potter und der Stein der Weisen", ["Fantasy", "Abenteuer"], 152, 7.6, ["Daniel Radcliffe", "Rupert Grint", "Emma Watson"], "Harry Potter and the Philosopher's Stone"),
-    f(862, "Toy Story", ["Animation", "Komödie"], 81, 8.0, ["Tom Hanks", "Tim Allen", "Don Rickles"]),
-    f(129, "Chihiros Reise ins Zauberland", ["Animation", "Fantasy"], 125, 8.5, ["Rumi Hiiragi", "Miyu Irino", "Mari Natsuki"], "Spirited Away"),
-    f(550, "Fight Club", ["Drama", "Thriller"], 139, 8.4, ["Brad Pitt", "Edward Norton", "Helena Bonham Carter"]),
-    f(278, "Die Verurteilten", ["Drama"], 142, 8.7, ["Tim Robbins", "Morgan Freeman", "Bob Gunton"], "The Shawshank Redemption"),
-    f(872585, "Oppenheimer", ["Drama", "Historie"], 180, 8.1, ["Cillian Murphy", "Emily Blunt", "Robert Downey Jr."]),
-    f(569094, "Spider-Man: Across the Spider-Verse", ["Animation", "Action"], 140, 8.4, ["Shameik Moore", "Hailee Steinfeld", "Brian Tyree Henry"]),
-    f(693134, "Dune: Part Two", ["Sci-Fi", "Abenteuer"], 166, 8.1, ["Timothée Chalamet", "Zendaya", "Rebecca Ferguson"]),
-    f(361743, "Top Gun: Maverick", ["Action"], 131, 8.2, ["Tom Cruise", "Miles Teller", "Jennifer Connelly"]),
+    f(238, "Der Pate", ["Krimi", "Drama"], 175, 8.7, ["Marlon Brando", "Al Pacino", "James Caan"], "The Godfather", "Der alternde Don Corleone übergibt sein New Yorker Mafia-Imperium an den Sohn, der eigentlich rausbleiben wollte."),
+    f(680, "Pulp Fiction", ["Krimi", "Drama"], 154, 8.5, ["John Travolta", "Samuel L. Jackson", "Uma Thurman"], "", "Verwobene Gangster-Episoden in Los Angeles: Koffer, Boxkampf, Diners und ein Paar auf Raubzug."),
+    f(13, "Forrest Gump", ["Drama", "Romanze"], 142, 8.5, ["Tom Hanks", "Robin Wright", "Gary Sinise"], "", "Forrest stolpert durch Jahrzehnte US-Geschichte – mit Laufschuhen, Pralinen und einer großen Liebe."),
+    f(603, "Matrix", ["Sci-Fi", "Action"], 136, 8.2, ["Keanu Reeves", "Laurence Fishburne", "Carrie-Anne Moss"], "The Matrix", "Ein Hacker erkennt, dass die Welt Simulation ist, und schließt sich dem Widerstand gegen die Maschinen an."),
+    f(27205, "Inception", ["Sci-Fi", "Action"], 148, 8.4, ["Leonardo DiCaprio", "Joseph Gordon-Levitt", "Elliot Page"], "", "Diebe steigen in Träume ein, um Ideen zu pflanzen – je tiefer die Ebene, desto brüchiger die Realität."),
+    f(157336, "Interstellar", ["Sci-Fi", "Drama"], 169, 8.4, ["Matthew McConaughey", "Anne Hathaway", "Jessica Chastain"], "", "Mit der Erde am Ende fliegt eine Crew durch ein Wurmloch, um der Menschheit eine neue Heimat zu finden."),
+    f(496243, "Parasite", ["Thriller", "Drama"], 132, 8.5, ["Song Kang-ho", "Lee Sun-kyun", "Cho Yeo-jeong"], "", "Eine arme Familie schleust sich in den Haushalt der Reichen ein – der Klassengraben kippt ins Absurde."),
+    f(597, "Titanic", ["Drama", "Romanze"], 194, 7.9, ["Leonardo DiCaprio", "Kate Winslet", "Billy Zane"], "", "An Bord der Titanic verlieben sich Jack und Rose, während das Schiff auf den Eisberg zusteuert."),
+    f(19995, "Avatar", ["Sci-Fi", "Abenteuer"], 162, 7.6, ["Sam Worthington", "Zoe Saldana", "Sigourney Weaver"], "", "Ein gelähmter Marine wird als Avatar nach Pandora geschickt und stellt sich auf die Seite der Na’vi."),
+    f(120, "Der Herr der Ringe: Die Gefährten", ["Fantasy", "Abenteuer"], 178, 8.4, ["Elijah Wood", "Ian McKellen", "Viggo Mortensen"], "The Lord of the Rings: The Fellowship of the Ring", "Frodo soll den Einen Ring vernichten. Eine Gefährtengruppe geleitet ihn aus dem Auenland nach Mordor."),
+    f(155, "The Dark Knight", ["Action", "Krimi"], 152, 8.5, ["Christian Bale", "Heath Ledger", "Aaron Eckhart"], "", "Batman, Gordon und Harvey Dent jagen den Joker, der Gotham in Chaos und moralische Fallen stürzt."),
+    f(671, "Harry Potter und der Stein der Weisen", ["Fantasy", "Abenteuer"], 152, 7.6, ["Daniel Radcliffe", "Rupert Grint", "Emma Watson"], "Harry Potter and the Philosopher's Stone", "Harry erfährt, dass er ein Zauberer ist, und erlebt sein erstes Jahr in Hogwarts – samt Stein der Weisen."),
+    f(862, "Toy Story", ["Animation", "Komödie"], 81, 8.0, ["Tom Hanks", "Tim Allen", "Don Rickles"], "", "Spielzeug wird lebendig, sobald niemand hinsieht. Sheriff Woody fürchtet den neuen Liebling Buzz Lightyear."),
+    f(129, "Chihiros Reise ins Zauberland", ["Animation", "Fantasy"], 125, 8.5, ["Rumi Hiiragi", "Miyu Irino", "Mari Natsuki"], "Spirited Away", "Chihiro gerät in eine Geisterwelt und muss in einem Badehaus arbeiten, um ihre in Schweine verwandelten Eltern zu retten."),
+    f(550, "Fight Club", ["Drama", "Thriller"], 139, 8.4, ["Brad Pitt", "Edward Norton", "Helena Bonham Carter"], "", "Ein schlafloser Angestellter gründet mit dem chaotischen Tyler Durden einen Untergrund-Kampfclub."),
+    f(278, "Die Verurteilten", ["Drama"], 142, 8.7, ["Tim Robbins", "Morgan Freeman", "Bob Gunton"], "The Shawshank Redemption", "Unschuldig in Shawshank, hält Andy an Hoffnung und einer langen, stillen Flucht fest."),
+    f(872585, "Oppenheimer", ["Drama", "Historie"], 180, 8.1, ["Cillian Murphy", "Emily Blunt", "Robert Downey Jr."], "", "Robert Oppenheimer leitet das Manhattan-Projekt – und trägt danach die Last der Atombombe."),
+    f(569094, "Spider-Man: Across the Spider-Verse", ["Animation", "Action"], 140, 8.4, ["Shameik Moore", "Hailee Steinfeld", "Brian Tyree Henry"], "", "Miles Morales trifft Spider-People aus anderen Universen und muss gegen ein festgeschriebenes Schicksal ankämpfen."),
+    f(693134, "Dune: Part Two", ["Sci-Fi", "Abenteuer"], 166, 8.1, ["Timothée Chalamet", "Zendaya", "Rebecca Ferguson"], "", "Paul Atreides geht unter den Fremen auf Arrakis seinen Weg – zwischen Rache, Prophezeiung und Wüstenkrieg."),
+    f(361743, "Top Gun: Maverick", ["Action"], 131, 8.2, ["Tom Cruise", "Miles Teller", "Jennifer Connelly"], "", "Pete „Maverick“ Mitchell trainiert Top-Gun-Piloten für eine fast unmögliche Mission – darunter der Sohn seines alten Freundes."),
   ];
 
   const WATCH_CATS = [
@@ -216,7 +216,7 @@
     return [];
   }
 
-  function f(id, title, genres, runtime, vote_average, cast, originalTitle) {
+  function f(id, title, genres, runtime, vote_average, cast, originalTitle, overview) {
     return {
       id: `t${id}`,
       tmdb: id,
@@ -231,6 +231,7 @@
       poster: "",
       color: "#1d4f91",
       cast: Array.isArray(cast) ? cast.slice() : [],
+      overview: overview || "",
     };
   }
 
@@ -282,6 +283,7 @@
       popularity: Number(raw.popularity) || 0,
       vote_count: Number(raw.vote_count) || 0,
       providers,
+      overview: String(raw.overview || raw.plot || raw.tagline || "").trim(),
     };
   }
 
@@ -370,6 +372,7 @@
       release_date: raw.release_date || "",
       popularity: Number(raw.popularity) || 0,
       vote_count: Number(raw.vote_count) || 0,
+      overview: String(raw.overview || "").trim(),
     });
   }
 
@@ -538,6 +541,8 @@
     eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.7 12S6.1 6.6 12 6.6 21.3 12 21.3 12 17.9 17.4 12 17.4 2.7 12 2.7 12z"/><circle cx="12" cy="12" r="2.35"/></svg>`,
     eyeOff: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5.1 19.4 20.5"/><path d="M10.1 10.4a2.35 2.35 0 0 0 3.4 3.3"/><path d="M7.1 7.6C5 8.9 3.4 11.1 2.7 12c0 0 3.4 5.4 9.3 5.4 1.6 0 3-.3 4.2-.8"/><path d="M16.8 16.1c1.8-1.2 3.2-3 3.8-4.1 0 0-1.6-2.6-4.5-4.2"/></svg>`,
     menu: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>`,
+    chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`,
+    chevronUp: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>`,
   };
 
   function rateIcon(id) {
@@ -606,6 +611,7 @@
     tagEditId: null,
     editTagName: "",
     editTagColor: "#0066B3",
+    expandedFilmId: null,
   };
 
   const app = document.getElementById("app");
@@ -816,6 +822,7 @@
         popularity: Math.max(Number(n.popularity) || 0, Number(prev.popularity) || 0),
         vote_count: Math.max(Number(n.vote_count) || 0, Number(prev.vote_count) || 0),
         providers: (n.providers && n.providers.length) ? n.providers : (prev.providers || []),
+        overview: n.overview || prev.overview || "",
       });
     } else {
       state.catalog.push(n);
@@ -878,6 +885,20 @@
     return names.join(", ");
   }
 
+  function filmOverview(film) {
+    const text = String((film && (film.overview || film.plot || film.tagline)) || "").trim();
+    if (text) return text;
+    const fallback = film && FILMS.find((row) => filmId(row) === filmId(film));
+    return String((fallback && fallback.overview) || "").trim();
+  }
+
+  function clipPlot(text, max) {
+    const t = String(text || "").replace(/\s+/g, " ").trim();
+    const limit = max || 280;
+    if (t.length <= limit) return t;
+    return `${t.slice(0, limit - 1).replace(/\s+\S*$/, "").trim()}…`;
+  }
+
   const castFetchTried = new Set();
   let listCastSeq = 0;
 
@@ -922,6 +943,7 @@
 
   function patchFilmCastLines() {
     document.querySelectorAll(".film-row[data-id]").forEach((row) => {
+      if (row.hasAttribute("data-seen")) return;
       const film = findFilm(row.dataset.id);
       if (!film) return;
       const line = filmCastLine(film);
@@ -1634,6 +1656,7 @@
     state.tagFilter = [id];
     state.screen = "lists";
     state.tagEditId = null;
+    state.expandedFilmId = null;
     render();
   }
 
@@ -1651,6 +1674,7 @@
     closeModal();
     state.user = null;
     state.profile = null;
+    state.expandedFilmId = null;
     state.screen = "login";
     persistSession();
     render();
@@ -2078,6 +2102,11 @@
       leftFilm = ui.front.left;
       centerFilm = ui.front.center;
       rightFilm = ui.front.right;
+    } else if (ui.pool && ui.pool.length) {
+      const trio = tripletAt(carouselFrontIndex(ui));
+      leftFilm = trio.left;
+      centerFilm = trio.center;
+      rightFilm = trio.right;
     } else {
       const idx = carouselFrontIndex(ui);
       const at = (delta) => posters[(idx + delta + pCount) % pCount];
@@ -2788,45 +2817,89 @@
     return originPoolCount() > 0;
   }
 
+  function lastSeenEntry(film) {
+    const hid = filmId(film);
+    return history().find((row) => String(row.id) === hid) || null;
+  }
+
+  function filmGenreLine(film) {
+    return filmGenres(film).slice(0, 2).join(" · ");
+  }
+
   function renderListRow(film, opts) {
     film = filmWithPoster(film) || film;
     const extra = opts.extra || "";
     const unrated = opts.unrated;
     const runtime = durationPill(film);
-    const cast = filmCastLine(film);
+    const cast = (opts.hideCast || opts.gesehen) ? "" : filmCastLine(film);
     const sub = extra && extra !== cast ? extra : "";
     const line = [cast, sub].filter(Boolean).join(" · ");
     const id = escapeHtml(filmId(film));
+    const hid = filmId(film);
     const onWatch = isOnWatchlist(film);
+    const expandable = !opts.toggle;
+    const open = expandable && state.expandedFilmId === hid;
     let control;
-    let menuPop = "";
     if (opts.toggle) {
       control = `<button type="button" class="watch-toggle${onWatch ? " is-on" : ""}" data-act="watch-toggle" data-id="${id}" aria-pressed="${onWatch}" aria-label="${onWatch ? "Von Watchlist entfernen" : "Zur Watchlist hinzufügen"}">${onWatch ? ICONS.check : ICONS.plus}</button>`;
     } else {
-      let menuInner = opts.menu;
-      if (!menuInner) {
-        if (opts.rates || unrated) menuInner = `<div class="film-row-rates">${renderRates(film, true)}</div>`;
-        else menuInner = `<p class="film-menu-placeholder">Menü folgt</p>`;
-      }
-      control = `<button type="button" class="film-row-menu" data-act="film-menu" data-id="${id}" aria-label="Filmmenü" aria-expanded="false">${ICONS.menu}</button>`;
-      menuPop = `<div class="film-menu-pop" hidden>${menuInner}</div>`;
+      control = `<button type="button" class="film-row-chevron" data-act="film-expand" data-id="${id}" aria-expanded="${open}" aria-label="${open ? "Zuklappen" : "Aufklappen"}">${open ? ICONS.chevronUp : ICONS.chevron}</button>`;
     }
-    const article = `
-      <article class="film-row${unrated ? " is-unrated" : ""}${opts.swipeMode ? " swipe-front" : ""}"${opts.swipeMode ? "" : " data-swipe-row"} data-id="${id}">
-        ${posterTile(film, { lazy: true, size: POSTER_SIZE_THUMB })}
-        <div class="film-row-body">
-          <div class="film-row-titleline">
-            <h3 class="film-row-title">${escapeHtml(film.title)}</h3>
-            ${runtime ? `<span class="duration-pill">${escapeHtml(runtime)}</span>` : ""}
+    const plot = clipPlot(filmOverview(film));
+    const tags = expandable ? renderFilmTagChips(film) : "";
+    const genre = filmGenreLine(film);
+    const seen = lastSeenEntry(film);
+    const seenDate = seen ? formatSeenOn(seen.at) : "";
+    const seenLine = seenDate ? `<p class="film-expand-seen">Zuletzt gesehen: ${escapeHtml(seenDate)}</p>` : "";
+    const inQueue = isOnQueue(film);
+    const listsBlock = inQueue ? `
+          <div class="film-expand-in">
+            <p class="film-expand-in-label">Enthalten in:</p>
+            <div class="film-expand-in-chips">
+              <span class="chip is-lava">Demnächst</span>
+            </div>
           </div>
-          ${line ? `<p class="film-row-cast">${escapeHtml(line)}</p>` : ""}
+        ` : "";
+    const meta = genre ? `<p class="film-expand-meta"><strong>${escapeHtml(genre)}</strong></p>` : "";
+    const providerLine = formatProviderLine(film && (film.providers || fallbackProvidersFor(film)));
+    const stream = providerLine.text
+      ? `<div class="film-expand-stream" data-role="film-expand-stream">
+            <p class="film-expand-stream-label">verfügbar auf:</p>
+            <p class="film-expand-stream-names">${escapeHtml(providerLine.text)}${providerLine.extra ? `<span class="zufall-mehr">+ mehr</span>` : ""}</p>
+          </div>`
+      : `<div class="film-expand-stream" data-role="film-expand-stream" hidden></div>`;
+    const expand = expandable ? `
+        <div class="film-row-expand"${open ? "" : " hidden"}>
+          ${plot ? `<p class="film-expand-plot">${escapeHtml(plot)}</p>` : ""}
+          ${meta}
+          ${seenLine}
+          ${listsBlock}
+          ${tags ? `<div class="film-expand-tags">${tags}</div>` : ""}
+          <div class="film-expand-rates">${renderRates(film, true)}</div>
+          ${stream}
+          <div class="film-expand-collapse">
+            <button type="button" class="film-row-fold" data-act="film-expand" data-id="${id}" aria-label="Zuklappen">${ICONS.chevronUp} Zuklappen</button>
+          </div>
         </div>
-        ${control}
-        ${menuPop}
+      ` : "";
+    const article = `
+      <article class="film-row${unrated ? " is-unrated" : ""}${opts.swipeMode ? " swipe-front" : ""}${expandable ? " is-expandable" : ""}${open ? " is-open" : ""}"${opts.swipeMode ? "" : " data-swipe-row"} data-id="${id}"${opts.gesehen ? ' data-seen="1"' : ""}>
+        <div class="film-row-head"${expandable ? ` data-act="film-expand" data-id="${id}" aria-expanded="${open}"` : ""}>
+          ${posterTile(film, { lazy: true, size: POSTER_SIZE_THUMB })}
+          <div class="film-row-body">
+            <div class="film-row-titleline">
+              <h3 class="film-row-title">${escapeHtml(film.title)}</h3>
+              ${runtime ? `<span class="duration-pill">${escapeHtml(runtime)}</span>` : ""}
+            </div>
+            ${line ? `<p class="film-row-cast">${escapeHtml(line)}</p>` : ""}
+          </div>
+          ${control}
+        </div>
+        ${expand}
       </article>
     `;
     if (!opts.swipeMode) return article;
-    return wrapSwipeTrack(article, filmId(film), opts.swipeMode);
+    return wrapSwipeTrack(article, hid, opts.swipeMode);
   }
 
   function wrapSwipeTrack(inner, id, mode) {
@@ -3078,6 +3151,7 @@
       popularity: Math.max(Number(n.popularity) || 0, Number(prev.popularity) || 0),
       vote_count: Math.max(Number(n.vote_count) || 0, Number(prev.vote_count) || 0),
       providers: (n.providers && n.providers.length) ? n.providers : (prev.providers || []),
+      overview: n.overview || prev.overview || "",
     }));
   }
 
@@ -3284,17 +3358,7 @@
   }
 
   function renderWatchRows() {
-    return watchlistFilms().map((film) => {
-      const tags = renderFilmTagChips(film);
-      return renderListRow(film, {
-        swipeMode: "watch",
-        menu: `
-          <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Anschauen</button>
-          <button type="button" class="btn btn-compact" data-act="watch-remove" data-id="${escapeHtml(filmId(film))}">Streichen</button>
-          ${tags ? `<div class="film-menu-tags">${tags}</div>` : ""}
-        `,
-      });
-    }).join("");
+    return watchlistFilms().map((film) => renderListRow(film, { swipeMode: "watch" })).join("");
   }
 
   function refreshWatchList() {
@@ -3315,6 +3379,7 @@
     paintZufallChip();
     updateFooter();
     scheduleFooterSync();
+    if (state.expandedFilmId) enrichExpandedFilm(state.expandedFilmId);
   }
 
   function renderWatchSheetHtml() {
@@ -3595,7 +3660,7 @@
 
   function formatProviderLine(names) {
     const list = uniqueProviderNames(names);
-    if (!list.length) return { text: "Keine Angabe", extra: false };
+    if (!list.length) return { text: "", extra: false };
     const shown = list.slice(0, 3);
     return { text: shown.join(", "), extra: list.length > 3 };
   }
@@ -3755,6 +3820,7 @@
     const leftBtn = box.querySelector("[data-side=left]");
     const rightBtn = box.querySelector("[data-side=right]");
     const title = box.querySelector("[data-role=zufall-title-center]");
+    const stream = box.querySelector("[data-role=zufall-stream]");
     const providers = box.querySelector("[data-role=zufall-providers]");
     const watch = box.querySelector("[data-act=choose]");
     if (leftBtn) {
@@ -3770,11 +3836,14 @@
       title.classList.toggle("is-ember", zufallUi.phase === "result");
     }
     if (watch && center) watch.dataset.id = filmId(center);
+    const line = formatProviderLine(center && (center.providers || fallbackProvidersFor(center)));
+    if (stream) stream.hidden = !line.text;
     if (providers) {
-      const line = formatProviderLine(center && (center.providers || fallbackProvidersFor(center)));
-      providers.innerHTML = line.extra
-        ? `${escapeHtml(line.text)}<span class="zufall-mehr">+ mehr</span>`
-        : escapeHtml(line.text);
+      providers.innerHTML = line.text
+        ? (line.extra
+          ? `${escapeHtml(line.text)}<span class="zufall-mehr">+ mehr</span>`
+          : escapeHtml(line.text))
+        : "";
     }
   }
 
@@ -3785,29 +3854,56 @@
     paintZufallResult();
   }
 
-  function otherPoolFilm(center, which) {
-    const pool = zufallUi.pool;
-    if (!pool.length) return center;
-    if (pool.length === 1) return pool[0];
-    const others = pool.filter((film) => filmId(film) !== filmId(center));
-    if (!others.length) return pool[0];
-    return others[which % others.length];
+  function uniquePoolFilms() {
+    const seen = new Set();
+    const out = [];
+    for (const film of zufallUi.pool || []) {
+      const id = filmId(film);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push(film);
+    }
+    return out;
+  }
+
+  function pickDistinctTrio(center, preferredLeft, preferredRight) {
+    const uniq = uniquePoolFilms();
+    const centerFilm = (center && uniq.some((film) => filmId(film) === filmId(center)))
+      ? center
+      : (uniq[0] || center || null);
+    if (!centerFilm) return { left: null, center: null, right: null };
+    const cid = filmId(centerFilm);
+    const rest = uniq.filter((film) => filmId(film) !== cid);
+    if (uniq.length <= 1) {
+      const only = uniq[0] || centerFilm;
+      return { left: only, center: only, right: only };
+    }
+    function take(preferred, used) {
+      const id = preferred && filmId(preferred);
+      if (id && !used.has(id) && rest.some((film) => filmId(film) === id)) return preferred;
+      return rest.find((film) => !used.has(filmId(film))) || null;
+    }
+    const used = new Set([cid]);
+    const left = take(preferredLeft, used) || rest[0];
+    used.add(filmId(left));
+    const right = take(preferredRight, used) || (uniq.length === 2 ? left : rest.find((film) => !used.has(filmId(film))) || left);
+    return { left, center: centerFilm, right };
   }
 
   function tripletAt(index) {
     const n = zufallUi.posters.length;
-    const center = zufallUi.posters[index];
+    if (!n) return { left: null, center: null, right: null };
+    const packedCenter = zufallUi.posters[index];
+    const center = (packedCenter && !zufallUi.isFiller[index] && isZufallPoolFilm(packedCenter))
+      ? packedCenter
+      : zufallUi.posters[nearestPoolIndex(index)];
     const leftIdx = (index - 1 + n) % n;
     const rightIdx = (index + 1) % n;
     const leftPacked = zufallUi.posters[leftIdx];
     const rightPacked = zufallUi.posters[rightIdx];
-    const left = (!zufallUi.isFiller[leftIdx] && isZufallPoolFilm(leftPacked))
-      ? leftPacked
-      : otherPoolFilm(center, 0);
-    const right = (!zufallUi.isFiller[rightIdx] && isZufallPoolFilm(rightPacked))
-      ? rightPacked
-      : otherPoolFilm(center, 1);
-    return { left, center, right };
+    const preferLeft = (!zufallUi.isFiller[leftIdx] && isZufallPoolFilm(leftPacked)) ? leftPacked : null;
+    const preferRight = (!zufallUi.isFiller[rightIdx] && isZufallPoolFilm(rightPacked)) ? rightPacked : null;
+    return pickDistinctTrio(center, preferLeft, preferRight);
   }
 
   function nearestPoolIndex(from) {
@@ -4178,20 +4274,18 @@
 
   function renderZufallSourceChips() {
     const selected = new Set(state.zufallSources);
-    const origin = new Set(state.zufallOrigin);
     const chips = zufallAvailableSources().map((id) => {
       const meta = zufallSourceMeta(id);
       if (!meta) return "";
       const n = zufallUnionCount([id]);
       const on = selected.has(id);
-      const isOrigin = on && origin.has(id);
-      return `<button type="button" class="chip${isOrigin ? " is-origin" : ""}" data-act="zufall-source" data-id="${escapeHtml(id)}" aria-pressed="${on}">${escapeHtml(meta.label)} ${n}${on && selected.size > 1 ? " ✓" : ""}</button>`;
+      return `<button type="button" class="chip${on && selected.size === 1 ? " is-lava" : ""}" data-act="zufall-source" data-id="${escapeHtml(id)}" aria-pressed="${on}">${escapeHtml(meta.label)} (${n})${on && selected.size > 1 ? " ✓" : ""}</button>`;
     }).join("");
     const uber = zufallUberLabel(state.zufallSources);
     const expanded = !!state.filterMore.zufall;
     return `
       <p class="zufall-pool-label">Filme aus:</p>
-      <div class="zufall-uber" data-role="zufall-uber"${uber ? "" : " hidden"}><span class="zufall-uber-chip">${escapeHtml(uber)}</span></div>
+      <div class="zufall-uber" data-role="zufall-uber"${uber ? "" : " hidden"}><span class="zufall-uber-chip is-lava">${escapeHtml(uber)}</span></div>
       <div class="zufall-chip-row">
         <div class="filter-chips${expanded ? " is-expanded" : ""}" data-chip-row="zufall">${chips}</div>
         <button type="button" class="chip-more${expanded ? " is-weniger" : ""}" data-act="zufall-more"${expanded ? "" : " hidden"}>${expanded ? "weniger" : "mehr"}</button>
@@ -4266,7 +4360,7 @@
               <strong class="zufall-title-center" data-role="zufall-title-center"></strong>
               <button type="button" class="zufall-title-side" data-act="zufall-swap" data-side="right"></button>
             </div>
-            <div class="zufall-stream">
+            <div class="zufall-stream" data-role="zufall-stream" hidden>
               <p class="zufall-stream-label">verfügbar auf:</p>
               <p class="zufall-providers" data-role="zufall-providers"></p>
             </div>
@@ -4298,17 +4392,7 @@
   }
 
   function renderQueueRows() {
-    return queueFilms().map((film) => {
-      const tags = renderFilmTagChips(film);
-      return renderListRow(film, {
-        swipeMode: "queue",
-        menu: `
-          <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Anschauen</button>
-          <button type="button" class="btn btn-compact" data-act="queue-remove" data-id="${escapeHtml(filmId(film))}">Streichen</button>
-          ${tags ? `<div class="film-menu-tags">${tags}</div>` : ""}
-        `,
-      });
-    }).join("");
+    return queueFilms().map((film) => renderListRow(film, { swipeMode: "queue" })).join("");
   }
 
   function renderQueueTab() {
@@ -4373,6 +4457,12 @@
     `;
   }
 
+  function formatSeenOn(at) {
+    const d = new Date(Number(at));
+    if (!Number.isFinite(d.getTime()) || d.getTime() <= 0) return "";
+    return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+
   function renderSeenTab() {
     const all = ratings();
     let rows = history().slice().sort((a, b) => b.at - a.at);
@@ -4380,10 +4470,13 @@
     const cards = rows.map((row) => {
       const film = findFilm(row.id) || { id: row.id, title: row.title, genre: "Film", minutes: 0, poster: "", color: "#1d4f91" };
       const unrated = !all[String(row.id)];
+      const rateLabel = unrated ? "" : (RATE_KEYS.find((r) => r.id === all[String(row.id)])?.label || "");
+      const extra = [formatSeenOn(row.at), rateLabel].filter(Boolean).join(" · ");
       return renderListRow(film, {
         gesehen: true,
         unrated,
-        extra: unrated ? "noch keine Note" : RATE_KEYS.find((r) => r.id === all[String(row.id)])?.label,
+        hideCast: true,
+        extra,
       });
     }).join("");
     return `
@@ -4498,7 +4591,8 @@
       observeListPostersSoon(app);
       const shown = app.querySelectorAll(".film-row");
       const films = [...shown].map((row) => findFilm(row.dataset.id)).filter(Boolean);
-      enrichListCast(films);
+      if (state.listTab !== "seen") enrichListCast(films);
+      if (state.expandedFilmId) enrichExpandedFilm(state.expandedFilmId);
     }
     else if (state.screen === "tags") app.innerHTML = renderTagsManage();
     else if (state.screen === "done") app.innerHTML = renderDone();
@@ -4518,6 +4612,21 @@
       state.screen = "home";
     }
     render();
+  }
+
+  function enterLoggedInUser(user) {
+    state.user = user;
+    state.loginError = "";
+    const list = profilesOf(user.id);
+    if (list.length === 1) {
+      state.profile = list[0];
+      resetSessionPicks();
+      state.screen = "home";
+    } else {
+      state.profile = null;
+      state.screen = "profiles";
+    }
+    persistSession();
   }
 
   function submitAuth() {
@@ -4542,11 +4651,7 @@
       const user = { id: `u-${Date.now()}`, login, password };
       list.push(user);
       saveUsers(list);
-      state.user = user;
-      state.profile = null;
-      state.screen = "profiles";
-      state.loginError = "";
-      persistSession();
+      enterLoggedInUser(user);
       render();
       return;
     }
@@ -4556,12 +4661,51 @@
       render();
       return;
     }
-    state.user = user;
-    state.profile = null;
-    state.screen = "profiles";
-    state.loginError = "";
-    persistSession();
+    enterLoggedInUser(user);
     render();
+    if (state.profile) loadCatalog();
+  }
+
+  async function fetchFilmOverview(film) {
+    const have = filmOverview(film);
+    if (have) return have;
+    if (!film || !film.tmdb || !tmdbKey()) return "";
+    try {
+      const data = await tmdbFetch(`/movie/${film.tmdb}`);
+      const text = String((data && data.overview) || "").trim();
+      if (text) {
+        rememberFilm({ ...film, overview: text });
+        return text;
+      }
+    } catch {
+      /* keep empty plot */
+    }
+    return "";
+  }
+
+  async function enrichExpandedFilm(id) {
+    const film = findFilm(id);
+    if (!film || state.expandedFilmId !== filmId(film) || state.screen !== "lists") return;
+    const box = app.querySelector(".film-row.is-open .film-row-expand");
+    if (!box) return;
+    if (!filmOverview(film)) {
+      const text = await fetchFilmOverview(film);
+      if (text && state.expandedFilmId === filmId(film) && !box.querySelector(".film-expand-plot")) {
+        box.insertAdjacentHTML("afterbegin", `<p class="film-expand-plot">${escapeHtml(clipPlot(text))}</p>`);
+      }
+    }
+    const names = await loadFilmProviders(film);
+    if (state.expandedFilmId !== filmId(film)) return;
+    const stream = box.querySelector("[data-role=film-expand-stream]");
+    if (!stream) return;
+    const line = formatProviderLine(names);
+    if (!line.text) {
+      stream.hidden = true;
+      stream.innerHTML = "";
+      return;
+    }
+    stream.hidden = false;
+    stream.innerHTML = `<p class="film-expand-stream-label">verfügbar auf:</p><p class="film-expand-stream-names">${escapeHtml(line.text)}${line.extra ? `<span class="zufall-mehr">+ mehr</span>` : ""}</p>`;
   }
 
   async function enrichFilm(film) {
@@ -4569,7 +4713,9 @@
     if (film.runtime && film.poster && film.genres && film.genres.length) return film;
     try {
       const data = await tmdbFetch(`/movie/${film.tmdb}`);
-      return rememberFilm(fromTmdbMovie(data)) || film;
+      const next = fromTmdbMovie(data);
+      if (next && data && data.overview) next.overview = String(data.overview).trim();
+      return rememberFilm(next) || film;
     } catch {
       return film;
     }
@@ -4660,10 +4806,12 @@
       return;
     }
     addWatch(film);
+    let queued = false;
+    if (state.listTab === "queue") queued = addQueue(film);
     paintWatchToggles();
     refreshWatchList();
     if (state.watchSheet) paintWatchSheetList();
-    showSnack(`${film.title} zur Watchlist hinzugefügt`);
+    showSnack(queued ? "Zu Watchlist und Demnächst hinzugefügt" : `${film.title} zur Watchlist hinzugefügt`);
   }
 
   function chooseFilm(film) {
@@ -4787,6 +4935,7 @@
       if (!profile) return;
       state.profile = profile;
       resetSessionPicks();
+      state.expandedFilmId = null;
       state.screen = "home";
       persistSession();
       render();
@@ -4904,6 +5053,7 @@
       state.searchHits = [];
       state.searchStatus = "";
       state.screen = "lists";
+      state.expandedFilmId = null;
       render();
       return;
     }
@@ -4919,6 +5069,7 @@
     }
     if (act === "switch") {
       state.profile = null;
+      state.expandedFilmId = null;
       state.screen = "profiles";
       persistSession();
       render();
@@ -4975,6 +5126,14 @@
       render();
       return;
     }
+    if (act === "film-expand") {
+      const hid = filmId(t.dataset.id);
+      state.expandedFilmId = state.expandedFilmId === hid ? null : hid;
+      closeFilmMenus();
+      render();
+      if (state.expandedFilmId) enrichExpandedFilm(state.expandedFilmId);
+      return;
+    }
     if (act === "film-menu") {
       const row = t.closest(".film-row");
       const pop = row ? row.querySelector(".film-menu-pop") : null;
@@ -5014,6 +5173,7 @@
     }
     if (act === "list-tab") {
       state.listTab = t.dataset.id;
+      state.expandedFilmId = null;
       render();
       return;
     }
@@ -5150,6 +5310,7 @@
     if (t.dataset.act === "back") goBack();
     if (t.dataset.act === "switch") {
       state.profile = null;
+      state.expandedFilmId = null;
       state.screen = "profiles";
       persistSession();
       render();
@@ -5261,6 +5422,7 @@
       state.searchHits = [];
       state.searchStatus = "";
       state.screen = "lists";
+      state.expandedFilmId = null;
       render();
       return;
     }
@@ -5291,7 +5453,10 @@
     if (!film || !mode) return;
     if (dir === "right") {
       if (mode === "watch") {
-        addQueue(film);
+        if (!addQueue(film)) {
+          showSnack("Bereits in Demnächst enthalten");
+          return;
+        }
         showSnack(`${film.title} → Demnächst`);
         paintZufallChip();
         updateFooter();
@@ -5325,7 +5490,8 @@
     if (event.pointerType === "mouse" && event.button !== 0) return;
     const row = event.target.closest("[data-swipe-row]");
     if (!row || !row.dataset.swipeMode) return;
-    if (event.target.closest("[data-act=film-menu], .film-menu-pop, [data-act=watch-toggle]")) return;
+    if (event.target.closest("[data-act=film-menu], .film-menu-pop, [data-act=watch-toggle], .film-row-expand, [data-act=rate], [data-act=film-tag]")) return;
+    if (event.target.closest(".film-row.is-open")) return;
     if (swipeDrag) return;
     swipeDrag = {
       id: event.pointerId,
