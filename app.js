@@ -2852,7 +2852,14 @@
     const seenDate = seen ? formatSeenOn(seen.at) : "";
     const seenLine = seenDate ? `<p class="film-expand-seen">Zuletzt gesehen: ${escapeHtml(seenDate)}</p>` : "";
     const inQueue = isOnQueue(film);
-    const queueBadge = inQueue ? `<span class="chip is-lava film-expand-queue">Auf Demnächst</span>` : "";
+    const listsBlock = inQueue ? `
+          <div class="film-expand-in">
+            <p class="film-expand-in-label">Enthalten in:</p>
+            <div class="film-expand-in-chips">
+              <span class="chip is-lava">Demnächst</span>
+            </div>
+          </div>
+        ` : "";
     const meta = genre ? `<p class="film-expand-meta"><strong>${escapeHtml(genre)}</strong></p>` : "";
     const providerLine = formatProviderLine(film && (film.providers || fallbackProvidersFor(film)));
     const stream = providerLine.text
@@ -2866,7 +2873,7 @@
           ${plot ? `<p class="film-expand-plot">${escapeHtml(plot)}</p>` : ""}
           ${meta}
           ${seenLine}
-          ${queueBadge}
+          ${listsBlock}
           ${tags ? `<div class="film-expand-tags">${tags}</div>` : ""}
           <div class="film-expand-rates">${renderRates(film, true)}</div>
           ${stream}
