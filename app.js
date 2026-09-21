@@ -2818,7 +2818,7 @@
       menuPop = `<div class="film-menu-pop" hidden>${menuInner}</div>`;
     }
     const article = `
-      <article class="film-row${unrated ? " is-unrated" : ""}${opts.swipeMode ? " swipe-front" : ""}"${opts.swipeMode ? "" : " data-swipe-row"} data-id="${id}"${opts.gesehen ? " data-seen" : ""}">
+      <article class="film-row${unrated ? " is-unrated" : ""}${opts.swipeMode ? " swipe-front" : ""}"${opts.swipeMode ? "" : " data-swipe-row"} data-id="${id}"${opts.gesehen ? ' data-seen="1"' : ""}>
         ${posterTile(film, { lazy: true, size: POSTER_SIZE_THUMB })}
         <div class="film-row-body">
           <div class="film-row-titleline">
