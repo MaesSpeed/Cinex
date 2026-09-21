@@ -42,9 +42,9 @@ TMDB_API_KEY=… node scripts/build-films-catalog.mjs
 
 1. Anmelden oder registrieren (localStorage)
 2. Wer schaut
-3. Hauptmenü: Filme vorschlagen, Filter, Meine Filmlisten, Tags verwalten
-4. Vorschläge mit Postern, Noten-Icons und Watchlist
-5. Filmlisten: Watchlist, Bewertete, Tags, Angesehen. Watchlist: Chip **+ Hinzufügen** öffnet ein hohes Bottom-Sheet (**Zu Watchlist hinzufügen**) mit Kategorie-Chips (einzeln wählbar), Katalogvorschlägen und Live-Suche (**Film suchen**). Plus/Haken schaltet die Watchlist; schließen nur per Wischen nach unten.
-6. Footer (genau 3): **Vorschlagen** | **Listen** | **Verwalten**. Desktop immer sichtbar. Handy: sichtbar, wenn die Seite nicht scrollt (z. B. Hauptmenü); sonst ausblenden beim Runterscrollen, einblenden beim Hochscrollen. Toast sitzt über dem Footer. Account/Logout bleiben im Header.
+3. Entdecken (Titel **Vorschläge**): Karte **Filme vorschlagen**, Filter (Dauer, Genre, Tags, Stream, Typ, Schauspieler)
+4. Drei hohe Vorschlagskarten. Wischen nach rechts legt den Film in Demnächst und Watchlist, nach links wischt ihn aus der Runde. Aufklappen: Zuletzt gesehen, Anschauen, Taggen | Watchlist, passende Richtung, Enthalten in / Tags / Bewertung
+5. Filmlisten: Watchlist, Demnächst, Bewertete, Tags, Angesehen. Watchlist: Chip **+ Hinzufügen** öffnet ein hohes Bottom-Sheet (**Zu Watchlist hinzufügen**) mit Kategorie-Chips (einzeln wählbar), Katalogvorschlägen und Live-Suche (**Film suchen**). Plus/Haken schaltet die Watchlist; schließen nur per Wischen nach unten. Tags verwalten sitzt im Tab Tags.
+6. Footer (genau 3): **Zufall** | **Listen** | **Entdecken**. Desktop immer sichtbar. Handy: sichtbar, wenn die Seite nicht scrollt; sonst ausblenden beim Runterscrollen, einblenden beim Hochscrollen. Toast sitzt über dem Footer. Account/Logout bleiben im Header auf Entdecken.
 
 Jeder Profilstand (Listen, Historie, Bewertungen, eigene Tags) liegt getrennt in `localStorage`.

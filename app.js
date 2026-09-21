@@ -15,6 +15,24 @@
     { id: "paramount", label: "Paramount+" },
   ];
 
+  const TYPE_CHIPS = [
+    { id: "animation", label: "Animation" },
+    { id: "doku", label: "Dokumentation" },
+    { id: "tv", label: "TV-Film" },
+    { id: "real", label: "Realfilm" },
+  ];
+
+  const DISCOVER_CATS = [
+    { id: "dauer", label: "Dauer" },
+    { id: "genre", label: "Genre" },
+    { id: "tags", label: "Tags" },
+    { id: "streaming", label: "Stream" },
+    { id: "typ", label: "Typ" },
+    { id: "actor", label: "Schauspieler" },
+  ];
+
+  const INTERSTELLAR_POSTER = "https://image.tmdb.org/t/p/w185/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg";
+
   const PROVIDER_NAME_MAP = {
     "Amazon Prime Video": "Prime Video",
     "Amazon Video": "Prime Video",
@@ -395,7 +413,7 @@
   }
 
   function renderGenrePicks() {
-    if (state.screen === "home" || state.screen === "suggest") render();
+    if (state.screen === "discover") render();
   }
 
   function posterUrl(film, size) {
@@ -576,7 +594,12 @@
     profile: null,
     catalog: [],
     filtersOpen: false,
-    filters: { dauerOn: false, dauer: 120, genres: [], tags: [], streaming: [] },
+    discoverView: "hub",
+    discoverCat: "",
+    filters: { dauerOn: false, dauer: 120, genres: [], tags: [], streaming: [], types: [], actors: [] },
+    actorQuery: "",
+    actorHits: [],
+    actorStatus: "",
     filterMore: { genre: false, tags: false, streaming: false, zufall: false },
     shinePaused: false,
     currentPicks: [],
@@ -762,7 +785,8 @@
     state.user = user;
     const profile = profilesOf(user.id).find((p) => p.id === session.profileId) || null;
     state.profile = profile;
-    state.screen = profile ? "home" : "profiles";
+    state.screen = profile ? "discover" : "profiles";
+    state.discoverView = "hub";
   }
 
   function persistSession() {
@@ -1188,24 +1212,67 @@
         score += match ? 1.6 : -0.15;
       }
     }
+    if (state.filters.types.length && filmMatchesType(film)) score += 1.4;
+    if (state.filters.actors.length && filmMatchesActors(film)) score += 2.4;
     score += Math.random() * 0.85;
     return score;
   }
 
+  function filmMatchesType(film) {
+    const wanted = state.filters.types || [];
+    if (!wanted.length) return true;
+    const genres = filmGenres(film);
+    const animated = genres.includes("Animation");
+    const doku = genres.includes("Doku");
+    const tv = genres.includes("TV-Film");
+    return wanted.some((id) => {
+      if (id === "animation") return animated;
+      if (id === "doku") return doku;
+      if (id === "tv") return tv;
+      if (id === "real") return !animated && !doku && !tv;
+      return false;
+    });
+  }
+
+  function filmMatchesActors(film) {
+    const wanted = state.filters.actors || [];
+    if (!wanted.length) return true;
+    const names = filmCastNames(film).map((name) => foldSearch(name));
+    if (!names.length) return false;
+    return wanted.some((actor) => {
+      const q = foldSearch(actor && actor.name);
+      if (!q) return false;
+      return names.some((name) => name === q || name.includes(q));
+    });
+  }
+
+  function hasHardFilters() {
+    return (state.filters.types && state.filters.types.length > 0)
+      || (state.filters.actors && state.filters.actors.length > 0);
+  }
+
+  function passesHardFilters(film) {
+    return filmMatchesType(film) && filmMatchesActors(film);
+  }
+
   function buildPool(excludeIds) {
     const exclude = new Set((excludeIds || []).map(filmId));
-    const usable = (film) => !exclude.has(filmId(film));
+    const usable = (film) => !exclude.has(filmId(film)) && passesHardFilters(film);
     let pool = state.catalog.filter((film) => (
       usable(film)
       && !state.sessionBlocked.has(filmId(film))
       && !state.sessionSkip.has(filmId(film))
     ));
-    if (pool.length < 3) {
+    if (!pool.length) {
       state.sessionSkip.clear();
       pool = state.catalog.filter((film) => usable(film) && !state.sessionBlocked.has(filmId(film)));
     }
-    if (pool.length < 3) pool = shuffle(state.catalog.filter(usable));
-    if (pool.length < 3) pool = shuffle(state.catalog.slice());
+    if (pool.length < 3 && !hasHardFilters()) {
+      state.sessionSkip.clear();
+      pool = state.catalog.filter((film) => usable(film) && !state.sessionBlocked.has(filmId(film)));
+    }
+    if (pool.length < 3 && !hasHardFilters()) pool = shuffle(state.catalog.filter(usable));
+    if (pool.length < 3 && !hasHardFilters()) pool = shuffle(state.catalog.slice());
     return pool;
   }
 
@@ -1223,14 +1290,15 @@
       out.push(row.film);
       if (out.length >= count) break;
     }
-    if (out.length < count) {
+    if (!hasHardFilters() && out.length < count) {
       for (const film of shuffle(state.catalog)) {
+        if (!passesHardFilters(film)) continue;
         if (out.some((x) => filmId(x) === filmId(film))) continue;
         out.push(film);
         if (out.length >= count) break;
       }
     }
-    if (!out.length && state.catalog.length) {
+    if (!out.length && state.catalog.length && !hasHardFilters()) {
       return shuffle(state.catalog).slice(0, Math.max(count, 1));
     }
     return out;
@@ -1238,15 +1306,16 @@
 
   function pickThree(excludeIds) {
     const picks = pickFilms(3, excludeIds);
-    if (picks.length >= 3) return picks.slice(0, 3);
-    const extras = cloneFilms(offlineFilms);
+    if (hasHardFilters() || picks.length >= 3) return picks.slice(0, 3);
+    const extras = cloneFilms(offlineFilms).filter(passesHardFilters);
     for (const film of extras.concat(cloneFilms(state.catalog))) {
+      if (!passesHardFilters(film)) continue;
       if (picks.some((x) => filmId(x) === filmId(film))) continue;
       picks.push(film);
       if (picks.length >= 3) break;
     }
     if (!picks.length && extras.length) return extras.slice(0, 3);
-    while (picks.length && picks.length < 3) picks.push(picks[0]);
+    while (picks.length && picks.length < 3 && !hasHardFilters()) picks.push(picks[0]);
     return picks.slice(0, 3);
   }
 
@@ -1259,6 +1328,8 @@
     return JSON.stringify({
       genres: state.filters.genres.slice().sort(),
       dauer: state.filters.dauerOn ? state.filters.dauer : null,
+      types: (state.filters.types || []).slice().sort(),
+      actors: (state.filters.actors || []).map((actor) => actor.id).sort(),
     });
   }
 
@@ -1271,8 +1342,20 @@
     const ids = state.filters.genres
       .map((name) => GENRE_NAME_TO_ID[name])
       .filter((id) => Number.isFinite(id));
+    const typeIds = [];
+    if (state.filters.types.includes("animation")) typeIds.push(16);
+    if (state.filters.types.includes("doku")) typeIds.push(99);
+    if (state.filters.types.includes("tv")) typeIds.push(10770);
     if (ids.length) params.with_genres = ids.join(",");
+    else if (typeIds.length && !(state.filters.types.length === 1 && state.filters.types[0] === "real")) {
+      params.with_genres = typeIds.join("|");
+    }
+    if (state.filters.types.length === 1 && state.filters.types[0] === "real") {
+      params.without_genres = "16,99,10770";
+    }
     if (state.filters.dauerOn) params["with_runtime.lte"] = String(state.filters.dauer);
+    const person = (state.filters.actors || []).find((actor) => actor && actor.tmdb);
+    if (person) params.with_cast = String(person.tmdb);
     return params;
   }
 
@@ -1418,7 +1501,34 @@
     return state.filters.dauerOn
       || state.filters.genres.length > 0
       || state.filters.tags.length > 0
-      || state.filters.streaming.length > 0;
+      || state.filters.streaming.length > 0
+      || state.filters.types.length > 0
+      || state.filters.actors.length > 0;
+  }
+
+  function discoverCatOn(id) {
+    if (id === "dauer") return !!state.filters.dauerOn;
+    if (id === "genre") return state.filters.genres.length > 0;
+    if (id === "tags") return state.filters.tags.length > 0;
+    if (id === "streaming") return state.filters.streaming.length > 0;
+    if (id === "typ") return state.filters.types.length > 0;
+    if (id === "actor") return state.filters.actors.length > 0;
+    return false;
+  }
+
+  function entdeckenIconHtml(large) {
+    const w = large ? 36 : 18;
+    const h = large ? 52 : 26;
+    return `
+      <span class="entdecken-icon${large ? " is-lg" : ""}" aria-hidden="true">
+        <img class="entdecken-cover" src="${INTERSTELLAR_POSTER}" alt="" width="${w}" height="${h}" decoding="async" referrerpolicy="no-referrer">
+        <svg class="entdecken-glass" viewBox="0 0 32 32" aria-hidden="true">
+          <circle cx="11" cy="11" r="8" fill="#d4926a" stroke="#6b3a24" stroke-width="1.6"/>
+          <circle cx="8.6" cy="8.4" r="2.3" fill="#f8e2cc"/>
+          <path d="M16.6 16.6 28 28" stroke="#111" stroke-width="3.2" stroke-linecap="round"/>
+        </svg>
+      </span>
+    `;
   }
 
   function dauerFill(value) {
@@ -1454,6 +1564,13 @@
     for (const id of state.filters.streaming) {
       const row = STREAMING_CHIPS.find((s) => s.id === id);
       if (row) chips.push({ kind: "streaming", id, label: row.label });
+    }
+    for (const id of state.filters.types) {
+      const row = TYPE_CHIPS.find((s) => s.id === id);
+      if (row) chips.push({ kind: "type", id, label: row.label });
+    }
+    for (const actor of state.filters.actors) {
+      chips.push({ kind: "actor", id: actor.id, label: actor.name });
     }
     return chips;
   }
@@ -1493,7 +1610,7 @@
 
   function paintChipOverflow() {
     const roots = [];
-    if (state.screen === "home" && state.filtersOpen) roots.push(app);
+    if (state.screen === "discover" && state.discoverView === "hub" && state.discoverCat) roots.push(app);
     if (state.watchSheet === "zufall") roots.push(watchSheetEl);
     roots.forEach((root) => {
       if (!root) return;
@@ -1538,6 +1655,11 @@
     state.filters.genres = [];
     state.filters.tags = [];
     state.filters.streaming = [];
+    state.filters.types = [];
+    state.filters.actors = [];
+    state.actorQuery = "";
+    state.actorHits = [];
+    state.actorStatus = "";
   }
 
   function closeFilmMenus() {
@@ -1729,10 +1851,10 @@
 
   function updateHeader() {
     const items = [];
-    if (["suggest", "lists", "tags", "done", "profile-add"].includes(state.screen)) {
+    if (["lists", "tags", "done", "profile-add"].includes(state.screen)) {
       items.push(`<button type="button" class="icon-btn" data-act="back" aria-label="Zurück" title="Zurück">${ICONS.back}</button>`);
     }
-    if (state.screen === "home") {
+    if (state.screen === "discover") {
       items.push(`<button type="button" class="icon-btn" data-act="switch" aria-label="Account wechseln" title="Account wechseln">${ICONS.switch}</button>`);
       items.push(`<button type="button" class="icon-btn" data-act="logout" aria-label="Ausloggen" title="Ausloggen">${ICONS.logout}</button>`);
     }
@@ -1810,7 +1932,7 @@
     }
     const current = (
       state.watchSheet === "zufall" ? "zufall"
-      : state.screen === "suggest" ? "suggest"
+      : state.screen === "discover" ? "entdecken"
       : state.screen === "lists" ? "lists"
       : ""
     );
@@ -2572,88 +2694,196 @@
     `;
   }
 
-  function renderHome() {
+  function renderDiscoverPanel() {
+    const cat = state.discoverCat;
+    if (!cat) return "";
     const fill = dauerFill(state.filters.dauer);
-    const tags = customTags();
-    const genreItems = genrePicks.map((g) => ({
-      act: "genre",
-      attrs: `data-genre="${escapeHtml(g)}"`,
-      label: g,
-      on: state.filters.genres.includes(g),
-    }));
-    const tagItems = tags.map((t) => ({
-      act: "filter-tag",
-      attrs: `data-id="${t.id}"`,
-      label: t.name,
-      on: state.filters.tags.includes(t.id),
-    }));
-    const streamItems = STREAMING_CHIPS.map((s) => ({
-      act: "filter-stream",
-      attrs: `data-id="${s.id}"`,
-      label: s.label,
-      on: state.filters.streaming.includes(s.id),
-    }));
-    const shine = state.filtersOpen && !state.shinePaused;
-    const heroClass = [
-      "card suggest-hero",
-      state.filtersOpen ? "is-open" : "",
-      shine ? "is-shining" : "",
-      state.filtersOpen && state.shinePaused ? "is-paused" : "",
-    ].filter(Boolean).join(" ");
-    const filters = state.filtersOpen ? `
-      <div class="filter-stack">
+    if (cat === "dauer") {
+      return `
         <div class="card filter-card is-dauer">
           <span class="filter-label">Dauer</span>
           <div class="dauer-controls">
             <input class="filigree${state.filters.dauerOn ? "" : " idle"}" data-act="dauer" type="range" min="60" max="210" step="5" value="${state.filters.dauer}" style="--fill:${fill}%" aria-label="Maximale Dauer">
             <span class="dauer-value" data-role="dauer-value">${dauerLabel(state.filters.dauer)}</span>
           </div>
+          ${state.filters.dauerOn ? `<button type="button" class="chip" data-act="dauer-off">Dauer aus</button>` : ""}
         </div>
+      `;
+    }
+    if (cat === "genre") {
+      const genreItems = genrePicks.map((g) => ({
+        act: "genre",
+        attrs: `data-genre="${escapeHtml(g)}"`,
+        label: g,
+        on: state.filters.genres.includes(g),
+      }));
+      return `
         <div class="card filter-card">
           <span class="filter-label">Genre</span>
           ${renderOverflowChips("genre", genreItems)}
         </div>
+      `;
+    }
+    if (cat === "tags") {
+      const tagItems = customTags().map((t) => ({
+        act: "filter-tag",
+        attrs: `data-id="${t.id}"`,
+        label: t.name,
+        on: state.filters.tags.includes(t.id),
+      }));
+      return `
         <div class="card filter-card">
           <span class="filter-label">Tags</span>
           ${renderOverflowChips("tags", tagItems)}
         </div>
+      `;
+    }
+    if (cat === "streaming") {
+      const streamItems = STREAMING_CHIPS.map((s) => ({
+        act: "filter-stream",
+        attrs: `data-id="${s.id}"`,
+        label: s.label,
+        on: state.filters.streaming.includes(s.id),
+      }));
+      return `
         <div class="card filter-card">
           <span class="filter-label">Stream</span>
           ${renderOverflowChips("streaming", streamItems)}
         </div>
-      </div>
-    ` : "";
-    const chips = !state.filtersOpen && anyFilterOn() ? renderActiveFilterChips() : "";
-    return `
-      <section class="home-screen">
-        <h2 class="screen-title home-title">Hauptmenü</h2>
-        <article class="${heroClass}">
-          <div class="suggest-hero-row">
-            <button type="button" class="cover-btn" data-act="suggest" aria-hidden="true">${coversMarkup()}</button>
-            <button type="button" class="suggest-hero-copy" data-act="suggest">
-              <strong>Filmvorschläge</strong>
-              ${state.filtersOpen ? "" : `<span class="menu-sub">Direkt auf drei Karten</span>`}
-            </button>
-            <button type="button" class="menu-side filter-funnel${anyFilterOn() || state.filtersOpen ? " on" : ""}" data-act="toggle-filters" aria-pressed="${state.filtersOpen}" aria-label="Filter" title="Filter">${ICONS.filter}</button>
+      `;
+    }
+    if (cat === "typ") {
+      const chips = TYPE_CHIPS.map((row) => `
+        <button type="button" class="chip" data-act="filter-type" data-id="${row.id}" aria-pressed="${state.filters.types.includes(row.id)}">${escapeHtml(row.label)}</button>
+      `).join("");
+      return `
+        <div class="card filter-card">
+          <span class="filter-label">Typ</span>
+          <div class="suggest-chips">${chips}</div>
+        </div>
+      `;
+    }
+    if (cat === "actor") {
+      const selected = state.filters.actors.map((actor) => `
+        <span class="active-chip">
+          <span>${escapeHtml(actor.name)}</span>
+          <button type="button" class="active-chip-x" data-act="actor-remove" data-id="${escapeHtml(actor.id)}" aria-label="${escapeHtml(actor.name)} entfernen">${ICONS.chipX}</button>
+        </span>
+      `).join("");
+      return `
+        <div class="card filter-card">
+          <span class="filter-label">Schauspieler</span>
+          ${selected ? `<div class="active-chip-row">${selected}</div>` : ""}
+          <div class="sheet-search-wrap">
+            <span class="sheet-search-icon">${ICONS.search}</span>
+            <input data-act="actor-search" placeholder="Schauspieler suchen" value="${escapeHtml(state.actorQuery)}" autocomplete="off" enterkeyhint="search" aria-label="Schauspieler suchen">
           </div>
-          ${chips}
+          <div class="actor-hits" data-role="actor-hits">${actorHitsHtml()}</div>
+        </div>
+      `;
+    }
+    return "";
+  }
+
+  function renderDiscoverHub() {
+    const cats = DISCOVER_CATS.map((cat) => {
+      const on = discoverCatOn(cat.id);
+      const open = state.discoverCat === cat.id;
+      return `<button type="button" class="chip discover-cat${on ? " is-lava" : ""}" data-act="discover-cat" data-id="${cat.id}" aria-pressed="${open}">${escapeHtml(cat.label)}</button>`;
+    }).join("");
+    const active = anyFilterOn() ? renderActiveFilterChips() : "";
+    return `
+      <section class="home-screen discover-screen">
+        <h2 class="screen-title home-title">Vorschläge</h2>
+        <article class="card discover-hero">
+          <button type="button" class="discover-hero-hit" data-act="suggest">
+            ${entdeckenIconHtml(true)}
+            <strong>Filme vorschlagen</strong>
+          </button>
         </article>
-        ${filters}
-        <button type="button" class="card menu-card" data-act="lists">
-          <span class="menu-icon">${ICONS.lists}</span>
-          <span class="menu-copy">
-            <strong>Meine Filmlisten</strong>
-            <span class="menu-sub">Watchlist, Noten, Tags</span>
-          </span>
-          <span></span>
-        </button>
-        <button type="button" class="card menu-card" data-act="tags">
-          <span class="menu-icon">${ICONS.tags}</span>
-          <strong>Tags verwalten</strong>
-          <span></span>
-        </button>
+        <div class="discover-cats">${cats}</div>
+        ${active}
+        <div class="discover-panel">${renderDiscoverPanel()}</div>
       </section>
     `;
+  }
+
+  function renderSuggestCard(film) {
+    film = filmWithPoster(film) || film;
+    const id = escapeHtml(filmId(film));
+    const hid = filmId(film);
+    const open = state.expandedFilmId === hid;
+    const runtime = durationPill(film);
+    const cast = filmCastLine(film);
+    const seen = lastSeenEntry(film);
+    const seenDate = seen ? formatSeenOn(seen.at) : "";
+    const seenLine = seenDate ? `<p class="film-expand-seen">Zuletzt gesehen: ${escapeHtml(seenDate)}</p>` : "";
+    const onWatch = isOnWatchlist(film);
+    const inQueue = isOnQueue(film);
+    const memberChips = [
+      inQueue ? `<span class="chip is-lava">Demnächst</span>` : "",
+      onWatch ? `<span class="chip">Watchlist</span>` : "",
+    ].filter(Boolean).join("");
+    const listsBlock = `
+      <div class="film-expand-in">
+        <p class="film-expand-in-label">Enthalten in:</p>
+        <div class="film-expand-in-chips">${memberChips || `<span class="hint">—</span>`}</div>
+      </div>
+    `;
+    const tags = renderFilmTagChips(film);
+    const expand = `
+      <div class="film-row-expand"${open ? "" : " hidden"}>
+        ${seenLine}
+        <button type="button" class="btn btn-primary suggest-watch-btn" data-act="choose" data-id="${id}">Anschauen</button>
+        <div class="suggest-split">
+          <button type="button" class="btn btn-compact" data-act="suggest-tag" data-id="${id}">Taggen</button>
+          <button type="button" class="btn btn-compact" data-act="suggest-watch" data-id="${id}" aria-pressed="${onWatch}">Watchlist</button>
+        </div>
+        <button type="button" class="btn btn-compact suggest-richtung" data-act="richtung" data-id="${id}">passende Richtung</button>
+        ${listsBlock}
+        <p class="film-expand-in-label">Tags</p>
+        <div class="film-expand-tags" data-role="suggest-tags">${tags || `<span class="hint">Noch keine eigenen Tags</span>`}</div>
+        <p class="film-expand-in-label">Bewertung</p>
+        <div class="film-expand-rates">${renderRates(film, true)}</div>
+      </div>
+    `;
+    const article = `
+      <article class="film-row is-expandable is-tall swipe-front${open ? " is-open" : ""}" data-id="${id}">
+        <div class="film-row-head" data-act="film-expand" data-id="${id}" aria-expanded="${open}">
+          ${posterTile(film, { size: POSTER_SIZE_CARD })}
+          <div class="film-row-body">
+            <div class="film-row-titleline">
+              <h3 class="film-row-title">${escapeHtml(film.title)}</h3>
+              ${runtime ? `<span class="duration-pill">${escapeHtml(runtime)}</span>` : ""}
+            </div>
+            ${cast ? `<p class="film-row-cast">${escapeHtml(cast)}</p>` : ""}
+          </div>
+          <button type="button" class="film-row-chevron" data-act="film-expand" data-id="${id}" aria-expanded="${open}" aria-label="${open ? "Zuklappen" : "Aufklappen"}">${open ? ICONS.chevronUp : ICONS.chevron}</button>
+        </div>
+        ${expand}
+      </article>
+    `;
+    return wrapSwipeTrack(article, hid, "suggest");
+  }
+
+  function renderDiscoverResults() {
+    const cards = state.currentPicks.map((film) => renderSuggestCard(film)).join("");
+    const empty = `<p class="hint">Keine passenden Filme. Filter anpassen oder Refresh.</p>`;
+    return `
+      <section class="discover-results">
+        <h2 class="screen-title home-title">Vorschläge</h2>
+        <div class="suggest-controls">
+          <button type="button" class="suggest-nav-btn" data-act="discover-filters">‹ Filter</button>
+          <button type="button" class="suggest-nav-btn" data-act="discover-refresh">Refresh</button>
+        </div>
+        <div class="suggest-results">${cards || empty}</div>
+      </section>
+    `;
+  }
+
+  function renderDiscover() {
+    if (state.discoverView === "results") return renderDiscoverResults();
+    return renderDiscoverHub();
   }
 
   function renderRates(film, always) {
@@ -2665,45 +2895,6 @@
             ${rateIcon(r.id)}
           </button>
         `).join("")}
-      </div>
-    `;
-  }
-
-  function renderSuggest() {
-    const labels = state.shortlist.map((film) => `
-      <button type="button" class="short-label" data-act="unshort" data-id="${escapeHtml(filmId(film))}">
-        <span class="x">×</span>${escapeHtml(film.title)}
-      </button>
-    `).join("");
-    const cards = state.currentPicks.map((film) => {
-      const tagNames = tagsFor(film.id).map((id) => {
-        const tag = customTags().find((t) => t.id === id);
-        return tag ? tag.name : "";
-      }).filter(Boolean);
-      const meta = [fmtDuration(film.runtime || film.minutes), film.genre].concat(tagNames).join(" · ");
-      return `
-        <article class="card film-card">
-          <div class="film-top">
-            ${posterTile(film)}
-            <div class="film-meta">
-              <h3 class="film-title">${escapeHtml(film.title)}</h3>
-              <div class="meta">${escapeHtml(meta)}</div>
-              ${renderRates(film, true)}
-            </div>
-          </div>
-          <div class="card-actions">
-            <button type="button" class="btn btn-compact" data-act="richtung" data-id="${escapeHtml(filmId(film))}">Die Richtung stimmt</button>
-            <button type="button" class="btn btn-compact btn-primary" data-act="choose" data-id="${escapeHtml(filmId(film))}">Film wählen</button>
-            <button type="button" class="btn btn-compact" data-act="engere" data-id="${escapeHtml(filmId(film))}">Engere Auswahl</button>
-            <button type="button" class="btn btn-compact btn-ghost" data-act="watch-add" data-id="${escapeHtml(filmId(film))}">→ Watchlist</button>
-          </div>
-        </article>
-      `;
-    }).join("");
-    return `
-      <div class="suggest-wrap">
-        <div class="shortlist">${labels}</div>
-        <section class="film-col">${cards}</section>
       </div>
     `;
   }
@@ -2789,7 +2980,7 @@
 
   function zufallUberLabel(ids) {
     const wanted = new Set(ids || state.zufallSources || []);
-    const names = zufallAvailableSources().filter((id) => wanted.has(id)).map((id) => {
+    const names = zufallAvailableSources().filter((id) => wanted.has(id) && zufallUnionCount([id]) > 0).map((id) => {
       const meta = zufallSourceMeta(id);
       return meta ? meta.label : "";
     }).filter(Boolean);
@@ -2903,14 +3094,16 @@
   }
 
   function wrapSwipeTrack(inner, id, mode) {
-    const left = mode === "search"
+    const left = (mode === "search" || mode === "suggest")
       ? `<div class="swipe-action swipe-action-queue">Demnächst<br>+ Watchlist</div>`
       : mode === "watch"
         ? `<div class="swipe-action swipe-action-queue">Demnächst<span class="swipe-arrow">→</span></div>`
         : `<div class="swipe-action swipe-action-queue" hidden></div>`;
-    const right = (mode === "watch" || mode === "queue")
-      ? `<div class="swipe-action swipe-action-remove">Entfernen</div>`
-      : `<div class="swipe-action swipe-action-remove" hidden></div>`;
+    const right = mode === "suggest"
+      ? `<div class="swipe-action swipe-action-dismiss">Weg</div>`
+      : (mode === "watch" || mode === "queue")
+        ? `<div class="swipe-action swipe-action-remove">Entfernen</div>`
+        : `<div class="swipe-action swipe-action-remove" hidden></div>`;
     return `
       <div class="swipe-track" data-swipe-row data-swipe-mode="${escapeHtml(mode)}" data-id="${escapeHtml(id)}">
         <div class="swipe-actions" aria-hidden="true">${left}${right}</div>
@@ -3512,6 +3705,7 @@
       watchSheetEl.hidden = true;
       watchSheetEl.innerHTML = "";
     }
+    updateFooter();
   }
 
   function dismissWatchSheet() {
@@ -3537,6 +3731,89 @@
 
   let searchTimer = 0;
   let searchSeq = 0;
+  let actorTimer = 0;
+  let actorSeq = 0;
+
+  function catalogActorHits(query) {
+    const q = foldSearch(query);
+    if (!q) return [];
+    const counts = new Map();
+    const source = (state.catalog || []).concat(FILMS);
+    for (const film of source) {
+      for (const name of filmCastNames(film)) {
+        const folded = foldSearch(name);
+        if (!folded || (!folded.includes(q) && !folded.split(" ").some((part) => part.startsWith(q)))) continue;
+        const prev = counts.get(folded);
+        if (prev) prev.count += 1;
+        else counts.set(folded, { name, count: 1 });
+      }
+    }
+    return [...counts.values()]
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "de"))
+      .slice(0, 8)
+      .map((row) => ({ id: row.name, name: row.name, tmdb: 0 }));
+  }
+
+  function actorHitsHtml() {
+    const q = String(state.actorQuery || "").trim();
+    if (!q) return "";
+    if (state.actorStatus === "loading" && !state.actorHits.length) return `<p class="hint">Suche…</p>`;
+    if (!state.actorHits.length) return `<p class="hint">Kein Treffer</p>`;
+    return state.actorHits.map((row) => `
+      <button type="button" class="actor-hit" data-act="actor-pick" data-id="${escapeHtml(String(row.id))}" data-name="${escapeHtml(row.name)}" data-tmdb="${row.tmdb || ""}">${escapeHtml(row.name)}</button>
+    `).join("");
+  }
+
+  function paintActorHits() {
+    const box = app.querySelector("[data-role=actor-hits]");
+    if (!box) return;
+    box.innerHTML = actorHitsHtml();
+  }
+
+  function scheduleActorSearch(query) {
+    window.clearTimeout(actorTimer);
+    actorSeq += 1;
+    const q = String(query || "").trim();
+    const seq = actorSeq;
+    if (!q) {
+      state.actorHits = [];
+      state.actorStatus = "";
+      paintActorHits();
+      return;
+    }
+    const local = catalogActorHits(q);
+    state.actorHits = local;
+    state.actorStatus = !tmdbKey() ? (local.length ? "ok" : "empty") : (local.length ? "ok" : "loading");
+    paintActorHits();
+    if (!tmdbKey()) return;
+    actorTimer = window.setTimeout(async () => {
+      if (seq !== actorSeq) return;
+      try {
+        const data = await tmdbFetch("/search/person", { query: q, include_adult: "false" });
+        if (seq !== actorSeq) return;
+        const remote = (data.results || []).slice(0, 8).map((row) => ({
+          id: `p${row.id}`,
+          name: row.name,
+          tmdb: row.id,
+        })).filter((row) => row.name);
+        const seen = new Set();
+        const hits = [];
+        for (const row of remote.concat(local)) {
+          const key = foldSearch(row.name);
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          hits.push(row);
+          if (hits.length >= 8) break;
+        }
+        state.actorHits = hits;
+        state.actorStatus = hits.length ? "ok" : "empty";
+      } catch {
+        if (seq !== actorSeq) return;
+        state.actorStatus = local.length ? "ok" : "empty";
+      }
+      paintActorHits();
+    }, 220);
+  }
 
   function scheduleTitleSearch(query) {
     window.clearTimeout(searchTimer);
@@ -4278,6 +4555,7 @@
       const meta = zufallSourceMeta(id);
       if (!meta) return "";
       const n = zufallUnionCount([id]);
+      if (!n) return "";
       const on = selected.has(id);
       return `<button type="button" class="chip${on && selected.size === 1 ? " is-lava" : ""}" data-act="zufall-source" data-id="${escapeHtml(id)}" aria-pressed="${on}">${escapeHtml(meta.label)} (${n})${on && selected.size > 1 ? " ✓" : ""}</button>`;
     }).join("");
@@ -4558,7 +4836,8 @@
     updateFooter();
     const onLogin = state.screen === "login";
     document.body.classList.toggle("on-login", onLogin);
-    document.body.classList.toggle("on-home", state.screen === "home");
+    document.body.classList.toggle("on-home", state.screen === "discover" && state.discoverView !== "results");
+    document.body.classList.toggle("on-discover", state.screen === "discover");
     document.body.classList.toggle("on-lists", state.screen === "lists");
     if (!onLogin) {
       document.body.classList.remove("login-focus");
@@ -4580,11 +4859,14 @@
     }
     else if (state.screen === "profiles") app.innerHTML = renderProfiles();
     else if (state.screen === "profile-add") app.innerHTML = renderProfileAdd();
-    else if (state.screen === "home") {
-      app.innerHTML = renderHome();
-      window.requestAnimationFrame(paintChipOverflow);
+    else if (state.screen === "discover") {
+      app.innerHTML = renderDiscover();
+      if (state.discoverView === "hub") window.requestAnimationFrame(paintChipOverflow);
+      if (state.discoverView === "results") {
+        observeListPostersSoon(app);
+        enrichListCast(state.currentPicks);
+      }
     }
-    else if (state.screen === "suggest") app.innerHTML = renderSuggest();
     else if (state.screen === "lists") {
       app.innerHTML = renderLists();
       bindFilmListScroll();
@@ -4607,9 +4889,11 @@
       return;
     }
     if (state.screen === "profile-add") state.screen = "profiles";
-    else if (state.screen === "suggest" || state.screen === "lists" || state.screen === "tags" || state.screen === "done") {
+    else if (state.screen === "lists" || state.screen === "tags" || state.screen === "done") {
       if (state.screen === "tags") state.tagEditId = null;
-      state.screen = "home";
+      state.screen = "discover";
+      state.discoverView = "hub";
+      state.expandedFilmId = null;
     }
     render();
   }
@@ -4621,7 +4905,8 @@
     if (list.length === 1) {
       state.profile = list[0];
       resetSessionPicks();
-      state.screen = "home";
+      state.screen = "discover";
+      state.discoverView = "hub";
     } else {
       state.profile = null;
       state.screen = "profiles";
@@ -4727,16 +5012,22 @@
       next.push(await enrichFilm(film));
     }
     state.currentPicks = next;
-    if (state.screen === "suggest") render();
+    if (state.screen === "discover" && state.discoverView === "results") render();
   }
 
-  async function startSuggestions() {
+  async function startSuggestions(opts) {
+    const refresh = !!(opts && opts.refresh);
     closeWatchSheet();
+    if (refresh) {
+      for (const film of state.currentPicks) state.sessionSkip.add(filmId(film));
+    }
+    state.screen = "discover";
+    state.discoverView = "results";
+    state.expandedFilmId = null;
     await loadCatalog();
     await ensureDiscoverPool(80);
     if (!state.catalog.length) state.catalog = cloneFilms(offlineFilms);
     state.currentPicks = pickThree();
-    state.screen = "suggest";
     render();
     scheduleFooterSync({ reset: true });
     enrichPicks();
@@ -4826,8 +5117,10 @@
     resetSessionPicks();
     state.chosen = film;
     state.screen = "done";
+    state.discoverView = "hub";
     render();
     burstConfetti();
+    showSnack("Angesehen");
   }
 
   function handleWatchUiClick(event) {
@@ -4936,7 +5229,8 @@
       state.profile = profile;
       resetSessionPicks();
       state.expandedFilmId = null;
-      state.screen = "home";
+      state.screen = "discover";
+      state.discoverView = "hub";
       persistSession();
       render();
       loadCatalog();
@@ -5000,6 +5294,8 @@
       if (kind === "genre") state.filters.genres = state.filters.genres.filter((x) => x !== id);
       if (kind === "tag") state.filters.tags = state.filters.tags.filter((x) => x !== id);
       if (kind === "streaming") state.filters.streaming = state.filters.streaming.filter((x) => x !== id);
+      if (kind === "type") state.filters.types = state.filters.types.filter((x) => x !== id);
+      if (kind === "actor") state.filters.actors = state.filters.actors.filter((x) => x.id !== id);
       render();
       return;
     }
@@ -5043,8 +5339,82 @@
       return;
     }
     if (act === "suggest") {
-      if (state.filtersOpen) state.shinePaused = true;
       await startSuggestions();
+      return;
+    }
+    if (act === "discover-filters") {
+      state.discoverView = "hub";
+      state.expandedFilmId = null;
+      render();
+      return;
+    }
+    if (act === "discover-refresh") {
+      await startSuggestions({ refresh: true });
+      return;
+    }
+    if (act === "discover-cat") {
+      const id = t.dataset.id;
+      state.discoverCat = state.discoverCat === id ? "" : id;
+      render();
+      return;
+    }
+    if (act === "dauer-off") {
+      state.filters.dauerOn = false;
+      render();
+      return;
+    }
+    if (act === "filter-type") {
+      const id = t.dataset.id;
+      if (state.filters.types.includes(id)) {
+        state.filters.types = state.filters.types.filter((x) => x !== id);
+      } else {
+        state.filters.types.push(id);
+      }
+      render();
+      return;
+    }
+    if (act === "actor-pick") {
+      const name = t.dataset.name || "";
+      const id = t.dataset.id || name;
+      const tmdb = Number(t.dataset.tmdb) || 0;
+      if (name && !state.filters.actors.some((actor) => foldSearch(actor.name) === foldSearch(name))) {
+        state.filters.actors.push({ id, name, tmdb });
+      }
+      state.actorQuery = "";
+      state.actorHits = [];
+      state.actorStatus = "";
+      render();
+      return;
+    }
+    if (act === "actor-remove") {
+      state.filters.actors = state.filters.actors.filter((actor) => actor.id !== t.dataset.id);
+      render();
+      return;
+    }
+    if (act === "suggest-tag") {
+      const box = t.closest(".film-row-expand");
+      const tagsEl = box && box.querySelector("[data-role=suggest-tags]");
+      if (!customTags().length) {
+        showSnack("Noch keine eigenen Tags");
+        return;
+      }
+      if (tagsEl) {
+        tagsEl.classList.add("is-focus");
+        tagsEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+      return;
+    }
+    if (act === "suggest-watch") {
+      const film = findFilm(t.dataset.id);
+      if (!film) return;
+      if (isOnWatchlist(film)) {
+        saveWatchlist(watchlist().filter((row) => String(row.id) !== filmId(film)));
+        showSnack(`${film.title} von Watchlist entfernt`, "danger");
+      } else if (addWatch(film)) {
+        showSnack(`${film.title} zur Watchlist hinzugefügt`);
+      }
+      render();
+      updateFooter();
       return;
     }
     if (act === "lists") {
@@ -5167,7 +5537,8 @@
     if (act === "new-round") {
       resetSessionPicks();
       state.chosen = null;
-      state.screen = "home";
+      state.screen = "discover";
+      state.discoverView = "hub";
       render();
       return;
     }
@@ -5301,6 +5672,16 @@
       t.classList.remove("idle");
       const value = t.parentElement.querySelector("[data-role=dauer-value]");
       if (value) value.textContent = dauerLabel(state.filters.dauer);
+      const cat = app.querySelector("[data-act=discover-cat][data-id=dauer]");
+      if (cat) cat.classList.add("is-lava");
+      const card = t.closest(".filter-card");
+      if (card && !card.querySelector("[data-act=dauer-off]")) {
+        card.insertAdjacentHTML("beforeend", `<button type="button" class="chip" data-act="dauer-off">Dauer aus</button>`);
+      }
+    }
+    if (act === "actor-search") {
+      state.actorQuery = t.value;
+      scheduleActorSearch(t.value);
     }
   });
 
@@ -5411,8 +5792,12 @@
       updateFooter();
       return;
     }
-    if (nav === "suggest") {
-      await startSuggestions();
+    if (nav === "entdecken") {
+      closeWatchSheet();
+      state.screen = "discover";
+      state.discoverView = "hub";
+      state.expandedFilmId = null;
+      render();
       return;
     }
     if (nav === "lists") {
@@ -5446,12 +5831,48 @@
     }, 200);
   }
 
+  function dismissSuggestRow(row, film) {
+    const id = filmId(film);
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const finish = () => {
+      state.sessionSkip.add(id);
+      state.currentPicks = state.currentPicks.filter((item) => filmId(item) !== id);
+      if (state.expandedFilmId === id) state.expandedFilmId = null;
+      if (state.screen === "discover" && state.discoverView === "results") render();
+    };
+    if (reduce) {
+      finish();
+      return;
+    }
+    const front = swipeFront(row);
+    front.classList.add("is-dismissing");
+    front.style.transition = "transform 0.24s ease, opacity 0.24s ease";
+    front.style.transform = "translateX(-120%)";
+    front.style.opacity = "0";
+    window.setTimeout(finish, 240);
+  }
+
   function commitSwipe(row, dir) {
     const mode = row.dataset.swipeMode;
     const film = findFilm(row.dataset.id);
+    if (!film || !mode) {
+      resetSwipeRow(row);
+      return;
+    }
+    if (mode === "suggest" && dir === "left") {
+      dismissSuggestRow(row, film);
+      return;
+    }
     resetSwipeRow(row);
-    if (!film || !mode) return;
     if (dir === "right") {
+      if (mode === "suggest") {
+        const watched = addWatch(film);
+        const queued = addQueue(film);
+        showSnack((watched || queued) ? "Zu Watchlist und Demnächst hinzugefügt" : "Bereits in Watchlist und Demnächst");
+        updateFooter();
+        if (state.expandedFilmId === filmId(film)) render();
+        return;
+      }
       if (mode === "watch") {
         if (!addQueue(film)) {
           showSnack("Bereits in Demnächst enthalten");
@@ -5522,8 +5943,8 @@
     swipeDrag.dx = dx;
     const mode = swipeDrag.row.dataset.swipeMode;
     let x = dx;
-    if (x > 0 && mode !== "watch" && mode !== "search") x = 0;
-    if (x < 0 && mode !== "watch" && mode !== "queue") x = 0;
+    if (x > 0 && mode !== "watch" && mode !== "search" && mode !== "suggest") x = 0;
+    if (x < 0 && mode !== "watch" && mode !== "queue" && mode !== "suggest") x = 0;
     x = Math.max(-96, Math.min(96, x));
     const front = swipeFront(swipeDrag.row);
     front.style.transition = "none";
