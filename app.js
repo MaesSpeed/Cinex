@@ -922,6 +922,7 @@
 
   function patchFilmCastLines() {
     document.querySelectorAll(".film-row[data-id]").forEach((row) => {
+      if (row.hasAttribute("data-seen")) return;
       const film = findFilm(row.dataset.id);
       if (!film) return;
       const line = filmCastLine(film);
@@ -2078,6 +2079,11 @@
       leftFilm = ui.front.left;
       centerFilm = ui.front.center;
       rightFilm = ui.front.right;
+    } else if (ui.pool && ui.pool.length) {
+      const trio = tripletAt(carouselFrontIndex(ui));
+      leftFilm = trio.left;
+      centerFilm = trio.center;
+      rightFilm = trio.right;
     } else {
       const idx = carouselFrontIndex(ui);
       const at = (delta) => posters[(idx + delta + pCount) % pCount];
@@ -2793,7 +2799,7 @@
     const extra = opts.extra || "";
     const unrated = opts.unrated;
     const runtime = durationPill(film);
-    const cast = filmCastLine(film);
+    const cast = (opts.hideCast || opts.gesehen) ? "" : filmCastLine(film);
     const sub = extra && extra !== cast ? extra : "";
     const line = [cast, sub].filter(Boolean).join(" · ");
     const id = escapeHtml(filmId(film));
@@ -2812,7 +2818,7 @@
       menuPop = `<div class="film-menu-pop" hidden>${menuInner}</div>`;
     }
     const article = `
-      <article class="film-row${unrated ? " is-unrated" : ""}${opts.swipeMode ? " swipe-front" : ""}"${opts.swipeMode ? "" : " data-swipe-row"} data-id="${id}">
+      <article class="film-row${unrated ? " is-unrated" : ""}${opts.swipeMode ? " swipe-front" : ""}"${opts.swipeMode ? "" : " data-swipe-row"} data-id="${id}"${opts.gesehen ? " data-seen" : ""}">
         ${posterTile(film, { lazy: true, size: POSTER_SIZE_THUMB })}
         <div class="film-row-body">
           <div class="film-row-titleline">
@@ -3595,7 +3601,7 @@
 
   function formatProviderLine(names) {
     const list = uniqueProviderNames(names);
-    if (!list.length) return { text: "Keine Angabe", extra: false };
+    if (!list.length) return { text: "", extra: false };
     const shown = list.slice(0, 3);
     return { text: shown.join(", "), extra: list.length > 3 };
   }
@@ -3755,6 +3761,7 @@
     const leftBtn = box.querySelector("[data-side=left]");
     const rightBtn = box.querySelector("[data-side=right]");
     const title = box.querySelector("[data-role=zufall-title-center]");
+    const stream = box.querySelector("[data-role=zufall-stream]");
     const providers = box.querySelector("[data-role=zufall-providers]");
     const watch = box.querySelector("[data-act=choose]");
     if (leftBtn) {
@@ -3770,11 +3777,14 @@
       title.classList.toggle("is-ember", zufallUi.phase === "result");
     }
     if (watch && center) watch.dataset.id = filmId(center);
+    const line = formatProviderLine(center && (center.providers || fallbackProvidersFor(center)));
+    if (stream) stream.hidden = !line.text;
     if (providers) {
-      const line = formatProviderLine(center && (center.providers || fallbackProvidersFor(center)));
-      providers.innerHTML = line.extra
-        ? `${escapeHtml(line.text)}<span class="zufall-mehr">+ mehr</span>`
-        : escapeHtml(line.text);
+      providers.innerHTML = line.text
+        ? (line.extra
+          ? `${escapeHtml(line.text)}<span class="zufall-mehr">+ mehr</span>`
+          : escapeHtml(line.text))
+        : "";
     }
   }
 
@@ -3785,29 +3795,56 @@
     paintZufallResult();
   }
 
-  function otherPoolFilm(center, which) {
-    const pool = zufallUi.pool;
-    if (!pool.length) return center;
-    if (pool.length === 1) return pool[0];
-    const others = pool.filter((film) => filmId(film) !== filmId(center));
-    if (!others.length) return pool[0];
-    return others[which % others.length];
+  function uniquePoolFilms() {
+    const seen = new Set();
+    const out = [];
+    for (const film of zufallUi.pool || []) {
+      const id = filmId(film);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push(film);
+    }
+    return out;
+  }
+
+  function pickDistinctTrio(center, preferredLeft, preferredRight) {
+    const uniq = uniquePoolFilms();
+    const centerFilm = (center && uniq.some((film) => filmId(film) === filmId(center)))
+      ? center
+      : (uniq[0] || center || null);
+    if (!centerFilm) return { left: null, center: null, right: null };
+    const cid = filmId(centerFilm);
+    const rest = uniq.filter((film) => filmId(film) !== cid);
+    if (uniq.length <= 1) {
+      const only = uniq[0] || centerFilm;
+      return { left: only, center: only, right: only };
+    }
+    function take(preferred, used) {
+      const id = preferred && filmId(preferred);
+      if (id && !used.has(id) && rest.some((film) => filmId(film) === id)) return preferred;
+      return rest.find((film) => !used.has(filmId(film))) || null;
+    }
+    const used = new Set([cid]);
+    const left = take(preferredLeft, used) || rest[0];
+    used.add(filmId(left));
+    const right = take(preferredRight, used) || (uniq.length === 2 ? left : rest.find((film) => !used.has(filmId(film))) || left);
+    return { left, center: centerFilm, right };
   }
 
   function tripletAt(index) {
     const n = zufallUi.posters.length;
-    const center = zufallUi.posters[index];
+    if (!n) return { left: null, center: null, right: null };
+    const packedCenter = zufallUi.posters[index];
+    const center = (packedCenter && !zufallUi.isFiller[index] && isZufallPoolFilm(packedCenter))
+      ? packedCenter
+      : zufallUi.posters[nearestPoolIndex(index)];
     const leftIdx = (index - 1 + n) % n;
     const rightIdx = (index + 1) % n;
     const leftPacked = zufallUi.posters[leftIdx];
     const rightPacked = zufallUi.posters[rightIdx];
-    const left = (!zufallUi.isFiller[leftIdx] && isZufallPoolFilm(leftPacked))
-      ? leftPacked
-      : otherPoolFilm(center, 0);
-    const right = (!zufallUi.isFiller[rightIdx] && isZufallPoolFilm(rightPacked))
-      ? rightPacked
-      : otherPoolFilm(center, 1);
-    return { left, center, right };
+    const preferLeft = (!zufallUi.isFiller[leftIdx] && isZufallPoolFilm(leftPacked)) ? leftPacked : null;
+    const preferRight = (!zufallUi.isFiller[rightIdx] && isZufallPoolFilm(rightPacked)) ? rightPacked : null;
+    return pickDistinctTrio(center, preferLeft, preferRight);
   }
 
   function nearestPoolIndex(from) {
@@ -4178,20 +4215,18 @@
 
   function renderZufallSourceChips() {
     const selected = new Set(state.zufallSources);
-    const origin = new Set(state.zufallOrigin);
     const chips = zufallAvailableSources().map((id) => {
       const meta = zufallSourceMeta(id);
       if (!meta) return "";
       const n = zufallUnionCount([id]);
       const on = selected.has(id);
-      const isOrigin = on && origin.has(id);
-      return `<button type="button" class="chip${isOrigin ? " is-origin" : ""}" data-act="zufall-source" data-id="${escapeHtml(id)}" aria-pressed="${on}">${escapeHtml(meta.label)} ${n}${on && selected.size > 1 ? " ✓" : ""}</button>`;
+      return `<button type="button" class="chip${on && selected.size === 1 ? " is-lava" : ""}" data-act="zufall-source" data-id="${escapeHtml(id)}" aria-pressed="${on}">${escapeHtml(meta.label)} (${n})${on && selected.size > 1 ? " ✓" : ""}</button>`;
     }).join("");
     const uber = zufallUberLabel(state.zufallSources);
     const expanded = !!state.filterMore.zufall;
     return `
       <p class="zufall-pool-label">Filme aus:</p>
-      <div class="zufall-uber" data-role="zufall-uber"${uber ? "" : " hidden"}><span class="zufall-uber-chip">${escapeHtml(uber)}</span></div>
+      <div class="zufall-uber" data-role="zufall-uber"${uber ? "" : " hidden"}><span class="zufall-uber-chip is-lava">${escapeHtml(uber)}</span></div>
       <div class="zufall-chip-row">
         <div class="filter-chips${expanded ? " is-expanded" : ""}" data-chip-row="zufall">${chips}</div>
         <button type="button" class="chip-more${expanded ? " is-weniger" : ""}" data-act="zufall-more"${expanded ? "" : " hidden"}>${expanded ? "weniger" : "mehr"}</button>
@@ -4266,7 +4301,7 @@
               <strong class="zufall-title-center" data-role="zufall-title-center"></strong>
               <button type="button" class="zufall-title-side" data-act="zufall-swap" data-side="right"></button>
             </div>
-            <div class="zufall-stream">
+            <div class="zufall-stream" data-role="zufall-stream" hidden>
               <p class="zufall-stream-label">verfügbar auf:</p>
               <p class="zufall-providers" data-role="zufall-providers"></p>
             </div>
@@ -4373,6 +4408,12 @@
     `;
   }
 
+  function formatSeenOn(at) {
+    const d = new Date(Number(at));
+    if (!Number.isFinite(d.getTime()) || d.getTime() <= 0) return "";
+    return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+
   function renderSeenTab() {
     const all = ratings();
     let rows = history().slice().sort((a, b) => b.at - a.at);
@@ -4380,10 +4421,13 @@
     const cards = rows.map((row) => {
       const film = findFilm(row.id) || { id: row.id, title: row.title, genre: "Film", minutes: 0, poster: "", color: "#1d4f91" };
       const unrated = !all[String(row.id)];
+      const rateLabel = unrated ? "" : (RATE_KEYS.find((r) => r.id === all[String(row.id)])?.label || "");
+      const extra = [formatSeenOn(row.at), rateLabel].filter(Boolean).join(" · ");
       return renderListRow(film, {
         gesehen: true,
         unrated,
-        extra: unrated ? "noch keine Note" : RATE_KEYS.find((r) => r.id === all[String(row.id)])?.label,
+        hideCast: true,
+        extra,
       });
     }).join("");
     return `
@@ -4498,7 +4542,7 @@
       observeListPostersSoon(app);
       const shown = app.querySelectorAll(".film-row");
       const films = [...shown].map((row) => findFilm(row.dataset.id)).filter(Boolean);
-      enrichListCast(films);
+      if (state.listTab !== "seen") enrichListCast(films);
     }
     else if (state.screen === "tags") app.innerHTML = renderTagsManage();
     else if (state.screen === "done") app.innerHTML = renderDone();
@@ -4518,6 +4562,21 @@
       state.screen = "home";
     }
     render();
+  }
+
+  function enterLoggedInUser(user) {
+    state.user = user;
+    state.loginError = "";
+    const list = profilesOf(user.id);
+    if (list.length === 1) {
+      state.profile = list[0];
+      resetSessionPicks();
+      state.screen = "home";
+    } else {
+      state.profile = null;
+      state.screen = "profiles";
+    }
+    persistSession();
   }
 
   function submitAuth() {
@@ -4542,11 +4601,7 @@
       const user = { id: `u-${Date.now()}`, login, password };
       list.push(user);
       saveUsers(list);
-      state.user = user;
-      state.profile = null;
-      state.screen = "profiles";
-      state.loginError = "";
-      persistSession();
+      enterLoggedInUser(user);
       render();
       return;
     }
@@ -4556,12 +4611,9 @@
       render();
       return;
     }
-    state.user = user;
-    state.profile = null;
-    state.screen = "profiles";
-    state.loginError = "";
-    persistSession();
+    enterLoggedInUser(user);
     render();
+    if (state.profile) loadCatalog();
   }
 
   async function enrichFilm(film) {
@@ -4660,10 +4712,12 @@
       return;
     }
     addWatch(film);
+    let queued = false;
+    if (state.listTab === "queue") queued = addQueue(film);
     paintWatchToggles();
     refreshWatchList();
     if (state.watchSheet) paintWatchSheetList();
-    showSnack(`${film.title} zur Watchlist hinzugefügt`);
+    showSnack(queued ? "Zu Watchlist und Demnächst hinzugefügt" : `${film.title} zur Watchlist hinzugefügt`);
   }
 
   function chooseFilm(film) {
@@ -5291,7 +5345,10 @@
     if (!film || !mode) return;
     if (dir === "right") {
       if (mode === "watch") {
-        addQueue(film);
+        if (!addQueue(film)) {
+          showSnack("Bereits in Demnächst enthalten");
+          return;
+        }
         showSnack(`${film.title} → Demnächst`);
         paintZufallChip();
         updateFooter();

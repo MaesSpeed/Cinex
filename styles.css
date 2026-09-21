@@ -2469,15 +2469,23 @@ body.on-login #app {
   max-width: 100%;
   padding: 7px 14px;
   border-radius: 999px;
-  border: 2px solid var(--blue);
-  background: var(--blue-soft);
-  color: #0b3a63;
+  border: 1.5px solid var(--border);
+  background: #fff;
+  color: #3d4d5c;
   font-size: 0.78rem;
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.zufall-uber-chip.is-lava {
+  border-color: var(--ember-border);
+  background: #fffaf5;
+  color: #7a4a32;
+  box-shadow: none;
+  animation: none;
 }
 
 .zufall-chip-row {
@@ -2511,10 +2519,15 @@ body.on-login #app {
   flex: 0 0 auto;
 }
 
-.zufall-sources .chip.is-origin {
-  border-color: var(--ember-border);
+.zufall-sources .chip.is-lava {
+  box-shadow: inset 0 0 0 1.5px var(--ember-border);
   background: #fffaf5;
-  animation: ember-flicker 2s ease-in-out infinite;
+  color: #7a4a32;
+  animation: none;
+}
+
+.zufall-stream[hidden] {
+  display: none !important;
 }
 
 .list-toolbar.is-tags {
