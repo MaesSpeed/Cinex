@@ -600,7 +600,7 @@
     actorQuery: "",
     actorHits: [],
     actorStatus: "",
-    filterMore: { genre: false, tags: false, streaming: false, zufall: false },
+    filterMore: { genre: false, tags: false, streaming: false, types: false, zufall: false },
     shinePaused: false,
     currentPicks: [],
     shortlist: [],
@@ -785,8 +785,16 @@
     state.user = user;
     const profile = profilesOf(user.id).find((p) => p.id === session.profileId) || null;
     state.profile = profile;
-    state.screen = profile ? "discover" : "profiles";
     state.discoverView = "hub";
+    if (profile) openWatchlistHome();
+    else state.screen = "profiles";
+  }
+
+  function openWatchlistHome() {
+    state.listTab = "watch";
+    state.screen = "lists";
+    state.discoverView = "hub";
+    state.expandedFilmId = null;
   }
 
   function persistSession() {
@@ -1536,7 +1544,11 @@
   }
 
   function dauerLabel(value) {
-    return `${Number(value) || 0} min`;
+    return `≤ ${Number(value) || 0}`;
+  }
+
+  function dauerChipLabel(value) {
+    return `≤ ${Number(value) || 0} Min.`;
   }
 
   function coversMarkup() {
@@ -1552,7 +1564,7 @@
     const tags = customTags();
     const chips = [];
     if (state.filters.dauerOn) {
-      chips.push({ kind: "dauer", id: "dauer", label: dauerLabel(state.filters.dauer) });
+      chips.push({ kind: "dauer", id: "dauer", label: dauerChipLabel(state.filters.dauer) });
     }
     for (const genre of state.filters.genres) {
       chips.push({ kind: "genre", id: genre, label: genre });
@@ -1610,7 +1622,7 @@
 
   function paintChipOverflow() {
     const roots = [];
-    if (state.screen === "discover" && state.discoverView === "hub" && state.discoverCat) roots.push(app);
+    if (state.screen === "discover" && state.discoverView === "hub") roots.push(app);
     if (state.watchSheet === "zufall") roots.push(watchSheetEl);
     roots.forEach((root) => {
       if (!root) return;
@@ -1851,10 +1863,10 @@
 
   function updateHeader() {
     const items = [];
-    if (["lists", "tags", "done", "profile-add"].includes(state.screen)) {
+    if (["tags", "done", "profile-add"].includes(state.screen)) {
       items.push(`<button type="button" class="icon-btn" data-act="back" aria-label="Zurück" title="Zurück">${ICONS.back}</button>`);
     }
-    if (state.screen === "discover") {
+    if (state.screen === "discover" || state.screen === "lists") {
       items.push(`<button type="button" class="icon-btn" data-act="switch" aria-label="Account wechseln" title="Account wechseln">${ICONS.switch}</button>`);
       items.push(`<button type="button" class="icon-btn" data-act="logout" aria-label="Ausloggen" title="Ausloggen">${ICONS.logout}</button>`);
     }
@@ -2694,118 +2706,107 @@
     `;
   }
 
-  function renderDiscoverPanel() {
-    const cat = state.discoverCat;
-    if (!cat) return "";
+  function filterCardClass(id, extra) {
+    return `card filter-card${extra ? ` ${extra}` : ""}${discoverCatOn(id) ? " is-on" : ""}`;
+  }
+
+  function renderDiscoverFilters() {
     const fill = dauerFill(state.filters.dauer);
-    if (cat === "dauer") {
-      return `
-        <div class="card filter-card is-dauer">
+    const genreItems = genrePicks.map((g) => ({
+      act: "genre",
+      attrs: `data-genre="${escapeHtml(g)}"`,
+      label: g,
+      on: state.filters.genres.includes(g),
+    }));
+    const tagItems = customTags().map((t) => ({
+      act: "filter-tag",
+      attrs: `data-id="${t.id}"`,
+      label: t.name,
+      on: state.filters.tags.includes(t.id),
+    }));
+    const streamItems = STREAMING_CHIPS.map((s) => ({
+      act: "filter-stream",
+      attrs: `data-id="${s.id}"`,
+      label: s.label,
+      on: state.filters.streaming.includes(s.id),
+    }));
+    const typeItems = TYPE_CHIPS.map((row) => ({
+      act: "filter-type",
+      attrs: `data-id="${row.id}"`,
+      label: row.label,
+      on: state.filters.types.includes(row.id),
+    }));
+    const selectedActors = state.filters.actors.map((actor) => `
+      <span class="active-chip">
+        <span>${escapeHtml(actor.name)}</span>
+        <button type="button" class="active-chip-x" data-act="actor-remove" data-id="${escapeHtml(actor.id)}" aria-label="${escapeHtml(actor.name)} entfernen">${ICONS.chipX}</button>
+      </span>
+    `).join("");
+    return `
+      <div class="filter-stack">
+        <div class="${filterCardClass("dauer", "is-dauer")}" data-cat="dauer">
           <span class="filter-label">Dauer</span>
           <div class="dauer-controls">
             <input class="filigree${state.filters.dauerOn ? "" : " idle"}" data-act="dauer" type="range" min="60" max="210" step="5" value="${state.filters.dauer}" style="--fill:${fill}%" aria-label="Maximale Dauer">
             <span class="dauer-value" data-role="dauer-value">${dauerLabel(state.filters.dauer)}</span>
           </div>
-          ${state.filters.dauerOn ? `<button type="button" class="chip" data-act="dauer-off">Dauer aus</button>` : ""}
         </div>
-      `;
-    }
-    if (cat === "genre") {
-      const genreItems = genrePicks.map((g) => ({
-        act: "genre",
-        attrs: `data-genre="${escapeHtml(g)}"`,
-        label: g,
-        on: state.filters.genres.includes(g),
-      }));
-      return `
-        <div class="card filter-card">
+        <div class="${filterCardClass("genre")}" data-cat="genre">
           <span class="filter-label">Genre</span>
           ${renderOverflowChips("genre", genreItems)}
         </div>
-      `;
-    }
-    if (cat === "tags") {
-      const tagItems = customTags().map((t) => ({
-        act: "filter-tag",
-        attrs: `data-id="${t.id}"`,
-        label: t.name,
-        on: state.filters.tags.includes(t.id),
-      }));
-      return `
-        <div class="card filter-card">
+        <div class="${filterCardClass("tags")}" data-cat="tags">
           <span class="filter-label">Tags</span>
           ${renderOverflowChips("tags", tagItems)}
         </div>
-      `;
-    }
-    if (cat === "streaming") {
-      const streamItems = STREAMING_CHIPS.map((s) => ({
-        act: "filter-stream",
-        attrs: `data-id="${s.id}"`,
-        label: s.label,
-        on: state.filters.streaming.includes(s.id),
-      }));
-      return `
-        <div class="card filter-card">
+        <div class="${filterCardClass("streaming")}" data-cat="streaming">
           <span class="filter-label">Stream</span>
           ${renderOverflowChips("streaming", streamItems)}
         </div>
-      `;
-    }
-    if (cat === "typ") {
-      const chips = TYPE_CHIPS.map((row) => `
-        <button type="button" class="chip" data-act="filter-type" data-id="${row.id}" aria-pressed="${state.filters.types.includes(row.id)}">${escapeHtml(row.label)}</button>
-      `).join("");
-      return `
-        <div class="card filter-card">
+        <div class="${filterCardClass("typ")}" data-cat="typ">
           <span class="filter-label">Typ</span>
-          <div class="suggest-chips">${chips}</div>
+          ${renderOverflowChips("types", typeItems)}
         </div>
-      `;
-    }
-    if (cat === "actor") {
-      const selected = state.filters.actors.map((actor) => `
-        <span class="active-chip">
-          <span>${escapeHtml(actor.name)}</span>
-          <button type="button" class="active-chip-x" data-act="actor-remove" data-id="${escapeHtml(actor.id)}" aria-label="${escapeHtml(actor.name)} entfernen">${ICONS.chipX}</button>
-        </span>
-      `).join("");
-      return `
-        <div class="card filter-card">
+        <div class="${filterCardClass("actor", "is-actor")}" data-cat="actor">
           <span class="filter-label">Schauspieler</span>
-          ${selected ? `<div class="active-chip-row">${selected}</div>` : ""}
-          <div class="sheet-search-wrap">
-            <span class="sheet-search-icon">${ICONS.search}</span>
-            <input data-act="actor-search" placeholder="Schauspieler suchen" value="${escapeHtml(state.actorQuery)}" autocomplete="off" enterkeyhint="search" aria-label="Schauspieler suchen">
+          <div class="actor-search-col">
+            ${selectedActors ? `<div class="active-chip-row">${selectedActors}</div>` : ""}
+            <div class="sheet-search-wrap actor-search-wrap">
+              <span class="sheet-search-icon">${ICONS.search}</span>
+              <input data-act="actor-search" placeholder="Schauspieler suchen" value="${escapeHtml(state.actorQuery)}" autocomplete="off" enterkeyhint="search" aria-label="Schauspieler suchen">
+            </div>
+            <div class="actor-hits" data-role="actor-hits">${actorHitsHtml()}</div>
           </div>
-          <div class="actor-hits" data-role="actor-hits">${actorHitsHtml()}</div>
         </div>
-      `;
-    }
-    return "";
+      </div>
+    `;
   }
 
   function renderDiscoverHub() {
-    const cats = DISCOVER_CATS.map((cat) => {
-      const on = discoverCatOn(cat.id);
-      const open = state.discoverCat === cat.id;
-      return `<button type="button" class="chip discover-cat${on ? " is-lava" : ""}" data-act="discover-cat" data-id="${cat.id}" aria-pressed="${open}">${escapeHtml(cat.label)}</button>`;
-    }).join("");
     const active = anyFilterOn() ? renderActiveFilterChips() : "";
     return `
       <section class="home-screen discover-screen">
-        <h2 class="screen-title home-title">Vorschläge</h2>
-        <article class="card discover-hero">
-          <button type="button" class="discover-hero-hit" data-act="suggest">
+        <article class="card suggest-hero discover-hero is-shining">
+          <button type="button" class="suggest-hero-row discover-hero-hit" data-act="suggest">
             ${entdeckenIconHtml(true)}
-            <strong>Filme vorschlagen</strong>
+            <span class="suggest-hero-copy">
+              <strong>Filme vorschlagen</strong>
+              <span class="menu-sub">Drei Treffer · Filter greifen mit</span>
+            </span>
           </button>
+          <div data-role="discover-chips">${active}</div>
         </article>
-        <div class="discover-cats">${cats}</div>
-        ${active}
-        <div class="discover-panel">${renderDiscoverPanel()}</div>
+        ${renderDiscoverFilters()}
       </section>
     `;
+  }
+
+  function paintDiscoverActiveChips() {
+    const slot = app.querySelector("[data-role=discover-chips]");
+    if (slot) slot.innerHTML = anyFilterOn() ? renderActiveFilterChips() : "";
+    app.querySelectorAll(".filter-card[data-cat]").forEach((card) => {
+      card.classList.toggle("is-on", discoverCatOn(card.dataset.cat));
+    });
   }
 
   function renderSuggestCard(film) {
@@ -2817,7 +2818,12 @@
     const cast = filmCastLine(film);
     const seen = lastSeenEntry(film);
     const seenDate = seen ? formatSeenOn(seen.at) : "";
-    const seenLine = seenDate ? `<p class="film-expand-seen">Zuletzt gesehen: ${escapeHtml(seenDate)}</p>` : "";
+    const seenInHead = open && seenDate
+      ? `<p class="suggest-seen-inline">Zuletzt gesehen: ${escapeHtml(seenDate)}</p>`
+      : "";
+    const inlineWatch = open
+      ? ""
+      : `<button type="button" class="btn btn-primary suggest-inline-watch" data-act="choose" data-id="${id}">Anschauen</button>`;
     const onWatch = isOnWatchlist(film);
     const inQueue = isOnQueue(film);
     const memberChips = [
@@ -2833,7 +2839,6 @@
     const tags = renderFilmTagChips(film);
     const expand = `
       <div class="film-row-expand"${open ? "" : " hidden"}>
-        ${seenLine}
         <button type="button" class="btn btn-primary suggest-watch-btn" data-act="choose" data-id="${id}">Anschauen</button>
         <div class="suggest-split">
           <button type="button" class="btn btn-compact" data-act="suggest-tag" data-id="${id}">Taggen</button>
@@ -2848,7 +2853,7 @@
       </div>
     `;
     const article = `
-      <article class="film-row is-expandable is-tall swipe-front${open ? " is-open" : ""}" data-id="${id}">
+      <article class="film-row suggest-card is-expandable is-tall swipe-front${open ? " is-open" : ""}" data-id="${id}">
         <div class="film-row-head" data-act="film-expand" data-id="${id}" aria-expanded="${open}">
           ${posterTile(film, { size: POSTER_SIZE_CARD })}
           <div class="film-row-body">
@@ -2856,9 +2861,10 @@
               <h3 class="film-row-title">${escapeHtml(film.title)}</h3>
               ${runtime ? `<span class="duration-pill">${escapeHtml(runtime)}</span>` : ""}
             </div>
+            ${seenInHead}
             ${cast ? `<p class="film-row-cast">${escapeHtml(cast)}</p>` : ""}
+            ${inlineWatch}
           </div>
-          <button type="button" class="film-row-chevron" data-act="film-expand" data-id="${id}" aria-expanded="${open}" aria-label="${open ? "Zuklappen" : "Aufklappen"}">${open ? ICONS.chevronUp : ICONS.chevron}</button>
         </div>
         ${expand}
       </article>
@@ -2871,9 +2877,9 @@
     const empty = `<p class="hint">Keine passenden Filme. Filter anpassen oder Refresh.</p>`;
     return `
       <section class="discover-results">
-        <h2 class="screen-title home-title">Vorschläge</h2>
-        <div class="suggest-controls">
+        <div class="suggest-results-bar">
           <button type="button" class="suggest-nav-btn" data-act="discover-filters">‹ Filter</button>
+          <h2 class="screen-title home-title">Entdeckungen</h2>
           <button type="button" class="suggest-nav-btn" data-act="discover-refresh">Refresh</button>
         </div>
         <div class="suggest-results">${cards || empty}</div>
@@ -3751,17 +3757,43 @@
     return [...counts.values()]
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "de"))
       .slice(0, 8)
-      .map((row) => ({ id: row.name, name: row.name, tmdb: 0 }));
+      .map((row) => ({ id: row.name, name: row.name, tmdb: 0, count: row.count, profile: "" }));
+  }
+
+  function actorInitials(name) {
+    const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+    const letters = parts.slice(0, 2).map((part) => part[0]).join("");
+    return (letters || "?").toUpperCase();
+  }
+
+  function actorCountLabel(count) {
+    const n = Number(count) || 0;
+    if (n <= 0) return "";
+    return n === 1 ? "1 Film" : `${n} Filme`;
+  }
+
+  function actorAvatarHtml(row) {
+    if (row && row.profile) {
+      return `<span class="actor-hit-avatar"><img src="${escapeHtml(row.profile)}" alt="" width="32" height="32" decoding="async" referrerpolicy="no-referrer"></span>`;
+    }
+    return `<span class="actor-hit-avatar" aria-hidden="true">${escapeHtml(actorInitials(row && row.name))}</span>`;
   }
 
   function actorHitsHtml() {
     const q = String(state.actorQuery || "").trim();
     if (!q) return "";
-    if (state.actorStatus === "loading" && !state.actorHits.length) return `<p class="hint">Suche…</p>`;
-    if (!state.actorHits.length) return `<p class="hint">Kein Treffer</p>`;
-    return state.actorHits.map((row) => `
-      <button type="button" class="actor-hit" data-act="actor-pick" data-id="${escapeHtml(String(row.id))}" data-name="${escapeHtml(row.name)}" data-tmdb="${row.tmdb || ""}">${escapeHtml(row.name)}</button>
-    `).join("");
+    if (state.actorStatus === "loading" && !state.actorHits.length) return `<p class="hint actor-hit-status">Suche…</p>`;
+    if (!state.actorHits.length) return `<p class="hint actor-hit-status">Kein Treffer</p>`;
+    return state.actorHits.map((row) => {
+      const count = actorCountLabel(row.count);
+      return `
+        <button type="button" class="actor-hit" data-act="actor-pick" data-id="${escapeHtml(String(row.id))}" data-name="${escapeHtml(row.name)}" data-tmdb="${row.tmdb || ""}">
+          ${actorAvatarHtml(row)}
+          <span class="actor-hit-name">${escapeHtml(row.name)}</span>
+          ${count ? `<span class="actor-hit-count">${escapeHtml(count)}</span>` : ""}
+        </button>
+      `;
+    }).join("");
   }
 
   function paintActorHits() {
@@ -3791,10 +3823,13 @@
       try {
         const data = await tmdbFetch("/search/person", { query: q, include_adult: "false" });
         if (seq !== actorSeq) return;
+        const localCount = new Map(local.map((row) => [foldSearch(row.name), row.count]));
         const remote = (data.results || []).slice(0, 8).map((row) => ({
           id: `p${row.id}`,
           name: row.name,
           tmdb: row.id,
+          count: localCount.get(foldSearch(row.name)) || 0,
+          profile: row.profile_path ? `https://image.tmdb.org/t/p/w185${row.profile_path}` : "",
         })).filter((row) => row.name);
         const seen = new Set();
         const hits = [];
@@ -4905,8 +4940,7 @@
     if (list.length === 1) {
       state.profile = list[0];
       resetSessionPicks();
-      state.screen = "discover";
-      state.discoverView = "hub";
+      openWatchlistHome();
     } else {
       state.profile = null;
       state.screen = "profiles";
@@ -5228,9 +5262,7 @@
       if (!profile) return;
       state.profile = profile;
       resetSessionPicks();
-      state.expandedFilmId = null;
-      state.screen = "discover";
-      state.discoverView = "hub";
+      openWatchlistHome();
       persistSession();
       render();
       loadCatalog();
@@ -5277,7 +5309,7 @@
     if (act === "toggle-filters") {
       state.filtersOpen = !state.filtersOpen;
       if (state.filtersOpen) state.shinePaused = false;
-      else state.filterMore = { genre: false, tags: false, streaming: false, zufall: false };
+      else state.filterMore = { genre: false, tags: false, streaming: false, types: false, zufall: false };
       render();
       return;
     }
@@ -5672,12 +5704,7 @@
       t.classList.remove("idle");
       const value = t.parentElement.querySelector("[data-role=dauer-value]");
       if (value) value.textContent = dauerLabel(state.filters.dauer);
-      const cat = app.querySelector("[data-act=discover-cat][data-id=dauer]");
-      if (cat) cat.classList.add("is-lava");
-      const card = t.closest(".filter-card");
-      if (card && !card.querySelector("[data-act=dauer-off]")) {
-        card.insertAdjacentHTML("beforeend", `<button type="button" class="chip" data-act="dauer-off">Dauer aus</button>`);
-      }
+      paintDiscoverActiveChips();
     }
     if (act === "actor-search") {
       state.actorQuery = t.value;
@@ -5911,7 +5938,7 @@
     if (event.pointerType === "mouse" && event.button !== 0) return;
     const row = event.target.closest("[data-swipe-row]");
     if (!row || !row.dataset.swipeMode) return;
-    if (event.target.closest("[data-act=film-menu], .film-menu-pop, [data-act=watch-toggle], .film-row-expand, [data-act=rate], [data-act=film-tag]")) return;
+    if (event.target.closest("[data-act=film-menu], .film-menu-pop, [data-act=watch-toggle], .film-row-expand, [data-act=rate], [data-act=film-tag], [data-act=choose], .suggest-inline-watch")) return;
     if (event.target.closest(".film-row.is-open")) return;
     if (swipeDrag) return;
     swipeDrag = {
@@ -6150,7 +6177,7 @@
 
   app.addEventListener("pointerdown", (event) => {
     const hero = event.target.closest(".suggest-hero");
-    if (hero && state.filtersOpen && !event.target.closest("[data-act=toggle-filters]")) {
+    if (hero && !hero.classList.contains("discover-hero") && state.filtersOpen && !event.target.closest("[data-act=toggle-filters]")) {
       state.shinePaused = true;
       hero.classList.remove("is-shining");
       hero.classList.add("is-paused");
