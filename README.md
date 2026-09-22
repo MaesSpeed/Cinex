@@ -41,10 +41,10 @@ TMDB_API_KEY=… node scripts/build-films-catalog.mjs
 ## Ablauf
 
 1. Anmelden oder registrieren (localStorage)
-2. Wer schaut
-3. Entdecken (Titel **Vorschläge**): Karte **Filme vorschlagen**, Filter (Dauer, Genre, Tags, Stream, Typ, Schauspieler)
-4. Drei hohe Vorschlagskarten. Wischen nach rechts legt den Film in Demnächst und Watchlist, nach links wischt ihn aus der Runde. Aufklappen: Zuletzt gesehen, Anschauen, Taggen | Watchlist, passende Richtung, Enthalten in / Tags / Bewertung
+2. Wer schaut. Ein einzelnes Profil, oder die Auswahl auf „Wer schaut?“, landet auf **Listen → Watchlist** — nicht auf Entdecken.
+3. Entdecken: Karte **Filme vorschlagen** mit Lava-Rand, Interstellar-Lupe, gewählten Filter-Chips (blau mit Lava-Rand) und dauerhaftem Glanz von links nach rechts. Filter stehen senkrecht und aufgeklappt: Dauer, Genre, Tags, Stream, Typ, Schauspieler. Eine Kategorie mit Auswahl bekommt einen Lava-Rand. Typ klappt bei Überlauf mit „mehr“ auf. Schauspieler-Suche bleibt in der Handybreite, Treffer direkt unter dem Feld.
+4. Drei hohe Vorschlagskarten. Neben dem Cover: Titel, Schauspieler, **Anschauen**. ‹ Filter und Refresh bleiben. Wischen nach rechts legt den Film in Demnächst und Watchlist, nach links wischt ihn aus der Runde. Aufklappen: Lava-Rand pulsiert leicht. Inhalt: Zuletzt gesehen, Anschauen, Taggen | Watchlist, passende Richtung, Enthalten in / Tags / Bewertung.
 5. Filmlisten: Watchlist, Demnächst, Bewertete, Tags, Angesehen. Watchlist: Chip **+ Hinzufügen** öffnet ein hohes Bottom-Sheet (**Zu Watchlist hinzufügen**) mit Kategorie-Chips (einzeln wählbar), Katalogvorschlägen und Live-Suche (**Film suchen**). Plus/Haken schaltet die Watchlist; schließen nur per Wischen nach unten. Tags verwalten sitzt im Tab Tags.
-6. Footer (genau 3): **Zufall** | **Listen** | **Entdecken**. Desktop immer sichtbar. Handy: sichtbar, wenn die Seite nicht scrollt; sonst ausblenden beim Runterscrollen, einblenden beim Hochscrollen. Toast sitzt über dem Footer. Account/Logout bleiben im Header auf Entdecken.
+6. Footer (genau 3): **Zufall** | **Listen** | **Entdecken**. Desktop immer sichtbar. Handy: sichtbar, wenn die Seite nicht scrollt; sonst ausblenden beim Runterscrollen, einblenden beim Hochscrollen. Toast sitzt über dem Footer. Account/Logout sitzen im Header auf Listen und Entdecken. Das Entdecken-Icon im Footer bleibt an seiner Stelle.
 
 Jeder Profilstand (Listen, Historie, Bewertungen, eigene Tags) liegt getrennt in `localStorage`.
