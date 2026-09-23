@@ -1248,18 +1248,37 @@
     tagWaveTimer = window.setInterval(runTagWave, 6000);
   }
 
-  function showSnack(text, tone) {
-    snackbar.hidden = false;
-    snackbar.classList.toggle("is-danger", tone === "danger");
-    document.body.classList.add("snack-on");
-    const mark = tone === "danger" ? "✕" : "✓";
-    snackbar.innerHTML = `<span aria-hidden="true">${mark}</span><span>${escapeHtml(text)}</span>`;
+  const SNACK_MARK = {
+    success: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#2c261f"/><path d="M7.1 12.3 10.3 15.5 17.1 8.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    danger: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#7a2424"/><path d="M8.2 8.2 15.8 15.8M15.8 8.2 8.2 15.8" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>`,
+    warn: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="8.15" r="1.05" fill="currentColor"/><path d="M12 11.15v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+    info: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="8.15" r="1.05" fill="currentColor"/><path d="M12 11.15v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+  };
+
+  function snackKind(tone) {
+    if (tone === "danger") return "danger";
+    if (tone === "warn" || tone === "warning") return "warn";
+    if (tone === "info") return "info";
+    return "success";
+  }
+
+  function hideSnack() {
     window.clearTimeout(showSnack.tid);
-    showSnack.tid = window.setTimeout(() => {
-      snackbar.hidden = true;
-      snackbar.classList.remove("is-danger");
-      document.body.classList.remove("snack-on");
-    }, 2600);
+    snackbar.hidden = true;
+    snackbar.classList.remove("is-danger", "is-warn", "is-info");
+    document.body.classList.remove("snack-on");
+  }
+
+  function showSnack(text, tone) {
+    const kind = snackKind(tone);
+    snackbar.hidden = false;
+    snackbar.classList.toggle("is-danger", kind === "danger");
+    snackbar.classList.toggle("is-warn", kind === "warn");
+    snackbar.classList.toggle("is-info", kind === "info");
+    document.body.classList.add("snack-on");
+    snackbar.innerHTML = `<span class="snackbar-mark" aria-hidden="true">${SNACK_MARK[kind]}</span><span class="snackbar-text">${escapeHtml(text)}</span>`;
+    window.clearTimeout(showSnack.tid);
+    showSnack.tid = window.setTimeout(hideSnack, 2600);
   }
 
   let pendingSwipeRemove = null;
@@ -5563,7 +5582,7 @@
       const box = t.closest(".film-row-expand");
       const tagsEl = box && box.querySelector("[data-role=suggest-tags]");
       if (!customTags().length) {
-        showSnack("Noch keine eigenen Tags");
+        showSnack("Noch keine eigenen Tags", "warn");
         return;
       }
       if (tagsEl) {
@@ -6031,14 +6050,15 @@
       if (mode === "suggest") {
         const watched = addWatch(film);
         const queued = addQueue(film);
-        showSnack((watched || queued) ? "Zu Watchlist und Demnächst hinzugefügt" : "Bereits in Watchlist und Demnächst");
+        if (watched || queued) showSnack("Zu Watchlist und Demnächst hinzugefügt");
+        else showSnack("Bereits in Watchlist und Demnächst", "info");
         updateFooter();
         if (state.expandedFilmId === filmId(film)) render();
         return;
       }
       if (mode === "watch") {
         if (!addQueue(film)) {
-          showSnack("Bereits in Demnächst enthalten");
+          showSnack("Bereits in Demnächst enthalten", "info");
           return;
         }
         showSnack(`${film.title} → Demnächst`);

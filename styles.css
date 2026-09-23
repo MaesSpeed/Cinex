@@ -47,7 +47,7 @@ body.has-footer.footer-open {
 
 body.has-footer.footer-open .snackbar,
 .site-footer.is-visible ~ .snackbar:not([hidden]) {
-  bottom: var(--footer-height);
+  bottom: calc(var(--footer-height) + 10px);
 }
 
 button, input {
@@ -2505,30 +2505,114 @@ body.on-lists.has-footer.footer-open #app {
   }
 
   body.has-footer .snackbar {
-    bottom: var(--footer-height);
+    bottom: calc(var(--footer-height) + 10px);
   }
 }
 
 .snackbar {
+  --snack-accent: #e39a3c;
   position: fixed;
   left: 50%;
   bottom: calc(16px + var(--safe-bottom));
-  transform: translateX(-50%);
   z-index: 90;
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-width: min(340px, calc(100% - 24px));
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--snack);
-  color: #fff;
-  box-shadow: var(--shadow);
-  font-size: 0.9rem;
+  gap: 10px;
+  width: max-content;
+  max-width: min(22rem, calc(100% - 36px));
+  min-height: 46px;
+  margin: 0;
+  padding: 8px 18px 8px 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--text);
+  box-shadow:
+    0 0 0 1px rgba(20, 42, 67, 0.08),
+    0 12px 28px rgba(16, 42, 67, 0.14);
+  -webkit-backdrop-filter: blur(16px) saturate(1.35);
+  backdrop-filter: blur(16px) saturate(1.35);
+  font-size: 0.94rem;
+  font-weight: 650;
+  line-height: 1.2;
+  text-align: left;
+  transform: translateX(-50%);
+}
+
+.snackbar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  background: linear-gradient(90deg, var(--snack-accent), transparent 78%);
+  pointer-events: none;
+}
+
+.snackbar:not([hidden]) {
+  animation: snack-pill-in 0.22s ease;
+}
+
+.snackbar-mark {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  color: var(--blue);
+}
+
+.snackbar-mark svg {
+  display: block;
+  width: 26px;
+  height: 26px;
+}
+
+.snackbar-text {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px 0;
+  overflow-wrap: break-word;
+}
+
+.snackbar.is-info,
+.snackbar.is-warn {
+  --snack-accent: #1a86d0;
 }
 
 .snackbar.is-danger {
-  background: #c62828;
+  --snack-accent: #e04b4b;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .snackbar {
+    background: #fff;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .snackbar:not([hidden]) {
+    animation: none;
+  }
+}
+
+@keyframes snack-pill-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
 body.watch-sheet-open .snackbar,
