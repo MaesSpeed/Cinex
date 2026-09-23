@@ -1749,6 +1749,35 @@
     return picks.slice(0, 3);
   }
 
+  const SUGGEST_STACK = 3;
+
+  function suggestionCandidates(excludeIds) {
+    const exclude = new Set((excludeIds || []).map(filmId));
+    return state.catalog.filter((film) => {
+      const id = filmId(film);
+      return !exclude.has(id)
+        && passesHardFilters(film)
+        && !state.sessionBlocked.has(id)
+        && !state.sessionSkip.has(id);
+    });
+  }
+
+  function refillSuggestionStack() {
+    const need = SUGGEST_STACK - state.currentPicks.length;
+    if (need <= 0) return;
+    const ranked = suggestionCandidates(state.currentPicks.map(filmId))
+      .map((film) => ({ film, score: scoreFilm(film) }))
+      .sort((a, b) => b.score - a.score);
+    const used = new Set(state.currentPicks.map(filmId));
+    for (const row of ranked) {
+      const id = filmId(row.film);
+      if (used.has(id)) continue;
+      used.add(id);
+      state.currentPicks.push(row.film);
+      if (state.currentPicks.length >= SUGGEST_STACK) break;
+    }
+  }
+
   let discoverKey = "";
   let discoverLoading = false;
   let discoverWaiters = [];
@@ -6055,12 +6084,19 @@
     }
   }
 
+  let enrichPicksSeq = 0;
+
   async function enrichPicks() {
+    const seq = ++enrichPicksSeq;
+    const snapshot = state.currentPicks.slice();
     const next = [];
-    for (const film of state.currentPicks) {
+    for (const film of snapshot) {
+      if (seq !== enrichPicksSeq) return;
       next.push(await enrichFilm(film));
     }
-    state.currentPicks = next;
+    if (seq !== enrichPicksSeq) return;
+    const fresh = new Map(next.map((film) => [filmId(film), film]));
+    state.currentPicks = state.currentPicks.map((film) => fresh.get(filmId(film)) || film);
     if (state.screen === "discover" && state.discoverView === "results") render();
   }
 
@@ -6930,7 +6966,11 @@
       state.sessionSkip.add(id);
       state.currentPicks = state.currentPicks.filter((item) => filmId(item) !== id);
       if (state.expandedFilmId === id) state.expandedFilmId = null;
-      if (state.screen === "discover" && state.discoverView === "results") render();
+      refillSuggestionStack();
+      if (state.screen === "discover" && state.discoverView === "results") {
+        render();
+        enrichPicks();
+      }
     };
     if (reduce) {
       finish();
