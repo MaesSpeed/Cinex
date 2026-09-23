@@ -1,0 +1,12 @@
+# Public search proxy for Wahl der Qual / Cinex.
+# The TMDB key is a Worker secret, never a var and never sent to the browser:
+#   npx wrangler secret put TMDB_API_KEY
+# Locally, put the same value in worker/.dev.vars (see .dev.vars.example).
+name = "cinex-search"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+# Optional extra browser origins, comma-separated (full origin or *.example.com).
+# https://*.github.io and http://localhost / 127.0.0.1 are always allowed.
+ALLOWED_ORIGINS = ""

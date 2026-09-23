@@ -1,6 +1,6 @@
 # Wahl der Qual
 
-Welcher Film heute? Statische Web-App zum gemeinsamen Filmauswählen – ohne Backend, nur im Browser.
+Welcher Film heute? Statische Web-App zum gemeinsamen Filmauswählen. Katalog, Watchlist, Zufall und Entdecken laufen im Browser. Die Live-Suche ist optional und geht über einen Cloudflare-Worker, der den TMDB-Schlüssel serverseitig hält.
 
 ## Live
 
@@ -16,11 +16,35 @@ Danach **Wer schaut**: Tester, User No 1, Bot - Apptesti. Neue Profile: nur Name
 
 ## Katalog
 
-Suche und „Filme vorschlagen“ können die öffentliche TMDB-API v3 nutzen (`language=de-DE`, `region=DE`, `include_adult=false`). Poster bleiben TMDB-Bild-URLs.
+Suche (Watchlist **Film suchen** und Schauspieler-Filter auf Entdecken) läuft immer zuerst lokal: In-Memory-Katalog plus `films.json` (Präfix/Teilstring, auch deutsche Titel und Franchise-Aliase wie Bond/007). Treffer werden nach Relevanz sortiert (exakter Titel, Titelpräfix, Wortgrenzen, danach Aliase) und innerhalb der Stufe nach Bekanntheit (`popularity`/`vote_count` falls vorhanden, sonst Bewertung und Jahr). Sehr kurze Clips unter 40 Minuten erscheinen in der Titelsuche nur bei exaktem Titeltreffer. Die Ergebnisliste zeigt zunächst 20 Filme; **Weitere anzeigen** oder Scrollen nahe am Listenende lädt die nächsten 20, ohne den restlichen Katalog neu zu zeichnen.
 
-Optionaler Schlüssel in `config.js` als `window.TMDB_KEY` (siehe `config.example.js`). Die Suche läuft immer zuerst lokal: In-Memory-Katalog plus `films.json` (Präfix/Teilstring, auch deutsche Titel und Franchise-Aliase wie Bond/007). Treffer werden nach Relevanz sortiert (exakter Titel, Titelpräfix, Wortgrenzen, danach Aliase) und innerhalb der Stufe nach Bekanntheit (`popularity`/`vote_count` falls vorhanden, sonst Bewertung und Jahr). Sehr kurze Clips unter 40 Minuten erscheinen in der Titelsuche nur bei exaktem Titeltreffer. Die Ergebnisliste zeigt zunächst 20 Filme; **Weitere anzeigen** oder Scrollen nahe am Listenende lädt die nächsten 20, ohne den restlichen Katalog neu zu zeichnen. Ist der Schlüssel leer, bleibt die lokale Suche vollständig nutzbar – Treffer wie Inception oder Interstellar kommen aus dem Katalog. TMDB reichert nur an, wenn ein Schlüssel gesetzt ist. Schlägt die Online-Suche fehl und es gibt keine lokalen Treffer, erscheint ein dezenter Hinweis statt einer harten Fehlermeldung.
+Ist die lokale Liste leer oder dünn (kein exakter Titel, zu wenige starke Treffer), fragt die App den Such-Proxy. Der Proxy spricht mit TMDB (`language=de-DE`, `region=DE`, `include_adult=false`). Die App mappt die Treffer ins bestehende Filmformat (Titel, Originaltitel, Poster, Bewertung). Lokale und Live-Treffer werden zusammengeführt, nach derselben Relevanz sortiert und paginiert; bei Dubletten bleibt die lokale Fassung (Laufzeit, Aliase). Ein hinzugefügter Live-Treffer landet im Profil (`localStorage`) und im Sitzungs-Katalog, damit Cover, Watchlist und Demnächst auch ohne weiteren Proxy-Aufruf funktionieren. Fehlende Laufzeit und Besetzung lädt die App beim Hinzufügen einmal nach. Poster bleiben TMDB-Bild-URLs.
 
-**Wichtig:** Die öffentliche GitHub-Pages-Seite darf **keinen** TMDB-Schlüssel in `config.js` haben (`window.TMDB_KEY` bleibt leer). Sonst wäre der Key im Browser sichtbar. Franchise-Suchen wie „Bond“ funktionieren offline, sobald die Titel in `films.json` stehen (ggf. mit `aliases`).
+Ist `window.SEARCH_PROXY` leer oder der Proxy nicht erreichbar, bleibt die lokale Suche nutzbar. Treffer wie Inception oder Interstellar kommen aus dem Katalog. Schlägt nur die Online-Suche fehl und es gibt keine lokalen Treffer, erscheint ein dezenter Hinweis statt einer harten Fehlermeldung.
+
+**Wichtig:** Die öffentliche GitHub-Pages-Seite darf **keinen** TMDB-Schlüssel in `config.js` haben (`window.TMDB_KEY` bleibt leer). Die Suche hängt den Schlüssel nicht an. Franchise-Suchen wie „Bond“ funktionieren offline, sobald die Titel in `films.json` stehen (ggf. mit `aliases`).
+
+### Live-Suche einrichten (Cloudflare, kostenlos)
+
+Der Worker liegt in `worker/`. GitHub Pages liefert weiterhin nur die statische Seite. Der Schlüssel ist dasselbe Geheimnis wie beim Katalog-Build (`TMDB_API_KEY`): kurzer v3-`api_key` oder langer v4-Read-Token (JWT, beginnt mit `eyJ`).
+
+1. Kostenlosen Cloudflare-Account anlegen und die Wrangler-CLI einmal anmelden: `npx wrangler login`
+2. Im Ordner `worker/`: `npx wrangler secret put TMDB_API_KEY` und den Schlüssel einfügen (nicht committen).
+3. `npx wrangler deploy` — die Ausgabe nennt die öffentliche URL, z. B. `https://cinex-search.<account>.workers.dev`
+4. Diese URL ohne Schrägstrich am Ende in `config.js` als `window.SEARCH_PROXY` eintragen und mit der Seite deployen. Die URL ist öffentlich, der Schlüssel nicht.
+5. Pages-Deploy bleibt wie bisher (Zweig `main`, Ordner `/`). `films.json` ändert sich durch die Live-Suche nicht.
+
+Lokal derselbe Worker, Schlüssel nur in `worker/.dev.vars` (Vorlage: `worker/.dev.vars.example`, Datei ist gitignored):
+
+```bash
+cd worker
+cp .dev.vars.example .dev.vars
+npx wrangler dev
+```
+
+In der lokalen `config.js` dann `window.SEARCH_PROXY = "http://127.0.0.1:8787";` setzen. Diese Zeile nicht mit echtem Schlüssel committen. Ohne Proxy-URL sucht die App nur im lokalen Katalog.
+
+Prüfen: `curl https://<worker>/search/movie?query=Gladiator` liefert JSON ohne `api_key`. Im Browser-Netzwerk der Seite darf der TMDB-Schlüssel nie auftauchen.
 
 ### Katalog aktualisieren (GitHub Actions)
 
