@@ -1154,19 +1154,37 @@
     tagWaveTimer = window.setInterval(runTagWave, 6000);
   }
 
-  function showSnack(text, tone) {
-    snackbar.hidden = false;
-    snackbar.classList.toggle("is-danger", tone === "danger");
-    document.body.classList.add("snack-on");
-    const mark = tone === "danger" ? "✕" : "✓";
-    snackbar.innerHTML = `<span aria-hidden="true">${mark}</span><span>${escapeHtml(text)}</span>`;
-    window.clearTimeout(showSnack.tid);
-    showSnack.tid = window.setTimeout(() => {
-      snackbar.hidden = true;
-      snackbar.classList.remove("is-danger");
-      document.body.classList.remove("snack-on");
-    }, 2600);
+  const SNACK_MARK = { success: "✓", danger: "✕", warn: "!", info: "i" };
+
+  function snackKind(tone) {
+    if (tone === "danger") return "danger";
+    if (tone === "warn" || tone === "warning") return "warn";
+    if (tone === "info") return "info";
+    return "success";
   }
+
+  function hideSnack() {
+    window.clearTimeout(showSnack.tid);
+    snackbar.hidden = true;
+    snackbar.classList.remove("is-danger", "is-warn", "is-info");
+    document.body.classList.remove("snack-on");
+  }
+
+  function showSnack(text, tone) {
+    const kind = snackKind(tone);
+    snackbar.hidden = false;
+    snackbar.classList.toggle("is-danger", kind === "danger");
+    snackbar.classList.toggle("is-warn", kind === "warn");
+    snackbar.classList.toggle("is-info", kind === "info");
+    document.body.classList.add("snack-on");
+    snackbar.innerHTML = `<span class="snackbar-mark" aria-hidden="true">${SNACK_MARK[kind]}</span><span class="snackbar-text">${escapeHtml(text)}</span><button type="button" class="snackbar-dismiss" aria-label="Schließen"><span aria-hidden="true">×</span></button>`;
+    window.clearTimeout(showSnack.tid);
+    showSnack.tid = window.setTimeout(hideSnack, 2600);
+  }
+
+  snackbar.addEventListener("click", (event) => {
+    if (event.target.closest(".snackbar-dismiss")) hideSnack();
+  });
 
   let pendingSwipeRemove = null;
 
@@ -5427,7 +5445,7 @@
       const box = t.closest(".film-row-expand");
       const tagsEl = box && box.querySelector("[data-role=suggest-tags]");
       if (!customTags().length) {
-        showSnack("Noch keine eigenen Tags");
+        showSnack("Noch keine eigenen Tags", "warn");
         return;
       }
       if (tagsEl) {
@@ -5895,14 +5913,15 @@
       if (mode === "suggest") {
         const watched = addWatch(film);
         const queued = addQueue(film);
-        showSnack((watched || queued) ? "Zu Watchlist und Demnächst hinzugefügt" : "Bereits in Watchlist und Demnächst");
+        if (watched || queued) showSnack("Zu Watchlist und Demnächst hinzugefügt");
+        else showSnack("Bereits in Watchlist und Demnächst", "info");
         updateFooter();
         if (state.expandedFilmId === filmId(film)) render();
         return;
       }
       if (mode === "watch") {
         if (!addQueue(film)) {
-          showSnack("Bereits in Demnächst enthalten");
+          showSnack("Bereits in Demnächst enthalten", "info");
           return;
         }
         showSnack(`${film.title} → Demnächst`);
