@@ -3516,8 +3516,17 @@
     return curated.concat(rest);
   }
 
+  function titleSearchLocal(query) {
+    const ranked = rankSearchFilms(allKnownFilms(), query);
+    return {
+      ranked,
+      visible: withoutWatchlisted(ranked),
+      thin: localTitleSearchIsThin(ranked, query),
+    };
+  }
+
   function catalogTitleHits(query) {
-    return withoutWatchlisted(rankSearchFilms(allKnownFilms(), query));
+    return titleSearchLocal(query).visible;
   }
 
   function watchSheetAllFilms() {
@@ -3989,9 +3998,10 @@
       if (seq !== searchSeq) return false;
       if (state.watchSheet !== "search") return false;
       if (String(state.watchSearch || "").trim() !== q) return false;
-      const local = catalogTitleHits(q);
+      const found = titleSearchLocal(q);
+      const local = found.visible;
       state.searchHits = local;
-      if (!remoteSearchAvailable() || !localTitleSearchIsThin(local, q)) {
+      if (!remoteSearchAvailable() || !found.thin) {
         state.searchStatus = local.length ? "ok" : "empty";
         paintWatchSheetList();
         return false;
@@ -4024,10 +4034,11 @@
     if (!state.catalog.length) await loadCatalog();
     const seq = scheduledSeq || searchSeq;
     if (seq !== searchSeq) return;
-    const local = catalogTitleHits(query);
+    const found = titleSearchLocal(query);
+    const local = found.visible;
     if (seq !== searchSeq) return;
     state.searchHits = local;
-    if (!remoteSearchAvailable() || !localTitleSearchIsThin(local, query)) {
+    if (!remoteSearchAvailable() || !found.thin) {
       state.searchStatus = local.length ? "ok" : "empty";
       paintWatchSheetList();
       return;
