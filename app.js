@@ -808,6 +808,8 @@
     back: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 5 8 12l7 7"/></svg>`,
     switch: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M3 19c.6-3 2.6-5 5-5s4.4 2 5 5M11 19c.6-3 2.6-5 5-5s4.4 2 5 5"/></svg>`,
     logout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3.2v8.2"/><path d="M7.05 5.7a8 8 0 1 0 9.9 0"/></svg>`,
+    swap: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h12"/><path d="m15.5 3.8 3.5 3.2-3.5 3.2"/><path d="M17 17H5"/><path d="m8.5 13.8-3.5 3.2 3.5 3.2"/></svg>`,
+    gear: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.1"/><path d="M12 3.2v2.1M12 18.7v2.1M3.2 12h2.1M18.7 12h2.1M5.9 5.9l1.5 1.5M16.6 16.6l1.5 1.5M18.1 5.9l-1.5 1.5M7.4 16.6l-1.5 1.5"/></svg>`,
     filter: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 4.8h16.8l-6.2 7.6v5.3L9.8 20v-7.6L3.6 4.8z"/></svg>`,
     covers: `<svg viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <rect width="52" height="52" rx="14" fill="#102030"/>
@@ -1357,6 +1359,136 @@
     if (emoji) return `<span class="avatar avatar-emoji" aria-hidden="true">${emoji.emoji}</span>`;
     if (AVATARS[id]) return `<span class="avatar">${AVATARS[id]}</span>`;
     return `<span class="avatar avatar-emoji" aria-hidden="true">${EMOJI_AVATARS[0].emoji}</span>`;
+  }
+
+  function profileInitial(name) {
+    const text = String(name || "").trim();
+    for (const ch of Array.from(text)) {
+      if (/[\p{L}\p{N}]/u.test(ch)) return ch.toLocaleUpperCase("de-DE");
+    }
+    return "?";
+  }
+
+  function favoriteRecord() {
+    if (!state.user || !state.profile) return null;
+    const saved = loadJson(pkey("favorite"), null);
+    if (!saved || !saved.id) return null;
+    const id = String(saved.id);
+    const film = findFilm(id);
+    const title = (film && film.title) || saved.title || "";
+    const poster = (film && film.poster) || saved.poster || "";
+    if (!title && !poster) return null;
+    return { id, title, poster };
+  }
+
+  function defaultFavoritePoster() {
+    const row = LOGIN_POSTERS.find((film) => film.id === "t155") || LOGIN_POSTERS[0];
+    return (row && row.poster) || INTERSTELLAR_POSTER;
+  }
+
+  function accountCoverSrc() {
+    const fav = favoriteRecord();
+    const poster = fav && fav.poster ? fav.poster : defaultFavoritePoster();
+    return withPosterSize(poster, "w342") || poster;
+  }
+
+  function saveFavorite(film) {
+    if (!film || !state.user || !state.profile) return;
+    const poster = posterUrl(film, "w342") || film.poster || "";
+    saveJson(pkey("favorite"), {
+      id: filmId(film),
+      title: film.title || "",
+      poster,
+    });
+  }
+
+  function isFavoriteFilm(film) {
+    const fav = favoriteRecord();
+    return !!(fav && film && fav.id === filmId(film));
+  }
+
+  function favoriteButtonHtml(film) {
+    const on = isFavoriteFilm(film);
+    return `<div class="film-expand-fav"><button type="button" class="btn btn-compact fav-btn${on ? " is-on" : ""}" data-act="set-favorite" data-id="${escapeHtml(filmId(film))}" aria-pressed="${on ? "true" : "false"}">Lieblingsfilm</button></div>`;
+  }
+
+  function accountPlateHtml(large) {
+    const letter = escapeHtml(profileInitial(state.profile && state.profile.name));
+    const src = escapeHtml(accountCoverSrc());
+    return `
+      <span class="acct-plate${large ? " is-lg" : ""}">
+        <span class="acct-wave" aria-hidden="true"></span>
+        <span class="acct-letter" aria-hidden="true">
+          <span class="acct-letter-rim">${letter}</span>
+          <span class="acct-letter-fill" data-cover="${src}">${letter}</span>
+        </span>
+      </span>
+    `;
+  }
+
+  function accountMenuHtml() {
+    const name = state.profile ? state.profile.name : "";
+    const fav = favoriteRecord();
+    const filmLine = fav && fav.title
+      ? `<span class="acct-menu-film">${escapeHtml(fav.title)}</span>`
+      : "";
+    return `
+      <div class="acct-slot">
+        <button type="button" class="acct-btn" data-act="account-menu" aria-haspopup="menu" aria-expanded="false" aria-label="Konto ${escapeHtml(name)}">
+          ${accountPlateHtml(false)}
+        </button>
+        <div class="acct-menu" role="menu" aria-label="Konto" hidden>
+          <div class="acct-menu-head">
+            ${accountPlateHtml(true)}
+            <div class="acct-menu-id">
+              <strong>${escapeHtml(name)}</strong>
+              ${filmLine}
+            </div>
+          </div>
+          <div class="acct-menu-items">
+            <button type="button" class="acct-menu-item" role="menuitem" data-act="account-switch">
+              <span class="acct-menu-ico" aria-hidden="true">${ICONS.swap}</span>
+              <span>Benutzer wechseln</span>
+            </button>
+            <button type="button" class="acct-menu-item" role="menuitem" data-act="account-settings">
+              <span class="acct-menu-ico" aria-hidden="true">${ICONS.gear}</span>
+              <span>Einstellungen</span>
+              <span class="acct-soon">bald</span>
+            </button>
+            <button type="button" class="acct-menu-item is-danger" role="menuitem" data-act="account-logout">
+              <span class="acct-menu-ico" aria-hidden="true">${ICONS.logout}</span>
+              <span>Ausloggen</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function bindAccountCovers(root) {
+    const scope = root || headerActions;
+    if (!scope) return;
+    scope.querySelectorAll(".acct-letter-fill[data-cover]").forEach((el) => {
+      if (el.dataset.coverBound === "1") return;
+      el.dataset.coverBound = "1";
+      const src = el.dataset.cover || "";
+      const plate = el.closest(".acct-plate");
+      if (!src) {
+        if (plate) plate.classList.add("is-fallback");
+        return;
+      }
+      const img = new Image();
+      img.referrerPolicy = "no-referrer";
+      img.decoding = "async";
+      img.onload = () => {
+        el.style.backgroundImage = `url("${src.replace(/["\\\n\r()]/g, "")}")`;
+        el.classList.add("is-ready");
+      };
+      img.onerror = () => {
+        if (plate) plate.classList.add("is-fallback");
+      };
+      img.src = src;
+    });
   }
 
   function countFilmsWithTag(tagId) {
@@ -2316,6 +2448,15 @@
     });
   }
 
+  function switchToProfiles() {
+    closeAccountMenu();
+    state.profile = null;
+    state.expandedFilmId = null;
+    state.screen = "profiles";
+    persistSession();
+    render();
+  }
+
   function doLogout() {
     closeWatchSheet();
     closeModal();
@@ -2375,18 +2516,59 @@
   }
 
   function updateHeader() {
+    const menuWasOpen = !!(headerActions.querySelector(".acct-menu") && !headerActions.querySelector(".acct-menu").hidden);
     const items = [];
     if (["tags", "done", "profile-add"].includes(state.screen)) {
       items.push(`<button type="button" class="icon-btn" data-act="back" aria-label="Zurück" title="Zurück">${ICONS.back}</button>`);
     }
-    if (state.screen === "discover" || state.screen === "lists") {
-      items.push(`<button type="button" class="icon-btn" data-act="switch" aria-label="Account wechseln" title="Account wechseln">${ICONS.switch}</button>`);
-      items.push(`<button type="button" class="icon-btn" data-act="logout" aria-label="Ausloggen" title="Ausloggen">${ICONS.logout}</button>`);
+    if ((state.screen === "discover" || state.screen === "lists") && state.profile) {
+      items.push(accountMenuHtml());
     }
     if (state.screen === "profiles") {
       items.push(`<button type="button" class="icon-btn" data-act="logout" aria-label="Ausloggen" title="Ausloggen">${ICONS.logout}</button>`);
     }
     headerActions.innerHTML = items.join("");
+    bindAccountCovers(headerActions);
+    if (menuWasOpen && headerActions.querySelector(".acct-menu")) openAccountMenu();
+  }
+
+  function placeAccountMenu() {
+    const btn = headerActions.querySelector("[data-act=account-menu]");
+    const pop = headerActions.querySelector(".acct-menu");
+    if (!btn || !pop || pop.hidden) return;
+    const rect = btn.getBoundingClientRect();
+    const margin = 8;
+    const width = Math.min(276, window.innerWidth - margin * 2);
+    pop.style.width = `${width}px`;
+    let left = rect.right - width;
+    left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
+    let top = rect.bottom + 8;
+    const height = pop.offsetHeight;
+    if (top + height > window.innerHeight - margin) top = Math.max(margin, rect.top - height - 8);
+    pop.style.left = `${Math.round(left)}px`;
+    pop.style.top = `${Math.round(top)}px`;
+  }
+
+  function openAccountMenu() {
+    const btn = headerActions.querySelector("[data-act=account-menu]");
+    const pop = headerActions.querySelector(".acct-menu");
+    if (!btn || !pop) return;
+    pop.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+    placeAccountMenu();
+  }
+
+  function closeAccountMenu() {
+    const btn = headerActions.querySelector("[data-act=account-menu]");
+    const pop = headerActions.querySelector(".acct-menu");
+    if (pop) pop.hidden = true;
+    if (btn) btn.setAttribute("aria-expanded", "false");
+  }
+
+  function toggleAccountMenu() {
+    const pop = headerActions.querySelector(".acct-menu");
+    if (!pop || !pop.hidden) closeAccountMenu();
+    else openAccountMenu();
   }
 
   let phoneFooterLocked = false;
@@ -3394,6 +3576,7 @@
           <button type="button" class="btn btn-compact" data-act="suggest-tag" data-id="${id}">Taggen</button>
           <button type="button" class="btn btn-compact" data-act="suggest-watch" data-id="${id}" aria-pressed="${onWatch}">Watchlist</button>
         </div>
+        ${favoriteButtonHtml(film)}
         <button type="button" class="btn btn-compact suggest-richtung" data-act="richtung" data-id="${id}">passende Richtung</button>
         ${listsBlock}
         <p class="film-expand-in-label">Tags</p>
@@ -3624,6 +3807,7 @@
           ${tags ? `<div class="film-expand-tags">${tags}</div>` : ""}
           <div class="film-expand-rates">${renderRates(film, true)}</div>
           ${stream}
+          ${favoriteButtonHtml(film)}
           <div class="film-expand-collapse">
             <button type="button" class="film-row-fold" data-act="film-expand" data-id="${id}" aria-label="Zuklappen">${ICONS.chevronUp} Zuklappen</button>
           </div>
@@ -6570,12 +6754,16 @@
       goBack();
       return;
     }
-    if (act === "switch") {
-      state.profile = null;
-      state.expandedFilmId = null;
-      state.screen = "profiles";
-      persistSession();
+    if (act === "switch" || act === "account-switch") {
+      switchToProfiles();
+      return;
+    }
+    if (act === "set-favorite") {
+      const film = findFilm(t.dataset.id);
+      if (!film) return;
+      saveFavorite(film);
       render();
+      showSnack(`Lieblingsfilm: ${film.title}`);
       return;
     }
     if (act === "logout") {
@@ -6817,14 +7005,14 @@
     const t = event.target.closest("[data-act]");
     if (!t) return;
     if (t.dataset.act === "back") goBack();
-    if (t.dataset.act === "switch") {
-      state.profile = null;
-      state.expandedFilmId = null;
-      state.screen = "profiles";
-      persistSession();
-      render();
+    if (t.dataset.act === "switch" || t.dataset.act === "account-switch") switchToProfiles();
+    if (t.dataset.act === "account-menu") toggleAccountMenu();
+    if (t.dataset.act === "account-settings") {
+      closeAccountMenu();
+      showSnack("bald");
     }
-    if (t.dataset.act === "logout") {
+    if (t.dataset.act === "account-logout" || t.dataset.act === "logout") {
+      closeAccountMenu();
       askLogout();
     }
   });
@@ -7110,7 +7298,23 @@
     const y = window.scrollY;
     onScrollDir(y - lastScrollY);
     lastScrollY = y;
+    placeAccountMenu();
   }, { passive: true });
+
+  window.addEventListener("resize", () => {
+    placeAccountMenu();
+  });
+
+  document.addEventListener("click", (event) => {
+    const pop = headerActions.querySelector(".acct-menu");
+    if (!pop || pop.hidden) return;
+    if (event.target.closest(".acct-menu, [data-act=account-menu]")) return;
+    closeAccountMenu();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeAccountMenu();
+  });
 
   window.addEventListener("touchstart", (event) => {
     lastTouchY = event.touches[0] ? event.touches[0].clientY : null;
