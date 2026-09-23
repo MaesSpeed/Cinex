@@ -3,5 +3,5 @@
 // Leave SEARCH_PROXY empty to search the local catalog only (films.json / in-memory).
 window.TMDB_KEY = "";
 window.SEARCH_PROXY = "";
-// Example after deploying worker/: "https://cinex-search.<account>.workers.dev"
+// Example: "https://cinex-search.iammrspeed.workers.dev"
 // Local wrangler dev: "http://127.0.0.1:8787"
