@@ -29,6 +29,7 @@
     { id: "streaming", label: "Stream" },
     { id: "typ", label: "Typ" },
     { id: "actor", label: "Schauspieler" },
+    { id: "similar", label: "Ähnlich wie" },
   ];
 
   const INTERSTELLAR_POSTER = "https://image.tmdb.org/t/p/w185/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg";
@@ -690,10 +691,15 @@
     filtersOpen: false,
     discoverView: "hub",
     discoverCat: "",
-    filters: { dauerOn: false, dauer: 120, genres: [], tags: [], streaming: [], types: [], actors: [] },
+    filters: { dauerOn: false, dauer: 120, genres: [], tags: [], streaming: [], types: [], actors: [], similar: [] },
     actorQuery: "",
     actorHits: [],
     actorStatus: "",
+    similarQuery: "",
+    similarHits: [],
+    similarStatus: "",
+    similarDraft: [],
+    similarVisible: 20,
     filterMore: { genre: false, tags: false, streaming: false, types: false, zufall: false },
     shinePaused: false,
     currentPicks: [],
@@ -1335,6 +1341,15 @@
     }
     if (state.filters.types.length && filmMatchesType(film)) score += 1.4;
     if (state.filters.actors.length && filmMatchesActors(film)) score += 2.4;
+    if ((state.filters.similar || []).length) {
+      const similar = filmSimilarScore(film);
+      if (similar > 0) {
+        score += similar * 3;
+        if (SIMILAR_CURATED_IDS.has(filmId(film))) score += 6.2;
+        const popularity = Number(film.popularity) || 0;
+        if (popularity > 20) score += Math.min(1.5, popularity / 100);
+      }
+    }
     score += Math.random() * 0.85;
     return score;
   }
@@ -1367,13 +1382,109 @@
     });
   }
 
+  const SIMILAR_CURATED_IDS = new Set(
+    FILMS.map((film) => filmId(film))
+      .concat(LOGIN_POSTERS.map((row) => String(row.id)))
+      .concat(BLOCKBUSTER_IDS.map((id) => `t${id}`))
+      .concat(KLASSIKER_IDS.map((id) => `t${id}`))
+  );
+
+  let similarFetchedKey = "";
+  let similarRemoteIds = new Set();
+  let similarSeedCacheKey = "";
+  let similarSeedCache = [];
+
+  function similarFoldedSet(values, minLength) {
+    const out = new Set();
+    for (const value of values || []) {
+      const folded = foldSearch(value);
+      if (!folded || folded.length < (minLength || 1)) continue;
+      out.add(folded);
+    }
+    return out;
+  }
+
+  function resolvedSimilarSeeds() {
+    const rows = state.filters.similar || [];
+    const key = `${state.catalog.length}:${rows.map((row) => row.id).join("|")}`;
+    if (key === similarSeedCacheKey) return similarSeedCache;
+    similarSeedCacheKey = key;
+    similarSeedCache = rows.map((row) => {
+      const film = findFilm(row.id) || row;
+      if (!film || !film.title) return null;
+      return {
+        film,
+        id: filmId(film),
+        year: Number(film.year) || Number(row.year) || 0,
+        genres: similarFoldedSet(filmGenres(film)),
+        aliases: similarFoldedSet(film.aliases, 2),
+        cast: similarFoldedSet(filmCastNames(film)),
+      };
+    }).filter(Boolean);
+    return similarSeedCache;
+  }
+
+  function similarOverlap(film, seed) {
+    const genres = similarFoldedSet(filmGenres(film));
+    let sharedGenres = 0;
+    genres.forEach((name) => {
+      if (seed.genres.has(name)) sharedGenres += 1;
+    });
+    const union = genres.size + seed.genres.size - sharedGenres;
+    const jaccard = union ? sharedGenres / union : 0;
+    const aliases = similarFoldedSet(film.aliases, 2);
+    let sharedAlias = 0;
+    aliases.forEach((name) => {
+      if (seed.aliases.has(name)) sharedAlias += 1;
+    });
+    const cast = similarFoldedSet(filmCastNames(film));
+    let sharedCast = 0;
+    cast.forEach((name) => {
+      if (seed.cast.has(name)) sharedCast += 1;
+    });
+    let score = 0;
+    if (sharedAlias) score += 12 + sharedAlias * 2;
+    if (sharedCast && (sharedGenres || sharedAlias)) score += 1.6 + sharedCast * 0.8;
+    if (sharedGenres) score += jaccard * 5 + sharedGenres * 0.4;
+    const year = Number(film.year) || 0;
+    if (year && seed.year) {
+      const delta = Math.abs(year - seed.year);
+      if (delta <= 8 && (sharedAlias || sharedGenres >= 2)) score += 1.2;
+      else if (delta <= 15 && sharedGenres >= 2) score += 0.5;
+    }
+    return score;
+  }
+
+  function filmSimilarScore(film) {
+    const seeds = resolvedSimilarSeeds();
+    if (!seeds.length || !film) return 0;
+    const id = filmId(film);
+    if (seeds.some((seed) => seed.id === id)) return -1;
+    let best = 0;
+    let hits = 0;
+    for (const seed of seeds) {
+      const score = similarOverlap(film, seed);
+      if (score > best) best = score;
+      if (score >= 3.2) hits += 1;
+    }
+    if (similarRemoteIds.has(id)) best = Math.max(best, 13);
+    if (hits > 1) best += Math.min(3, (hits - 1) * 1.4);
+    return best;
+  }
+
+  function filmMatchesSimilar(film) {
+    if (!(state.filters.similar || []).length) return true;
+    return filmSimilarScore(film) >= 3.2;
+  }
+
   function hasHardFilters() {
     return (state.filters.types && state.filters.types.length > 0)
-      || (state.filters.actors && state.filters.actors.length > 0);
+      || (state.filters.actors && state.filters.actors.length > 0)
+      || (state.filters.similar && state.filters.similar.length > 0);
   }
 
   function passesHardFilters(film) {
-    return filmMatchesType(film) && filmMatchesActors(film);
+    return filmMatchesType(film) && filmMatchesActors(film) && filmMatchesSimilar(film);
   }
 
   function buildPool(excludeIds) {
@@ -1451,7 +1562,53 @@
       dauer: state.filters.dauerOn ? state.filters.dauer : null,
       types: (state.filters.types || []).slice().sort(),
       actors: (state.filters.actors || []).map((actor) => actor.id).sort(),
+      similar: (state.filters.similar || []).map((film) => film.id).sort(),
     });
+  }
+
+  function discoverNeedsBrowse() {
+    return state.filters.dauerOn
+      || state.filters.genres.length > 0
+      || state.filters.tags.length > 0
+      || state.filters.streaming.length > 0
+      || state.filters.types.length > 0
+      || (state.filters.actors || []).length > 0;
+  }
+
+  async function fetchSimilarForSeeds() {
+    const seeds = state.filters.similar || [];
+    const key = seeds.map((row) => String(row.id)).sort().join("|");
+    if (!key) {
+      similarRemoteIds = new Set();
+      similarFetchedKey = "";
+      return;
+    }
+    if (similarFetchedKey === key) return;
+    similarRemoteIds = new Set();
+    if (!tmdbKey()) {
+      similarFetchedKey = key;
+      return;
+    }
+    const next = new Set();
+    const seedIds = new Set(seeds.map((row) => String(row.id)));
+    for (const seed of seeds) {
+      const id = Number(seed.tmdb) || Number(String(seed.id).replace(/^t/i, ""));
+      if (!Number.isFinite(id) || id <= 0) continue;
+      try {
+        const data = await tmdbFetch(`/movie/${id}/similar`, { page: "1" });
+        const films = (data.results || []).map(fromTmdbMovie).filter((film) => film && film.title);
+        addFilmsToCatalog(films);
+        for (const film of films) {
+          const hid = filmId(film);
+          if (!seedIds.has(hid)) next.add(hid);
+        }
+      } catch {
+        /* Local genre, cast, and alias overlap still ranks the catalog. */
+      }
+    }
+    similarRemoteIds = next;
+    similarFetchedKey = key;
+    similarSeedCacheKey = "";
   }
 
   function discoverParams(page) {
@@ -1517,6 +1674,8 @@
     }
     discoverLoading = true;
     try {
+      if ((state.filters.similar || []).length) await fetchSimilarForSeeds();
+      if ((state.filters.similar || []).length && !discoverNeedsBrowse()) return;
       let pages = 0;
       const need = minFresh || 80;
       const maxPages = 12;
@@ -1624,7 +1783,8 @@
       || state.filters.tags.length > 0
       || state.filters.streaming.length > 0
       || state.filters.types.length > 0
-      || state.filters.actors.length > 0;
+      || state.filters.actors.length > 0
+      || (state.filters.similar || []).length > 0;
   }
 
   function discoverCatOn(id) {
@@ -1634,6 +1794,7 @@
     if (id === "streaming") return state.filters.streaming.length > 0;
     if (id === "typ") return state.filters.types.length > 0;
     if (id === "actor") return state.filters.actors.length > 0;
+    if (id === "similar") return (state.filters.similar || []).length > 0;
     return false;
   }
 
@@ -1696,6 +1857,9 @@
     }
     for (const actor of state.filters.actors) {
       chips.push({ kind: "actor", id: actor.id, label: actor.name });
+    }
+    for (const film of state.filters.similar || []) {
+      chips.push({ kind: "similar", id: film.id, label: film.title });
     }
     return chips;
   }
@@ -1782,9 +1946,17 @@
     state.filters.streaming = [];
     state.filters.types = [];
     state.filters.actors = [];
+    state.filters.similar = [];
     state.actorQuery = "";
     state.actorHits = [];
     state.actorStatus = "";
+    state.similarQuery = "";
+    state.similarHits = [];
+    state.similarStatus = "";
+    state.similarDraft = [];
+    similarRemoteIds = new Set();
+    similarFetchedKey = "";
+    similarSeedCacheKey = "";
   }
 
   function closeFilmMenus() {
@@ -2891,8 +3063,45 @@
             <div class="actor-hits" data-role="actor-hits">${actorHitsHtml()}</div>
           </div>
         </div>
+        <div class="${filterCardClass("similar", "is-similar")}" data-cat="similar">
+          <span class="filter-label">Ähnlich wie</span>
+          <div class="similar-search-col">
+            ${similarHubChips()}
+            <button type="button" class="similar-hub-search${(state.filters.similar || []).length ? " is-active" : ""}" data-act="similar-open" aria-haspopup="dialog" aria-label="Filme suchen">
+              <span class="sheet-search-icon">${ICONS.search}</span>
+              <span>Filme suchen</span>
+            </button>
+          </div>
+        </div>
       </div>
     `;
+  }
+
+  function similarCompact(film) {
+    if (!film || !film.title) return null;
+    const id = filmId(film);
+    const tmdb = Number(film.tmdb) || Number(String(id).replace(/^t/i, "")) || 0;
+    return {
+      id,
+      title: film.title,
+      tmdb,
+      year: Number(film.year) || 0,
+      poster: film.poster || "",
+    };
+  }
+
+  function similarChipsHtml(rows, removeAct) {
+    return (rows || []).map((film) => `
+      <span class="active-chip is-lava similar-chip">
+        <span>${escapeHtml(film.title)}</span>
+        <button type="button" class="active-chip-x" data-act="${removeAct}" data-id="${escapeHtml(film.id)}" aria-label="${escapeHtml(film.title)} entfernen">${ICONS.chipX}</button>
+      </span>
+    `).join("");
+  }
+
+  function similarHubChips() {
+    const html = similarChipsHtml(state.filters.similar, "similar-remove");
+    return html ? `<div class="active-chip-row">${html}</div>` : "";
   }
 
   function renderDiscoverHub() {
@@ -3715,7 +3924,135 @@
     if (state.expandedFilmId) enrichExpandedFilm(state.expandedFilmId);
   }
 
+  function similarEmptyText() {
+    if (!String(state.similarQuery || "").trim()) return "Titel eingeben, um Filme zu suchen.";
+    if (state.similarStatus === "loading") return "Suche…";
+    return "Kein Treffer";
+  }
+
+  function similarVisibleFilms() {
+    return (state.similarHits || []).slice(0, state.similarVisible || 20);
+  }
+
+  function renderSimilarRow(film) {
+    const id = filmId(film);
+    const on = (state.similarDraft || []).some((row) => row.id === id);
+    const year = Number(film.year) || 0;
+    return `
+      <article class="film-row" data-id="${escapeHtml(id)}">
+        <div class="film-row-head">
+          ${posterTile(film, { lazy: true, size: POSTER_SIZE_THUMB })}
+          <div class="film-row-body">
+            <div class="film-row-titleline">
+              <h3 class="film-row-title">${escapeHtml(film.title)}</h3>
+            </div>
+            ${year ? `<p class="film-row-cast">${year}</p>` : ""}
+          </div>
+          <button type="button" class="watch-toggle${on ? " is-on" : ""}" data-act="similar-toggle" data-id="${escapeHtml(id)}" aria-pressed="${on ? "true" : "false"}" aria-label="${on ? "Auswahl aufheben" : "Film wählen"}">${on ? ICONS.check : ICONS.plus}</button>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderSimilarListInner() {
+    const films = similarVisibleFilms();
+    if (!films.length) return `<p class="hint">${escapeHtml(similarEmptyText())}</p>`;
+    const more = (state.similarHits || []).length > films.length;
+    const moreHtml = more ? `
+      <div class="sheet-more" data-role="similar-more">
+        <button type="button" class="sheet-more-btn" data-act="similar-more">Weitere anzeigen</button>
+      </div>
+    ` : "";
+    return films.map((film) => renderSimilarRow(film)).join("") + moreHtml;
+  }
+
+  function renderSimilarSheetHtml() {
+    const draft = state.similarDraft || [];
+    const chips = similarChipsHtml(draft, "similar-draft-remove");
+    const active = String(state.similarQuery || "").trim() || draft.length;
+    return `
+      <div class="sheet-panel is-similar" data-role="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="similar-sheet-title">
+        <div class="sheet-head" data-role="sheet-drag">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <h2 class="sheet-title" id="similar-sheet-title">Ähnlich wie</h2>
+          <p class="sheet-sub">Ein oder mehrere Filme wählen</p>
+        </div>
+        <div class="sheet-search-wrap${active ? " is-active" : ""}">
+          <span class="sheet-search-icon">${ICONS.search}</span>
+          <input data-act="similar-search" placeholder="Filme suchen" value="${escapeHtml(state.similarQuery)}" autocomplete="off" enterkeyhint="search" aria-label="Filme suchen">
+        </div>
+        <div class="active-chip-row similar-chip-row" data-role="similar-chips">${chips}</div>
+        <section class="film-list" data-role="similar-list">${renderSimilarListInner()}</section>
+        <button type="button" class="btn btn-primary similar-apply" data-act="similar-apply">Übernehmen (${draft.length})</button>
+      </div>
+    `;
+  }
+
+  function paintSimilarList() {
+    if (!watchSheetEl || state.watchSheet !== "similar") return;
+    const list = watchSheetEl.querySelector("[data-role=similar-list]");
+    if (!list) return;
+    const scrollTop = list.scrollTop;
+    list.innerHTML = renderSimilarListInner();
+    list.scrollTop = scrollTop;
+    observeListPostersSoon(list);
+  }
+
+  function paintSimilarSelection() {
+    if (!watchSheetEl || state.watchSheet !== "similar") return;
+    const chips = watchSheetEl.querySelector("[data-role=similar-chips]");
+    if (chips) chips.innerHTML = similarChipsHtml(state.similarDraft, "similar-draft-remove");
+    const apply = watchSheetEl.querySelector("[data-act=similar-apply]");
+    if (apply) apply.textContent = `Übernehmen (${(state.similarDraft || []).length})`;
+    const wrap = watchSheetEl.querySelector(".sheet-panel.is-similar .sheet-search-wrap");
+    if (wrap) {
+      const active = !!String(state.similarQuery || "").trim() || (state.similarDraft || []).length > 0;
+      wrap.classList.toggle("is-active", active);
+    }
+    const picked = new Set((state.similarDraft || []).map((row) => row.id));
+    watchSheetEl.querySelectorAll("[data-act=similar-toggle]").forEach((btn) => {
+      const on = picked.has(btn.dataset.id);
+      btn.classList.toggle("is-on", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      btn.setAttribute("aria-label", on ? "Auswahl aufheben" : "Film wählen");
+      btn.innerHTML = on ? ICONS.check : ICONS.plus;
+    });
+  }
+
+  function toggleSimilarDraft(id) {
+    const film = findFilm(id);
+    if (!film) return;
+    const compact = similarCompact(film);
+    if (!compact) return;
+    const draft = state.similarDraft || [];
+    if (draft.some((row) => row.id === compact.id)) {
+      state.similarDraft = draft.filter((row) => row.id !== compact.id);
+    } else {
+      state.similarDraft = draft.concat(compact);
+    }
+    paintSimilarSelection();
+  }
+
+  function openSimilarSheet() {
+    closeFilmMenus();
+    window.clearTimeout(searchTimer);
+    searchSeq += 1;
+    teardownZufallCarousel();
+    state.watchSearch = "";
+    state.searchHits = [];
+    state.searchStatus = "";
+    state.similarDraft = (state.filters.similar || []).map((row) => ({ ...row }));
+    state.similarQuery = "";
+    state.similarHits = [];
+    state.similarStatus = "";
+    state.similarVisible = 20;
+    state.watchSheet = "similar";
+    paintWatchSheet();
+    if (!state.catalog.length) loadCatalog();
+  }
+
   function renderWatchSheetHtml() {
+    if (state.watchSheet === "similar") return renderSimilarSheetHtml();
     if (state.watchSheet === "zufall") return renderZufallSheetHtml();
     const searching = state.watchSheet === "search";
     if (searching) {
@@ -3789,6 +4126,16 @@
       paintChipOverflow();
       return;
     }
+    if (state.watchSheet === "similar") {
+      observeListPostersSoon(watchSheetEl);
+      const input = watchSheetEl.querySelector("[data-act=similar-search]");
+      if (input) {
+        input.focus({ preventScroll: true });
+        const len = input.value.length;
+        try { input.setSelectionRange(len, len); } catch { /* ignore */ }
+      }
+      return;
+    }
     const films = watchSheetFilms();
     observeListPostersSoon(watchSheetEl);
     enrichListCast(films);
@@ -3827,7 +4174,9 @@
 
   function closeWatchSheet() {
     window.clearTimeout(searchTimer);
+    window.clearTimeout(similarTimer);
     searchSeq += 1;
+    similarSeq += 1;
     unbindWatchMoreSentinel();
     teardownZufallCarousel();
     state.watchSheet = null;
@@ -3838,6 +4187,10 @@
     state.watchSearch = "";
     state.searchHits = [];
     state.searchStatus = "";
+    state.similarQuery = "";
+    state.similarHits = [];
+    state.similarStatus = "";
+    state.similarDraft = [];
     resetWatchSheetPage();
     document.body.classList.remove("watch-sheet-open");
     document.body.classList.remove("zufall-sheet-open");
@@ -3873,6 +4226,8 @@
   let searchSeq = 0;
   let actorTimer = 0;
   let actorSeq = 0;
+  let similarTimer = 0;
+  let similarSeq = 0;
 
   function catalogActorHits(query) {
     const q = foldSearch(query);
@@ -3999,6 +4354,84 @@
       }
       paintActorHits();
     }, 220);
+  }
+
+  function similarSearchPool() {
+    if (state.catalog && state.catalog.length) return state.catalog;
+    return allKnownFilms();
+  }
+
+  function scheduleSimilarSearch(query) {
+    window.clearTimeout(similarTimer);
+    similarSeq += 1;
+    state.similarVisible = 20;
+    const q = String(query || "").trim();
+    const seq = similarSeq;
+    if (!q) {
+      state.similarHits = [];
+      state.similarStatus = "";
+      paintSimilarList();
+      return;
+    }
+    const applyLocal = () => {
+      if (seq !== similarSeq || state.watchSheet !== "similar") return false;
+      if (String(state.similarQuery || "").trim() !== q) return false;
+      const local = rankSearchFilms(similarSearchPool(), q);
+      state.similarHits = local;
+      if (!tmdbKey()) {
+        state.similarStatus = local.length ? "ok" : "empty";
+        paintSimilarList();
+        return false;
+      }
+      state.similarStatus = local.length ? "ok" : "loading";
+      paintSimilarList();
+      return true;
+    };
+    if (!state.catalog.length) {
+      loadCatalog().then(() => {
+        if (seq !== similarSeq || state.watchSheet !== "similar") return;
+        if (String(state.similarQuery || "").trim() !== q) return;
+        if (applyLocal()) similarTimer = window.setTimeout(() => runSimilarSearch(q, seq), 200);
+      });
+      return;
+    }
+    if (!applyLocal()) return;
+    similarTimer = window.setTimeout(() => runSimilarSearch(q, seq), 200);
+  }
+
+  async function runSimilarSearch(query, scheduledSeq) {
+    const seq = scheduledSeq || similarSeq;
+    if (seq !== similarSeq || state.watchSheet !== "similar") return;
+    if (!state.catalog.length) await loadCatalog();
+    if (seq !== similarSeq) return;
+    const local = rankSearchFilms(similarSearchPool(), query);
+    if (!tmdbKey()) {
+      state.similarHits = local;
+      state.similarStatus = local.length ? "ok" : "empty";
+      paintSimilarList();
+      return;
+    }
+    try {
+      const data = await tmdbFetch("/search/movie", { query });
+      if (seq !== similarSeq) return;
+      const remote = (data.results || []).map(fromTmdbMovie).filter((film) => film && film.title);
+      remote.forEach((film) => rememberFilm(film));
+      const merged = [];
+      const seen = new Set();
+      for (const film of local.concat(remote)) {
+        const id = filmId(film);
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        merged.push(film);
+      }
+      state.similarHits = rankSearchFilms(merged, query, true);
+      state.similarStatus = state.similarHits.length ? "ok" : "empty";
+    } catch {
+      if (seq !== similarSeq) return;
+      state.similarHits = local;
+      state.similarStatus = local.length ? "ok" : "empty";
+    }
+    paintSimilarList();
   }
 
   function scheduleTitleSearch(query) {
@@ -5014,7 +5447,7 @@
   }
 
   function render() {
-    if (state.watchSheet === "zufall") {
+    if (state.watchSheet === "zufall" || (state.watchSheet === "similar" && state.screen === "discover")) {
       /* keep overlay */
     } else if (state.screen !== "lists" || (state.listTab !== "watch" && state.listTab !== "queue")) {
       closeWatchSheet();
@@ -5379,6 +5812,28 @@
       toggleWatchFilm(findFilm(t.dataset.id));
       return true;
     }
+    if (act === "similar-toggle") {
+      toggleSimilarDraft(t.dataset.id);
+      return true;
+    }
+    if (act === "similar-draft-remove") {
+      state.similarDraft = (state.similarDraft || []).filter((row) => row.id !== t.dataset.id);
+      paintSimilarSelection();
+      return true;
+    }
+    if (act === "similar-more") {
+      state.similarVisible = (state.similarVisible || 20) + 20;
+      paintSimilarList();
+      return true;
+    }
+    if (act === "similar-apply") {
+      state.filters.similar = (state.similarDraft || []).map((row) => ({ ...row }));
+      similarFetchedKey = "";
+      similarSeedCacheKey = "";
+      closeWatchSheet();
+      render();
+      return true;
+    }
     return false;
   }
 
@@ -5483,6 +5938,11 @@
       if (kind === "streaming") state.filters.streaming = state.filters.streaming.filter((x) => x !== id);
       if (kind === "type") state.filters.types = state.filters.types.filter((x) => x !== id);
       if (kind === "actor") state.filters.actors = state.filters.actors.filter((x) => x.id !== id);
+      if (kind === "similar") {
+        state.filters.similar = (state.filters.similar || []).filter((x) => x.id !== id);
+        similarFetchedKey = "";
+        similarSeedCacheKey = "";
+      }
       render();
       return;
     }
@@ -5575,6 +6035,17 @@
     }
     if (act === "actor-remove") {
       state.filters.actors = state.filters.actors.filter((actor) => actor.id !== t.dataset.id);
+      render();
+      return;
+    }
+    if (act === "similar-open") {
+      openSimilarSheet();
+      return;
+    }
+    if (act === "similar-remove") {
+      state.filters.similar = (state.filters.similar || []).filter((film) => film.id !== t.dataset.id);
+      similarFetchedKey = "";
+      similarSeedCacheKey = "";
       render();
       return;
     }
@@ -6191,9 +6662,17 @@
 
   watchSheetEl.addEventListener("input", (event) => {
     const t = event.target;
-    if (!t || t.dataset.act !== "watch-search") return;
-    state.watchSearch = t.value;
-    scheduleTitleSearch(t.value);
+    if (!t || !t.dataset) return;
+    if (t.dataset.act === "watch-search") {
+      state.watchSearch = t.value;
+      scheduleTitleSearch(t.value);
+    }
+    if (t.dataset.act === "similar-search") {
+      state.similarQuery = t.value;
+      const wrap = t.closest(".sheet-search-wrap");
+      if (wrap) wrap.classList.toggle("is-active", !!t.value.trim() || (state.similarDraft || []).length > 0);
+      scheduleSimilarSearch(t.value);
+    }
   });
 
   let sheetDrag = null;
@@ -6207,7 +6686,7 @@
   function sheetDragBlocked(event) {
     if (!state.watchSheet || !watchSheetEl || watchSheetEl.hidden) return true;
     if (event.target.closest("button, a, input, [data-role=zufall-carousel], [data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open], [data-act=watch-more], [data-role=watch-more], [data-swipe-row], [data-act=zufall-source], [data-act=zufall-more]")) return true;
-    const list = event.target.closest("[data-role=watch-sheet-list]");
+    const list = event.target.closest("[data-role=watch-sheet-list], [data-role=similar-list]");
     if (list && list.scrollTop > 2) return true;
     return false;
   }
