@@ -342,6 +342,99 @@
     return res.json();
   }
 
+  function searchProxyBase() {
+    const raw = String(window.SEARCH_PROXY || "").trim();
+    if (!raw) return "";
+    try {
+      const url = new URL(raw);
+      url.searchParams.delete("api_key");
+      url.hash = "";
+      return url.toString().replace(/\/$/, "");
+    } catch {
+      return raw.replace(/\/$/, "").replace(/([?&])api_key=[^&]*/gi, "$1").replace(/[?&]$/, "");
+    }
+  }
+
+  function remoteSearchAvailable() {
+    return !!searchProxyBase();
+  }
+
+  async function proxyFetch(path, params) {
+    const base = searchProxyBase();
+    if (!base) {
+      const err = new Error("proxy-unset");
+      throw err;
+    }
+    const url = new URL(`${base}${path.startsWith("/") ? path : `/${path}`}`);
+    url.searchParams.set("language", "de-DE");
+    url.searchParams.set("region", "DE");
+    url.searchParams.set("include_adult", "false");
+    Object.entries(params || {}).forEach(([name, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        url.searchParams.set(name, String(value));
+      }
+    });
+    url.searchParams.delete("api_key");
+    const res = await fetch(url.toString());
+    if (!res.ok) {
+      const err = new Error("proxy");
+      err.status = res.status;
+      throw err;
+    }
+    return res.json();
+  }
+
+  const liveDetailTried = new Set();
+
+  function needsLiveDetails(film) {
+    if (!film || !remoteSearchAvailable()) return false;
+    const tmdb = Number(film.tmdb);
+    if (!Number.isFinite(tmdb) || tmdb <= 0) return false;
+    if (Number(film.minutes || film.runtime) > 0) return false;
+    const id = filmId(film);
+    if ((offlineFilms || []).some((row) => filmId(row) === id)) return false;
+    return true;
+  }
+
+  function applyLiveFilm(next) {
+    const stored = rememberFilm(next);
+    if (!stored) return null;
+    const id = filmId(stored);
+    if (Array.isArray(state.searchHits)) {
+      state.searchHits = state.searchHits.map((row) => (filmId(row) === id ? stored : row));
+    }
+    if (Array.isArray(state.currentPicks)) {
+      state.currentPicks = state.currentPicks.map((row) => (filmId(row) === id ? stored : row));
+    }
+    if (state.chosen && filmId(state.chosen) === id) state.chosen = stored;
+    return stored;
+  }
+
+  function scheduleLiveDetails(film) {
+    if (!needsLiveDetails(film)) return;
+    const id = filmId(film);
+    if (!id || liveDetailTried.has(id)) return;
+    liveDetailTried.add(id);
+    const tmdb = Number(film.tmdb);
+    proxyFetch(`/movie/${tmdb}`, { append_to_response: "credits" }).then((data) => {
+      const next = fromTmdbMovie(data);
+      if (!next) return;
+      const names = ((data && data.credits && data.credits.cast) || [])
+        .slice()
+        .sort((a, b) => (Number(a.order) || 99) - (Number(b.order) || 99))
+        .map((row) => String((row && (row.name || row.original_name)) || "").trim())
+        .filter(Boolean)
+        .slice(0, 4);
+      if (names.length) next.cast = names;
+      if (!applyLiveFilm(next)) return;
+      if (state.watchSheet) paintWatchSheetList();
+      if (state.screen === "lists") refreshWatchList();
+      else if (state.screen === "done") render();
+    }).catch(() => {
+      /* Search hit already has title and poster. */
+    });
+  }
+
   const TMDB_POSTER_BASE = "https://image.tmdb.org/t/p/";
   const POSTER_SIZE_CARD = "w185";
   const POSTER_SIZE_THUMB = "w92";
@@ -378,6 +471,7 @@
       id: `t${raw.id}`,
       tmdb: raw.id,
       title: raw.title || raw.original_title || "Film",
+      original_title: raw.original_title || "",
       genres: names,
       genre: names[0] || "Film",
       runtime: raw.runtime || 0,
@@ -3307,6 +3401,18 @@
     return rows.map((row) => row.film);
   }
 
+  function localTitleSearchIsThin(hits, query) {
+    const q = foldSearch(query);
+    if (q.length < 2) return false;
+    const list = hits || [];
+    if (!list.length) return true;
+    const top = scoreSearchFilm(list[0], q);
+    if (top && top.exactTitle) return false;
+    if (top && top.rank <= 2 && list.length >= 5) return false;
+    if (top && top.rank <= 3 && list.length >= 8) return false;
+    return true;
+  }
+
   function watchSheetHiddenIds() {
     if (state.watchSheetBaselineIds) return state.watchSheetBaselineIds;
     return new Set(watchlist().map((row) => String(row.id)));
@@ -3760,6 +3866,18 @@
       .map((row) => ({ id: row.name, name: row.name, tmdb: 0, count: row.count, profile: "" }));
   }
 
+  function localActorSearchIsThin(hits, query) {
+    const q = foldSearch(query);
+    if (q.length < 2) return false;
+    const list = hits || [];
+    if (!list.length) return true;
+    const exact = list.some((row) => foldSearch(row && row.name) === q);
+    if (exact) return false;
+    const prefix = list.some((row) => foldSearch(row && row.name).startsWith(q));
+    if (prefix && list.length >= 3) return false;
+    return list.length < 4;
+  }
+
   function actorInitials(name) {
     const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
     const letters = parts.slice(0, 2).map((part) => part[0]).join("");
@@ -3783,6 +3901,9 @@
     const q = String(state.actorQuery || "").trim();
     if (!q) return "";
     if (state.actorStatus === "loading" && !state.actorHits.length) return `<p class="hint actor-hit-status">Suche…</p>`;
+    if (state.actorStatus === "offline" && !state.actorHits.length) {
+      return `<p class="hint actor-hit-status">Kein Treffer im lokalen Katalog. Online-Suche nicht verfügbar.</p>`;
+    }
     if (!state.actorHits.length) return `<p class="hint actor-hit-status">Kein Treffer</p>`;
     return state.actorHits.map((row) => {
       const count = actorCountLabel(row.count);
@@ -3815,13 +3936,14 @@
     }
     const local = catalogActorHits(q);
     state.actorHits = local;
-    state.actorStatus = !tmdbKey() ? (local.length ? "ok" : "empty") : (local.length ? "ok" : "loading");
+    const live = remoteSearchAvailable() && localActorSearchIsThin(local, q);
+    state.actorStatus = live ? (local.length ? "ok" : "loading") : (local.length ? "ok" : "empty");
     paintActorHits();
-    if (!tmdbKey()) return;
+    if (!live) return;
     actorTimer = window.setTimeout(async () => {
       if (seq !== actorSeq) return;
       try {
-        const data = await tmdbFetch("/search/person", { query: q, include_adult: "false" });
+        const data = await proxyFetch("/search/person", { query: q });
         if (seq !== actorSeq) return;
         const localCount = new Map(local.map((row) => [foldSearch(row.name), row.count]));
         const remote = (data.results || []).slice(0, 8).map((row) => ({
@@ -3844,7 +3966,8 @@
         state.actorStatus = hits.length ? "ok" : "empty";
       } catch {
         if (seq !== actorSeq) return;
-        state.actorStatus = local.length ? "ok" : "empty";
+        state.actorHits = local;
+        state.actorStatus = local.length ? "ok" : "offline";
       }
       paintActorHits();
     }, 220);
@@ -3868,7 +3991,7 @@
       if (String(state.watchSearch || "").trim() !== q) return false;
       const local = catalogTitleHits(q);
       state.searchHits = local;
-      if (!tmdbKey()) {
+      if (!remoteSearchAvailable() || !localTitleSearchIsThin(local, q)) {
         state.searchStatus = local.length ? "ok" : "empty";
         paintWatchSheetList();
         return false;
@@ -3904,16 +4027,15 @@
     const local = catalogTitleHits(query);
     if (seq !== searchSeq) return;
     state.searchHits = local;
-    if (!tmdbKey()) {
+    if (!remoteSearchAvailable() || !localTitleSearchIsThin(local, query)) {
       state.searchStatus = local.length ? "ok" : "empty";
       paintWatchSheetList();
       return;
     }
     try {
-      const data = await tmdbFetch("/search/movie", { query });
+      const data = await proxyFetch("/search/movie", { query });
       if (seq !== searchSeq) return;
       const remote = withoutWatchlisted((data.results || []).map(fromTmdbMovie).filter((film) => film && film.title));
-      remote.forEach((film) => rememberFilm(film));
       const merged = [];
       const seen = new Set();
       for (const film of local.concat(remote)) {
@@ -5084,6 +5206,7 @@
   function addWatch(film) {
     if (!film) return false;
     rememberFilm(film);
+    scheduleLiveDetails(film);
     const list = watchlist();
     if (list.some((row) => String(row.id) === filmId(film))) return false;
     list.unshift({ id: filmId(film), at: Date.now() });
@@ -5099,6 +5222,7 @@
   function addQueue(film) {
     if (!film) return false;
     rememberFilm(film);
+    scheduleLiveDetails(film);
     const list = queue();
     if (list.some((row) => String(row.id) === filmId(film))) return false;
     list.unshift({ id: filmId(film), at: Date.now() });
@@ -5142,6 +5266,7 @@
   function chooseFilm(film) {
     if (!film) return;
     rememberFilm(film);
+    scheduleLiveDetails(film);
     const hid = filmId(film);
     const rows = history().filter((row) => String(row.id) !== hid);
     rows.unshift({ id: hid, title: film.title, at: Date.now() });
@@ -6194,5 +6319,8 @@
     url: tmdbUrl,
     movie: fromTmdbMovie,
     key: tmdbKey,
+    proxy: searchProxyBase,
+    titleSearchThin: localTitleSearchIsThin,
+    actorSearchThin: localActorSearchIsThin,
   };
 })();

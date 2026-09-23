@@ -1,4 +1,7 @@
-// Copy to config.js. Optional TMDB v3 API key for live search enrichment.
-// Leave empty to search the local catalog only (films.json / in-memory).
-// Do not commit a real key.
+// Copy to config.js. Do not commit a real TMDB key — GitHub Pages would expose it.
+// Live title and actor search use SEARCH_PROXY (a Cloudflare Worker that holds the key).
+// Leave SEARCH_PROXY empty to search the local catalog only (films.json / in-memory).
 window.TMDB_KEY = "";
+window.SEARCH_PROXY = "";
+// Example after deploying worker/: "https://cinex-search.<account>.workers.dev"
+// Local wrangler dev: "http://127.0.0.1:8787"
