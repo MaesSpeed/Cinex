@@ -834,6 +834,7 @@
     close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg>`,
     chipX: `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 3l6 6M9 3 3 9"/></svg>`,
     jump: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.2 3.2H3.8A1.6 1.6 0 0 0 2.2 4.8v7.4A1.6 1.6 0 0 0 3.8 13.8h7.4a1.6 1.6 0 0 0 1.6-1.6V9.8"/><path d="M8.6 7.4 13.8 2.2M9.8 2.2h4v4"/></svg>`,
+    edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4.2L19.2 8.9a1.6 1.6 0 0 0 0-2.3l-1.8-1.8a1.6 1.6 0 0 0-2.3 0L4 15.8V20z"/><path d="m13.6 6.4 4 4"/></svg>`,
     person: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8.1" r="3.1"/><path d="M5.4 19.2c.9-3.3 3.3-5.1 6.6-5.1s5.7 1.8 6.6 5.1"/></svg>`,
     lock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="6" y="10.2" width="12" height="9.3" rx="2"/><path d="M8.2 10.2V8.1a3.8 3.8 0 0 1 7.6 0v2.1"/></svg>`,
     eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.7 12S6.1 6.6 12 6.6 21.3 12 21.3 12 17.9 17.4 12 17.4 2.7 12 2.7 12z"/><circle cx="12" cy="12" r="2.35"/></svg>`,
@@ -910,7 +911,12 @@
     seenOnlyUnrated: false,
     chosen: null,
     addName: "",
-    addAvatar: "cowboy",
+    addPlate: "schwarz-lava",
+    addCover: null,
+    editingProfileId: null,
+    coverQuery: "",
+    coverHits: [],
+    coverStatus: "",
     loginName: "",
     loginPass: "",
     loginError: "",
@@ -957,8 +963,59 @@
     saveJson("wdq.users", list);
   }
 
+  const PLATE_IDS = ["hell", "schwarz", "hell-lava", "schwarz-lava"];
+  const DEFAULT_PLATE = "schwarz-lava";
+  const PLATE_CHOICES = [
+    { id: "hell", label: "Hell" },
+    { id: "schwarz", label: "Schwarz" },
+    { id: "hell-lava", label: "Hell", sub: "Lava" },
+    { id: "schwarz-lava", label: "Schwarz", sub: "Lava" },
+  ];
+
+  function normalizePlate(value) {
+    return PLATE_IDS.includes(value) ? value : DEFAULT_PLATE;
+  }
+
+  function normalizeCover(value) {
+    if (!value || typeof value !== "object") return null;
+    const id = value.id != null && value.id !== "" ? String(value.id) : "";
+    const title = value.title ? String(value.title) : "";
+    const poster = value.poster ? String(value.poster) : "";
+    if (!id && !title && !poster) return null;
+    return { id, title, poster };
+  }
+
+  function coversEqual(a, b) {
+    const left = normalizeCover(a);
+    const right = normalizeCover(b);
+    if (!left && !right) return true;
+    if (!left || !right) return false;
+    return left.id === right.id && left.title === right.title && left.poster === right.poster;
+  }
+
   function profilesOf(userId) {
-    return loadJson(`wdq.profiles.${userId}`, []);
+    const list = loadJson(`wdq.profiles.${userId}`, []);
+    if (!userId || !Array.isArray(list)) return [];
+    return migrateProfiles(userId, list);
+  }
+
+  function migrateProfiles(userId, list) {
+    let changed = false;
+    const next = list.map((row) => {
+      if (!row || typeof row !== "object") return row;
+      const plate = normalizePlate(row.plate);
+      let cover = normalizeCover(row.cover);
+      if (!cover && row.id) cover = normalizeCover(loadJson(`wdq.p.${userId}.${row.id}.favorite`, null));
+      const plateChanged = row.plate !== plate;
+      const coverChanged = !!cover && !coversEqual(row.cover, cover);
+      if (!plateChanged && !coverChanged) return row;
+      changed = true;
+      const copy = Object.assign({}, row, { plate });
+      if (cover) copy.cover = cover;
+      return copy;
+    });
+    if (changed) saveProfiles(userId, next);
+    return next;
   }
 
   function saveProfiles(userId, list) {
@@ -1035,9 +1092,9 @@
     list.push({ id: "u-test", login: "Test", password: "1234" });
     saveUsers(list);
     const profiles = [
-      { id: "tester", name: "Tester", avatar: "av1" },
-      { id: "user1", name: "User No 1", avatar: "av2" },
-      { id: "bot", name: "Bot - Apptesti", avatar: "av3" },
+      { id: "tester", name: "Tester", avatar: "av1", plate: "schwarz-lava" },
+      { id: "user1", name: "User No 1", avatar: "av2", plate: "schwarz-lava" },
+      { id: "bot", name: "Bot - Apptesti", avatar: "av3", plate: "schwarz-lava" },
     ];
     saveProfiles("u-test", profiles);
     const tags = [
@@ -1372,13 +1429,27 @@
   function favoriteRecord() {
     if (!state.user || !state.profile) return null;
     const saved = loadJson(pkey("favorite"), null);
-    if (!saved || !saved.id) return null;
-    const id = String(saved.id);
-    const film = findFilm(id);
-    const title = (film && film.title) || saved.title || "";
-    const poster = (film && film.poster) || saved.poster || "";
+    const cover = normalizeCover(saved);
+    if (!cover || !cover.id) return null;
+    const film = findFilm(cover.id);
+    const title = (film && film.title) || cover.title || "";
+    const poster = (film && film.poster) || cover.poster || "";
     if (!title && !poster) return null;
-    return { id, title, poster };
+    return { id: cover.id, title, poster };
+  }
+
+  function activeCoverRecord() {
+    const fromProfile = state.profile && normalizeCover(state.profile.cover);
+    if (fromProfile && (fromProfile.poster || fromProfile.title)) return fromProfile;
+    return favoriteRecord();
+  }
+
+  function profileCoverRecord(profile) {
+    if (!profile) return null;
+    const own = normalizeCover(profile.cover);
+    if (own) return own;
+    if (!state.user || !profile.id) return null;
+    return normalizeCover(loadJson(`wdq.p.${state.user.id}.${profile.id}.favorite`, null));
   }
 
   function defaultFavoritePoster() {
@@ -1387,15 +1458,38 @@
   }
 
   function accountCoverSrc() {
-    const fav = favoriteRecord();
-    const poster = fav && fav.poster ? fav.poster : defaultFavoritePoster();
+    return coverSrcFrom(activeCoverRecord());
+  }
+
+  function coverSrcFrom(cover) {
+    const row = normalizeCover(cover);
+    const poster = row && row.poster ? row.poster : defaultFavoritePoster();
     return withPosterSize(poster, "w342") || poster;
+  }
+
+  function writeProfileCover(profileId, cover) {
+    if (!state.user || !profileId) return;
+    const nextCover = normalizeCover(cover);
+    const list = profilesOf(state.user.id).map((row) => {
+      if (row.id !== profileId) return row;
+      const copy = Object.assign({}, row, { plate: normalizePlate(row.plate) });
+      if (nextCover) copy.cover = nextCover;
+      else delete copy.cover;
+      return copy;
+    });
+    saveProfiles(state.user.id, list);
+    const favKey = `wdq.p.${state.user.id}.${profileId}.favorite`;
+    if (nextCover && nextCover.id) saveJson(favKey, nextCover);
+    else localStorage.removeItem(favKey);
+    if (state.profile && state.profile.id === profileId) {
+      state.profile = list.find((row) => row.id === profileId) || state.profile;
+    }
   }
 
   function saveFavorite(film) {
     if (!film || !state.user || !state.profile) return;
     const poster = posterUrl(film, "w342") || film.poster || "";
-    saveJson(pkey("favorite"), {
+    writeProfileCover(state.profile.id, {
       id: filmId(film),
       title: film.title || "",
       poster,
@@ -1403,8 +1497,8 @@
   }
 
   function isFavoriteFilm(film) {
-    const fav = favoriteRecord();
-    return !!(fav && film && fav.id === filmId(film));
+    const fav = activeCoverRecord();
+    return !!(fav && film && fav.id && fav.id === filmId(film));
   }
 
   function favoriteButtonHtml(film) {
@@ -1412,12 +1506,16 @@
     return `<div class="film-expand-fav"><button type="button" class="btn btn-compact fav-btn${on ? " is-on" : ""}" data-act="set-favorite" data-id="${escapeHtml(filmId(film))}" aria-pressed="${on ? "true" : "false"}">Lieblingsfilm</button></div>`;
   }
 
-  function accountPlateHtml(large) {
-    const letter = escapeHtml(profileInitial(state.profile && state.profile.name));
-    const src = escapeHtml(accountCoverSrc());
+  function accountPlateHtml(largeOrOpts) {
+    const opts = largeOrOpts && typeof largeOrOpts === "object" ? largeOrOpts : { large: !!largeOrOpts };
+    const plate = normalizePlate(opts.plate != null ? opts.plate : (state.profile && state.profile.plate));
+    const letter = escapeHtml(opts.letter != null ? opts.letter : profileInitial(opts.name != null ? opts.name : (state.profile && state.profile.name)));
+    const src = escapeHtml(opts.cover !== undefined ? coverSrcFrom(opts.cover) : accountCoverSrc());
+    const lava = plate === "hell-lava" || plate === "schwarz-lava";
+    const size = opts.size ? ` is-${opts.size}` : (opts.large ? " is-lg" : "");
     return `
-      <span class="acct-plate${large ? " is-lg" : ""}">
-        <span class="acct-wave" aria-hidden="true"></span>
+      <span class="acct-plate is-${plate}${lava ? " is-lava" : ""}${size}">
+        ${lava ? `<span class="acct-wave" aria-hidden="true"></span>` : ""}
         <span class="acct-letter" aria-hidden="true">
           <span class="acct-letter-rim">${letter}</span>
           <span class="acct-letter-fill" data-cover="${src}">${letter}</span>
@@ -1426,9 +1524,18 @@
     `;
   }
 
+  function profilePlateHtml(profile, size) {
+    return accountPlateHtml({
+      plate: profile && profile.plate,
+      letter: profileInitial(profile && profile.name),
+      cover: profileCoverRecord(profile),
+      size: size || "row",
+    });
+  }
+
   function accountMenuHtml() {
     const name = state.profile ? state.profile.name : "";
-    const fav = favoriteRecord();
+    const fav = activeCoverRecord();
     const filmLine = fav && fav.title
       ? `<span class="acct-menu-film">${escapeHtml(fav.title)}</span>`
       : "";
@@ -3364,11 +3471,14 @@
   function renderProfiles() {
     const rows = profilesOf(state.user.id).map((p) => `
       <div class="card menu-card">
-        <button type="button" class="avatar-hit" data-act="pick-profile" data-id="${p.id}" aria-label="${escapeHtml(p.name)}">${avatarMarkup(p.avatar)}</button>
+        <button type="button" class="avatar-hit" data-act="pick-profile" data-id="${p.id}" aria-label="${escapeHtml(p.name)}">${profilePlateHtml(p, "row")}</button>
         <button type="button" data-act="pick-profile" data-id="${p.id}" style="all:unset;cursor:pointer">
           <strong>${escapeHtml(p.name)}</strong>
         </button>
-        <button type="button" class="menu-side danger" data-act="ask-delete-profile" data-id="${p.id}" aria-label="Profil löschen" title="Löschen">×</button>
+        <span class="menu-actions">
+          <button type="button" class="menu-side" data-act="edit-profile" data-id="${p.id}" aria-label="Profil bearbeiten" title="Bearbeiten">${ICONS.edit}</button>
+          <button type="button" class="menu-side danger" data-act="ask-delete-profile" data-id="${p.id}" aria-label="Profil löschen" title="Löschen">×</button>
+        </span>
       </div>
     `).join("");
     return `
@@ -3384,18 +3494,202 @@
     `;
   }
 
+  function editorCoverLabel() {
+    const cover = normalizeCover(state.addCover);
+    return cover && cover.title ? cover.title : "Katalog-Cover";
+  }
+
+  function coverPickButton(film, compact) {
+    const id = filmId(film);
+    const on = !!(state.addCover && state.addCover.id === id);
+    const src = posterUrl(film, compact ? "w185" : "w92") || film.poster || "";
+    const title = film.title || "Cover";
+    if (compact) {
+      return `<button type="button" class="cover-pick${on ? " is-on" : ""}" data-act="pick-cover" data-id="${escapeHtml(id)}" aria-label="${escapeHtml(title)}" aria-pressed="${on ? "true" : "false"}"><img src="${escapeHtml(src)}" alt="" width="48" height="72" decoding="async" referrerpolicy="no-referrer"></button>`;
+    }
+    return `<button type="button" class="cover-pick cover-pick-row${on ? " is-on" : ""}" data-act="pick-cover" data-id="${escapeHtml(id)}" aria-pressed="${on ? "true" : "false"}"><img src="${escapeHtml(src)}" alt="" width="36" height="54" decoding="async" referrerpolicy="no-referrer"><span>${escapeHtml(title)}</span></button>`;
+  }
+
+  function coverHitsHtml() {
+    const query = state.coverQuery.trim();
+    if (!query) {
+      const picks = LOGIN_POSTERS.slice(0, 10).map((film) => coverPickButton(film, true)).join("");
+      return `<div class="cover-quick" data-role="cover-hits">${picks}</div>`;
+    }
+    if (state.coverStatus === "loading" && !(state.coverHits || []).length) {
+      return `<div class="cover-hits" data-role="cover-hits"><p class="hint">Suche …</p></div>`;
+    }
+    if (!(state.coverHits || []).length) {
+      return `<div class="cover-hits" data-role="cover-hits"><p class="hint">Kein Film gefunden.</p></div>`;
+    }
+    return `<div class="cover-hits" data-role="cover-hits">${state.coverHits.slice(0, 6).map((film) => coverPickButton(film, false)).join("")}</div>`;
+  }
+
+  function paintCoverHits() {
+    const box = app.querySelector("[data-role=cover-results]");
+    if (box) box.innerHTML = coverHitsHtml();
+  }
+
+  function paintProfileLetters() {
+    const root = app.querySelector("[data-role=profile-editor]");
+    if (!root) return;
+    const letter = profileInitial(state.addName);
+    root.querySelectorAll(".acct-letter-rim, .acct-letter-fill").forEach((el) => {
+      el.textContent = letter;
+    });
+  }
+
+  let coverTimer = 0;
+  let coverSeq = 0;
+
+  function uniqueCoverHits(films) {
+    const seen = new Set();
+    const out = [];
+    for (const film of films || []) {
+      if (!film || !film.title || !film.poster) continue;
+      const key = foldSearch(film.title);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(film);
+    }
+    return out;
+  }
+
+  function scheduleCoverSearch(query) {
+    window.clearTimeout(coverTimer);
+    coverSeq += 1;
+    const q = String(query || "").trim();
+    const seq = coverSeq;
+    if (!q) {
+      state.coverHits = [];
+      state.coverStatus = "";
+      paintCoverHits();
+      return;
+    }
+    state.coverStatus = "loading";
+    if (!(state.coverHits || []).length) paintCoverHits();
+    coverTimer = window.setTimeout(() => {
+      runCoverSearch(q, seq);
+    }, 180);
+  }
+
+  async function runCoverSearch(query, seq) {
+    if (!state.catalog.length) {
+      try { await loadCatalog(); } catch { /* keep the local pool */ }
+    }
+    if (seq !== coverSeq) return;
+    const pool = rankSearchFilms(allKnownFilms(), query);
+    const ranked = uniqueCoverHits(pool);
+    let hits = ranked.slice(0, 6);
+    if (remoteSearchAvailable() && localTitleSearchIsThin(pool, query)) {
+      try {
+        const data = await proxyFetch("/search/movie", { query });
+        if (seq !== coverSeq) return;
+        const remote = (data.results || []).map(fromTmdbMovie).filter((film) => film && film.title);
+        remote.forEach((film) => rememberFilm(film));
+        const merged = [];
+        const seen = new Set();
+        for (const film of ranked.concat(remote)) {
+          const id = filmId(film);
+          if (!id || seen.has(id)) continue;
+          seen.add(id);
+          merged.push(film);
+        }
+        hits = uniqueCoverHits(rankSearchFilms(merged, query, true)).slice(0, 6);
+      } catch {
+        if (seq !== coverSeq) return;
+      }
+    }
+    if (seq !== coverSeq) return;
+    state.coverHits = hits;
+    state.coverStatus = hits.length ? "ok" : "empty";
+    paintCoverHits();
+  }
+
+  function openProfileEditor(profile) {
+    state.editingProfileId = profile ? profile.id : null;
+    state.addName = profile ? profile.name : "";
+    state.addPlate = normalizePlate(profile && profile.plate);
+    state.addCover = profile ? profileCoverRecord(profile) : null;
+    state.coverQuery = "";
+    state.coverHits = [];
+    state.coverStatus = "";
+    state.screen = "profile-add";
+    render();
+  }
+
+  function filmForCoverPick(id) {
+    const hit = (state.coverHits || []).find((row) => filmId(row) === id);
+    if (hit) return hit;
+    const login = LOGIN_POSTERS.find((row) => filmId(row) === id);
+    if (login) return login;
+    return findFilm(id);
+  }
+
+  function saveProfileEditor() {
+    const name = state.addName.trim();
+    if (!name || !state.user) return;
+    const list = profilesOf(state.user.id);
+    const plate = normalizePlate(state.addPlate);
+    const cover = normalizeCover(state.addCover);
+    let id = state.editingProfileId;
+    if (id) {
+      const idx = list.findIndex((row) => row.id === id);
+      if (idx < 0) return;
+      const copy = Object.assign({}, list[idx], { name, plate });
+      if (cover) copy.cover = cover;
+      else delete copy.cover;
+      list[idx] = copy;
+    } else {
+      id = `p-${Date.now()}`;
+      const row = { id, name, plate };
+      if (cover) row.cover = cover;
+      list.push(row);
+    }
+    saveProfiles(state.user.id, list);
+    const favKey = `wdq.p.${state.user.id}.${id}.favorite`;
+    if (cover && cover.id) saveJson(favKey, cover);
+    else localStorage.removeItem(favKey);
+    state.editingProfileId = null;
+    state.screen = "profiles";
+    render();
+  }
+
   function renderProfileAdd() {
-    const picks = EMOJI_AVATARS.map((av) => `
-      <button type="button" class="avatar-pick" data-act="add-avatar" data-id="${av.id}" aria-pressed="${state.addAvatar === av.id}" aria-label="${av.id}">
-        <span aria-hidden="true">${av.emoji}</span>
-      </button>
-    `).join("");
+    const letter = profileInitial(state.addName);
+    const preview = accountPlateHtml({
+      plate: state.addPlate,
+      letter,
+      cover: state.addCover,
+      size: "preview",
+    });
+    const plates = PLATE_CHOICES.map((choice) => {
+      const on = state.addPlate === choice.id;
+      const label = choice.sub
+        ? `<span class="plate-pick-label">${escapeHtml(choice.label)}<span>${escapeHtml(choice.sub)}</span></span>`
+        : `<span class="plate-pick-label">${escapeHtml(choice.label)}</span>`;
+      const aria = choice.sub ? `${choice.label} ${choice.sub}` : choice.label;
+      return `
+        <button type="button" class="plate-pick" data-act="pick-plate" data-id="${choice.id}" aria-pressed="${on ? "true" : "false"}" aria-label="${escapeHtml(aria)}">
+          ${accountPlateHtml({ plate: choice.id, letter, cover: state.addCover, size: "pick" })}
+          ${label}
+        </button>
+      `;
+    }).join("");
+    const title = state.editingProfileId ? "Profil bearbeiten" : "Profil hinzufügen";
     return `
-      <h2 class="screen-title home-title">Profil hinzufügen</h2>
-      <section class="card auth-card profile-add-card">
+      <h2 class="screen-title home-title">${title}</h2>
+      <section class="card auth-card profile-add-card" data-role="profile-editor">
+        <div class="profile-preview">
+          ${preview}
+          <p class="profile-cover-name">${escapeHtml(editorCoverLabel())}</p>
+        </div>
         <input class="glow-input" data-act="add-name" value="${escapeHtml(state.addName)}" maxlength="40" placeholder="Name" aria-label="Name">
-        <p class="hint avatar-pick-label">Avatar wählen</p>
-        <div class="avatar-grid">${picks}</div>
+        <p class="hint avatar-pick-label">Platte</p>
+        <div class="plate-grid">${plates}</div>
+        <p class="hint avatar-pick-label">Cover</p>
+        <input class="glow-input cover-search" data-act="cover-search" value="${escapeHtml(state.coverQuery)}" placeholder="Lieblingsfilm suchen" aria-label="Lieblingsfilm suchen" autocomplete="off" enterkeyhint="search">
+        <div data-role="cover-results">${coverHitsHtml()}</div>
         <button type="button" class="btn btn-primary btn-save-center" data-act="save-profile">speichern</button>
       </section>
     `;
@@ -6120,8 +6414,14 @@
         mountLoginCarousel();
       }
     }
-    else if (state.screen === "profiles") app.innerHTML = renderProfiles();
-    else if (state.screen === "profile-add") app.innerHTML = renderProfileAdd();
+    else if (state.screen === "profiles") {
+      app.innerHTML = renderProfiles();
+      bindAccountCovers(app);
+    }
+    else if (state.screen === "profile-add") {
+      app.innerHTML = renderProfileAdd();
+      bindAccountCovers(app);
+    }
     else if (state.screen === "discover") {
       app.innerHTML = renderDiscover();
       if (state.discoverView === "hub") window.requestAnimationFrame(paintChipOverflow);
@@ -6530,25 +6830,33 @@
       return;
     }
     if (act === "add-profile") {
-      state.addName = "";
-      state.addAvatar = "cowboy";
-      state.screen = "profile-add";
+      openProfileEditor(null);
+      return;
+    }
+    if (act === "edit-profile") {
+      const profile = profilesOf(state.user.id).find((row) => row.id === t.dataset.id);
+      if (!profile) return;
+      openProfileEditor(profile);
+      return;
+    }
+    if (act === "pick-plate") {
+      state.addPlate = normalizePlate(t.dataset.id);
       render();
       return;
     }
-    if (act === "add-avatar") {
-      state.addAvatar = t.dataset.id;
+    if (act === "pick-cover") {
+      const film = filmForCoverPick(t.dataset.id);
+      if (!film) return;
+      state.addCover = {
+        id: filmId(film),
+        title: film.title || "",
+        poster: posterUrl(film, "w342") || film.poster || "",
+      };
       render();
       return;
     }
     if (act === "save-profile") {
-      const name = state.addName.trim();
-      if (!name) return;
-      const list = profilesOf(state.user.id);
-      list.push({ id: `p-${Date.now()}`, name, avatar: state.addAvatar });
-      saveProfiles(state.user.id, list);
-      state.screen = "profiles";
-      render();
+      saveProfileEditor();
       return;
     }
     if (act === "ask-delete-profile") {
@@ -6970,7 +7278,14 @@
       }
     }
     if (act === "login-pass") state.loginPass = t.value;
-    if (act === "add-name") state.addName = t.value;
+    if (act === "add-name") {
+      state.addName = t.value;
+      paintProfileLetters();
+    }
+    if (act === "cover-search") {
+      state.coverQuery = t.value;
+      scheduleCoverSearch(t.value);
+    }
     if (act === "tag-name") state.newTagName = t.value.slice(0, 10);
     if (act === "edit-tag-name") {
       state.editTagName = t.value.slice(0, 10);
