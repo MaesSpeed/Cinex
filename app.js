@@ -385,16 +385,30 @@
     return res.json();
   }
 
+  const SEARCH_ENRICH_FIRST = 8;
+  const SEARCH_ENRICH_CONCURRENCY = 3;
   const liveDetailTried = new Set();
+  const detailInflight = new Map();
+  const searchEnrichGaveUp = new Set();
+  const searchEnrichQueued = new Set();
+  let searchEnrichQueue = [];
+  let searchEnrichActive = 0;
+  let searchEnrichToken = 0;
+  let searchEnrichTimer = 0;
+  let searchRowObserver = null;
+  let searchEnrichScrollTarget = null;
+  let searchEnrichScrollHandler = null;
+  let searchEnrichScrollFrame = 0;
 
-  function needsLiveDetails(film) {
+  function searchRowNeedsEnrich(film) {
     if (!film || !remoteSearchAvailable()) return false;
     const tmdb = Number(film.tmdb);
     if (!Number.isFinite(tmdb) || tmdb <= 0) return false;
-    if (Number(film.minutes || film.runtime) > 0) return false;
     const id = filmId(film);
-    if ((offlineFilms || []).some((row) => filmId(row) === id)) return false;
-    return true;
+    if (!id || liveDetailTried.has(id)) return false;
+    const hasRuntime = Number(film.minutes || film.runtime) > 0;
+    const hasCast = filmCastNames(film).length > 0;
+    return !hasRuntime || !hasCast;
   }
 
   function applyLiveFilm(next) {
@@ -411,29 +425,198 @@
     return stored;
   }
 
-  function scheduleLiveDetails(film) {
-    if (!needsLiveDetails(film)) return;
+  function creditsCastNames(data) {
+    return ((data && data.credits && data.credits.cast) || [])
+      .slice()
+      .sort((a, b) => (Number(a.order) || 99) - (Number(b.order) || 99))
+      .map((row) => String((row && (row.name || row.original_name)) || "").trim())
+      .filter(Boolean)
+      .slice(0, 4);
+  }
+
+  function filmFromMovieDetail(data) {
+    const next = fromTmdbMovie(data);
+    if (!next) return null;
+    const names = creditsCastNames(data);
+    if (names.length) next.cast = names;
+    return next;
+  }
+
+  function patchFilmRowMeta(film) {
     const id = filmId(film);
-    if (!id || liveDetailTried.has(id)) return;
-    liveDetailTried.add(id);
+    if (!id) return;
+    const runtime = durationPill(film);
+    const line = filmCastLine(film);
+    document.querySelectorAll(".film-row[data-id]").forEach((row) => {
+      if (row.dataset.id !== id || row.hasAttribute("data-seen")) return;
+      const titleline = row.querySelector(".film-row-titleline");
+      if (titleline && runtime) {
+        let pill = titleline.querySelector(".duration-pill");
+        if (!pill) {
+          pill = document.createElement("span");
+          pill.className = "duration-pill";
+          titleline.appendChild(pill);
+        }
+        pill.textContent = runtime;
+      }
+      if (!line) return;
+      let castEl = row.querySelector(".film-row-cast");
+      if (!castEl) {
+        const body = row.querySelector(".film-row-body");
+        if (!body) return;
+        castEl = document.createElement("p");
+        castEl.className = "film-row-cast";
+        body.appendChild(castEl);
+      }
+      castEl.textContent = line;
+    });
+  }
+
+  function requestLiveDetails(film) {
+    if (!searchRowNeedsEnrich(film)) return null;
+    const id = filmId(film);
+    if (detailInflight.has(id)) return detailInflight.get(id);
     const tmdb = Number(film.tmdb);
-    proxyFetch(`/movie/${tmdb}`, { append_to_response: "credits" }).then((data) => {
-      const next = fromTmdbMovie(data);
-      if (!next) return;
-      const names = ((data && data.credits && data.credits.cast) || [])
-        .slice()
-        .sort((a, b) => (Number(a.order) || 99) - (Number(b.order) || 99))
-        .map((row) => String((row && (row.name || row.original_name)) || "").trim())
-        .filter(Boolean)
-        .slice(0, 4);
-      if (names.length) next.cast = names;
-      if (!applyLiveFilm(next)) return;
+    const promise = proxyFetch(`/movie/${tmdb}`, { append_to_response: "credits" }).then((data) => {
+      const next = filmFromMovieDetail(data);
+      if (!next) return null;
+      liveDetailTried.add(id);
+      searchEnrichGaveUp.delete(id);
+      const stored = applyLiveFilm(next);
+      if (stored) patchFilmRowMeta(stored);
+      return stored;
+    }).catch(() => null).finally(() => {
+      detailInflight.delete(id);
+    });
+    detailInflight.set(id, promise);
+    return promise;
+  }
+
+  function scheduleLiveDetails(film) {
+    const pending = requestLiveDetails(film);
+    if (!pending) return;
+    pending.then((stored) => {
+      if (!stored) return;
       if (state.watchSheet) paintWatchSheetList();
       if (state.screen === "lists") refreshWatchList();
       else if (state.screen === "done") render();
-    }).catch(() => {
-      /* Search hit already has title and poster. */
     });
+  }
+
+  function beginSearchEnrichCycle() {
+    window.clearTimeout(searchEnrichTimer);
+    searchEnrichToken += 1;
+    searchEnrichQueue = [];
+    searchEnrichQueued.clear();
+    unbindSearchRowEnrich();
+  }
+
+  function enqueueSearchEnrich(films, token) {
+    for (const film of films || []) {
+      if (token !== searchEnrichToken) return;
+      const id = film && filmId(film);
+      if (!id || searchEnrichQueued.has(id) || searchEnrichGaveUp.has(id) || liveDetailTried.has(id)) continue;
+      const current = (state.searchHits || []).find((row) => filmId(row) === id) || film;
+      if (!searchRowNeedsEnrich(current)) continue;
+      searchEnrichQueued.add(id);
+      searchEnrichQueue.push({ id, token });
+    }
+    pumpSearchEnrich();
+  }
+
+  function pumpSearchEnrich() {
+    while (searchEnrichActive < SEARCH_ENRICH_CONCURRENCY && searchEnrichQueue.length) {
+      const job = searchEnrichQueue.shift();
+      if (!job || job.token !== searchEnrichToken) continue;
+      const film = (state.searchHits || []).find((row) => filmId(row) === job.id);
+      if (!film || !searchRowNeedsEnrich(film)) continue;
+      searchEnrichActive += 1;
+      const pending = requestLiveDetails(film);
+      Promise.resolve(pending).then((stored) => {
+        if (!stored && searchRowNeedsEnrich(film)) searchEnrichGaveUp.add(job.id);
+      }).finally(() => {
+        searchEnrichActive -= 1;
+        pumpSearchEnrich();
+      });
+    }
+  }
+
+  function unbindSearchRowEnrich() {
+    if (searchRowObserver) {
+      searchRowObserver.disconnect();
+      searchRowObserver = null;
+    }
+    if (searchEnrichScrollFrame) {
+      window.cancelAnimationFrame(searchEnrichScrollFrame);
+      searchEnrichScrollFrame = 0;
+    }
+    if (searchEnrichScrollTarget && searchEnrichScrollHandler) {
+      searchEnrichScrollTarget.removeEventListener("scroll", searchEnrichScrollHandler);
+    }
+    searchEnrichScrollTarget = null;
+    searchEnrichScrollHandler = null;
+  }
+
+  function visibleSearchRowFilms(list) {
+    const rect = list.getBoundingClientRect();
+    const byId = new Map((state.searchHits || []).map((film) => [filmId(film), film]));
+    const next = [];
+    list.querySelectorAll(".film-row[data-id]").forEach((row) => {
+      const box = row.getBoundingClientRect();
+      if (box.bottom < rect.top - 24 || box.top > rect.bottom + 80) return;
+      const film = byId.get(row.dataset.id);
+      if (film) next.push(film);
+    });
+    return next;
+  }
+
+  function bindSearchRowEnrich() {
+    unbindSearchRowEnrich();
+    if (state.watchSheet !== "search" || state.searchStatus === "loading") return;
+    if (!remoteSearchAvailable() || !watchSheetEl) return;
+    const list = watchSheetEl.querySelector("[data-role=watch-sheet-list]");
+    if (!list) return;
+    const token = searchEnrichToken;
+    const byId = new Map((state.searchHits || []).map((film) => [filmId(film), film]));
+    enqueueSearchEnrich(watchSheetFilms().slice(0, SEARCH_ENRICH_FIRST), token);
+    if (typeof IntersectionObserver === "function") {
+      searchRowObserver = new IntersectionObserver((entries) => {
+        if (token !== searchEnrichToken) return;
+        const next = [];
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const film = byId.get(entry.target.dataset.id);
+          if (film) next.push(film);
+        }
+        enqueueSearchEnrich(next, token);
+      }, {
+        root: list,
+        rootMargin: "80px 0px",
+        threshold: 0.01,
+      });
+      list.querySelectorAll(".film-row[data-id]").forEach((row) => searchRowObserver.observe(row));
+    }
+    searchEnrichScrollTarget = list;
+    searchEnrichScrollHandler = () => {
+      if (searchEnrichScrollFrame) return;
+      searchEnrichScrollFrame = window.requestAnimationFrame(() => {
+        searchEnrichScrollFrame = 0;
+        if (token !== searchEnrichToken || state.watchSheet !== "search") return;
+        enqueueSearchEnrich(visibleSearchRowFilms(list), token);
+      });
+    };
+    list.addEventListener("scroll", searchEnrichScrollHandler, { passive: true });
+  }
+
+  function scheduleSettledSearchEnrich() {
+    window.clearTimeout(searchEnrichTimer);
+    if (state.watchSheet !== "search" || state.searchStatus === "loading") return;
+    const token = searchEnrichToken;
+    searchEnrichTimer = window.setTimeout(() => {
+      if (token !== searchEnrichToken) return;
+      if (state.watchSheet !== "search" || state.searchStatus === "loading") return;
+      bindSearchRowEnrich();
+    }, 200);
   }
 
   const TMDB_POSTER_BASE = "https://image.tmdb.org/t/p/";
@@ -932,7 +1115,7 @@
     return a || b;
   }
 
-  function rememberFilm(film) {
+  function rememberFilm(film, options) {
     if (!film) return null;
     const n = normalizeFilm(film);
     if (!n.id) return null;
@@ -960,13 +1143,27 @@
       state.catalog.push(n);
     }
     const stored = state.catalog.find((row) => filmId(row) === filmId(n)) || n;
+    const persist = !options || options.persist !== false;
     const key = knownKey();
-    if (key) {
+    if (persist && key) {
       const all = loadKnownFilms();
       all[filmId(stored)] = stored;
       saveJson(key, all);
     }
     return stored;
+  }
+
+  function persistKnownFilms(films) {
+    const key = knownKey();
+    if (!key || !films || !films.length) return;
+    const all = loadKnownFilms();
+    let changed = false;
+    for (const film of films) {
+      if (!film || !film.id) continue;
+      all[filmId(film)] = film;
+      changed = true;
+    }
+    if (changed) saveJson(key, all);
   }
 
   function mergeKnownIntoCatalog() {
@@ -1373,11 +1570,12 @@
   function filmMatchesActors(film) {
     const wanted = state.filters.actors || [];
     if (!wanted.length) return true;
+    const id = filmId(film);
     const names = filmCastNames(film).map((name) => foldSearch(name));
-    if (!names.length) return false;
     return wanted.some((actor) => {
+      if (actor && actor.liveIdSet && actor.liveIdSet.has(id)) return true;
       const q = foldSearch(actor && actor.name);
-      if (!q) return false;
+      if (!q || !names.length) return false;
       return names.some((name) => name === q || name.includes(q));
     });
   }
@@ -1747,6 +1945,7 @@
       mergeKnownIntoCatalog();
       rebuildGenres();
       renderGenrePicks();
+      reapplyActorFilmographies();
     })();
     try {
       await catalogInFlight;
@@ -1856,7 +2055,7 @@
       if (row) chips.push({ kind: "type", id, label: row.label });
     }
     for (const actor of state.filters.actors) {
-      chips.push({ kind: "actor", id: actor.id, label: actor.name });
+      chips.push({ kind: "actor", id: actor.id, label: actorFilterLabel(actor) });
     }
     for (const film of state.filters.similar || []) {
       chips.push({ kind: "similar", id: film.id, label: film.title });
@@ -3023,8 +3222,8 @@
     }));
     const selectedActors = state.filters.actors.map((actor) => `
       <span class="active-chip">
-        <span>${escapeHtml(actor.name)}</span>
-        <button type="button" class="active-chip-x" data-act="actor-remove" data-id="${escapeHtml(actor.id)}" aria-label="${escapeHtml(actor.name)} entfernen">${ICONS.chipX}</button>
+        <span>${escapeHtml(actorFilterLabel(actor))}</span>
+        <button type="button" class="active-chip-x" data-act="actor-remove" data-id="${escapeHtml(actor.id)}" aria-label="${escapeHtml(actorFilterLabel(actor))} entfernen">${ICONS.chipX}</button>
       </span>
     `).join("");
     return `
@@ -3832,6 +4031,7 @@
     }
     observeListPostersSoon(list);
     enrichListCast(extra);
+    if (state.watchSheet === "search" && state.searchStatus !== "loading") bindSearchRowEnrich();
     bindWatchMoreSentinel();
     window.requestAnimationFrame(() => {
       watchMoreLock = false;
@@ -3886,6 +4086,7 @@
     observeListPostersSoon(list);
     enrichListCast(films);
     bindWatchMoreSentinel();
+    if (state.watchSheet === "search" && state.searchStatus !== "loading") scheduleSettledSearchEnrich();
   }
 
   function paintWatchToggles() {
@@ -4177,6 +4378,7 @@
     window.clearTimeout(similarTimer);
     searchSeq += 1;
     similarSeq += 1;
+    beginSearchEnrichCycle();
     unbindWatchMoreSentinel();
     teardownZufallCarousel();
     state.watchSheet = null;
@@ -4228,6 +4430,7 @@
   let actorSeq = 0;
   let similarTimer = 0;
   let similarSeq = 0;
+  const actorCreditCache = new Map();
 
   function catalogActorHits(query) {
     const q = foldSearch(query);
@@ -4289,7 +4492,7 @@
     }
     if (!state.actorHits.length) return `<p class="hint actor-hit-status">Kein Treffer</p>`;
     return state.actorHits.map((row) => {
-      const count = actorCountLabel(row.count);
+      const count = actorCountLabel(shownActorCount(row));
       return `
         <button type="button" class="actor-hit" data-act="actor-pick" data-id="${escapeHtml(String(row.id))}" data-name="${escapeHtml(row.name)}" data-tmdb="${row.tmdb || ""}">
           ${actorAvatarHtml(row)}
@@ -4304,6 +4507,232 @@
     const box = app.querySelector("[data-role=actor-hits]");
     if (!box) return;
     box.innerHTML = actorHitsHtml();
+  }
+
+  function shownActorCount(row) {
+    const cached = actorCreditCache.get(foldSearch(row && row.name));
+    if (cached && remoteSearchAvailable() && Number(cached.count) > 0) return Number(cached.count);
+    return Number(row && row.count) || 0;
+  }
+
+  function actorFilterLabel(actor) {
+    if (!actor || !actor.name) return "";
+    if (actor.filmStatus === "live") {
+      const count = actorCountLabel(actor.liveCount);
+      if (count) return `${actor.name} · ${count}`;
+    }
+    return actor.name;
+  }
+
+  function paintActorCounts() {
+    const byId = new Map((state.filters.actors || []).map((actor) => [String(actor.id), actor]));
+    document.querySelectorAll("[data-act=actor-remove], [data-act=remove-filter][data-kind=actor]").forEach((btn) => {
+      const actor = byId.get(String(btn.dataset.id));
+      if (!actor) return;
+      const label = actorFilterLabel(actor);
+      const chip = btn.closest(".active-chip");
+      const span = chip && Array.from(chip.children).find((el) => el.tagName === "SPAN");
+      if (span) span.textContent = label;
+      btn.setAttribute("aria-label", `${label} entfernen`);
+    });
+  }
+
+  function reapplyActorFilmographies() {
+    for (const actor of state.filters.actors || []) {
+      if (!actor) continue;
+      const cached = actorCreditCache.get(foldSearch(actor.name));
+      if (!cached || !Array.isArray(cached.films)) continue;
+      applyActorFilmography(actor, cached);
+    }
+  }
+
+  function actorStillSelected(actor) {
+    return (state.filters.actors || []).some((row) => row === actor);
+  }
+
+  function settleActorFilmographies() {
+    const pending = (state.filters.actors || []).map((actor) => actor && actor.filmPromise).filter(Boolean);
+    if (!pending.length) return Promise.resolve();
+    return Promise.all(pending.map((promise) => Promise.resolve(promise).catch(() => null)));
+  }
+
+  function mergeCastNames(current, extra) {
+    const out = [];
+    const seen = new Set();
+    for (const name of [].concat(current || [], extra || [])) {
+      const text = String(name || "").trim();
+      const key = foldSearch(text);
+      if (!text || !key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(text);
+      if (out.length >= 4) break;
+    }
+    return out;
+  }
+
+  function castWithActor(current, actorName) {
+    const names = filmCastNames({ cast: current });
+    const q = foldSearch(actorName);
+    if (q && names.some((name) => {
+      const folded = foldSearch(name);
+      return folded === q || folded.includes(q);
+    })) {
+      return names.slice(0, 4);
+    }
+    return mergeCastNames([actorName], names);
+  }
+
+  function filmDetailScore(film) {
+    let score = 0;
+    if (Number(film && (film.minutes || film.runtime)) > 0) score += 4;
+    if (film && film.poster) score += 2;
+    score += Math.min(filmCastNames(film).length, 4);
+    if (film && film.overview) score += 1;
+    return score;
+  }
+
+  function bestKnownFilm(film) {
+    const id = filmId(film);
+    const tmdb = Number(film && film.tmdb);
+    const matches = [];
+    for (const pool of [state.catalog, offlineFilms, FILMS]) {
+      for (const row of pool || []) {
+        if (!row) continue;
+        if (filmId(row) === id || (tmdb > 0 && Number(row.tmdb) === tmdb)) matches.push(row);
+      }
+    }
+    if (!matches.length) return null;
+    matches.sort((a, b) => filmDetailScore(b) - filmDetailScore(a));
+    return matches[0];
+  }
+
+  function upsertActorCredit(film, actorName) {
+    const known = bestKnownFilm(film);
+    const base = known || film;
+    const cast = castWithActor(filmCastNames(base), actorName);
+    const prevCast = filmCastNames(base);
+    const inCatalog = !!(known && state.catalog.some((row) => filmId(row) === filmId(base) || (Number(base.tmdb) > 0 && Number(row.tmdb) === Number(base.tmdb))));
+    const sameCast = prevCast.length === cast.length && prevCast.every((name, index) => name === cast[index]);
+    if (inCatalog && sameCast) {
+      return {
+        film: state.catalog.find((row) => filmId(row) === filmId(base) || (Number(base.tmdb) > 0 && Number(row.tmdb) === Number(base.tmdb))) || base,
+        changed: false,
+      };
+    }
+    const stored = rememberFilm({ ...base, cast }, { persist: false });
+    return stored ? { film: stored, changed: true } : null;
+  }
+
+  function pickPersonId(results, name) {
+    const q = foldSearch(name);
+    const rows = Array.isArray(results) ? results : [];
+    const exact = rows.find((row) => foldSearch(row && row.name) === q);
+    const chosen = exact || rows[0];
+    const id = Number(chosen && chosen.id);
+    if (!Number.isFinite(id) || id <= 0) return 0;
+    return Math.floor(id);
+  }
+
+  function filmsFromPersonCredits(data, actorName) {
+    const rows = ((data && data.cast) || []).filter((row) => (
+      row
+      && row.id
+      && !row.adult
+      && (row.title || row.original_title)
+      && row.media_type !== "tv"
+    ));
+    const seen = new Set();
+    const films = [];
+    for (const row of rows) {
+      const film = fromTmdbMovie(row);
+      if (!film || !film.title || film.title === "Film") continue;
+      const id = filmId(film);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      film.cast = castWithActor(film.cast, actorName);
+      films.push(film);
+    }
+    return films;
+  }
+
+  function nameMatchesActor(film, actorName) {
+    const q = foldSearch(actorName);
+    if (!q) return false;
+    return filmCastNames(film).some((name) => {
+      const folded = foldSearch(name);
+      return folded === q || folded.includes(q);
+    });
+  }
+
+  function hybridActorCount(actor) {
+    const ids = new Set(actor && actor.liveIdSet ? actor.liveIdSet : []);
+    if (actor && actor.name) {
+      for (const film of allKnownFilms()) {
+        if (nameMatchesActor(film, actor.name)) ids.add(filmId(film));
+      }
+    }
+    return ids.size;
+  }
+
+  function applyActorFilmography(actor, cached) {
+    if (!actor || !cached || !actorStillSelected(actor)) return;
+    const storedFilms = [];
+    const ids = [];
+    for (const film of cached.films || []) {
+      const result = upsertActorCredit(film, actor.name);
+      if (!result || !result.film) continue;
+      ids.push(filmId(result.film));
+      if (result.changed) storedFilms.push(result.film);
+    }
+    persistKnownFilms(storedFilms);
+    actor.tmdb = actor.tmdb || cached.tmdb || 0;
+    actor.liveIdSet = new Set(ids);
+    actor.liveCount = hybridActorCount(actor);
+    actor.filmStatus = "live";
+    cached.ids = ids.slice();
+    cached.count = actor.liveCount;
+    actorCreditCache.set(foldSearch(actor.name), cached);
+    paintActorCounts();
+  }
+
+  async function loadActorFilmography(actor) {
+    if (!actor || !actor.name || !remoteSearchAvailable()) return;
+    const key = foldSearch(actor.name);
+    if (!key) return;
+    const cached = actorCreditCache.get(key);
+    if (cached && Array.isArray(cached.films)) {
+      applyActorFilmography(actor, cached);
+      return;
+    }
+    actor.filmStatus = "loading";
+    try {
+      let personId = Number(actor.tmdb) || 0;
+      if (!Number.isFinite(personId) || personId <= 0) {
+        const found = await proxyFetch("/search/person", { query: actor.name });
+        if (!actorStillSelected(actor)) return;
+        personId = pickPersonId(found && found.results, actor.name);
+      } else {
+        personId = Math.floor(personId);
+      }
+      if (!personId) {
+        actor.filmStatus = "";
+        return;
+      }
+      actor.tmdb = personId;
+      const data = await proxyFetch(`/person/${personId}/movie_credits`);
+      const films = filmsFromPersonCredits(data, actor.name);
+      const entry = {
+        tmdb: personId,
+        ids: films.map((film) => filmId(film)),
+        films,
+        count: films.length,
+      };
+      actorCreditCache.set(key, entry);
+      if (!actorStillSelected(actor)) return;
+      applyActorFilmography(actor, entry);
+    } catch {
+      if (actorStillSelected(actor) && actor.filmStatus === "loading") actor.filmStatus = "";
+    }
   }
 
   function scheduleActorSearch(query) {
@@ -4437,6 +4866,7 @@
   function scheduleTitleSearch(query) {
     window.clearTimeout(searchTimer);
     searchSeq += 1;
+    beginSearchEnrichCycle();
     resetWatchSheetPage();
     const q = String(query || "").trim();
     const seq = searchSeq;
@@ -5637,6 +6067,7 @@
   async function startSuggestions(opts) {
     const refresh = !!(opts && opts.refresh);
     closeWatchSheet();
+    await settleActorFilmographies();
     if (refresh) {
       for (const film of state.currentPicks) state.sessionSkip.add(filmId(film));
     }
@@ -6024,8 +6455,16 @@
       const name = t.dataset.name || "";
       const id = t.dataset.id || name;
       const tmdb = Number(t.dataset.tmdb) || 0;
+      const hit = (state.actorHits || []).find((row) => String(row.id) === String(id) || foldSearch(row.name) === foldSearch(name));
       if (name && !state.filters.actors.some((actor) => foldSearch(actor.name) === foldSearch(name))) {
-        state.filters.actors.push({ id, name, tmdb });
+        const actor = {
+          id,
+          name,
+          tmdb: tmdb || (hit && hit.tmdb) || 0,
+          count: hit ? hit.count : 0,
+        };
+        state.filters.actors.push(actor);
+        actor.filmPromise = loadActorFilmography(actor);
       }
       state.actorQuery = "";
       state.actorHits = [];

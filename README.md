@@ -18,7 +18,11 @@ Danach **Wer schaut**: Tester, User No 1, Bot - Apptesti. Neue Profile: nur Name
 
 Suche (Watchlist **Film suchen** und Schauspieler-Filter auf Entdecken) läuft immer zuerst lokal: In-Memory-Katalog plus `films.json` (Präfix/Teilstring, auch deutsche Titel und Franchise-Aliase wie Bond/007). Treffer werden nach Relevanz sortiert (exakter Titel, Titelpräfix, Wortgrenzen, danach Aliase) und innerhalb der Stufe nach Bekanntheit (`popularity`/`vote_count` falls vorhanden, sonst Bewertung und Jahr). Sehr kurze Clips unter 40 Minuten erscheinen in der Titelsuche nur bei exaktem Titeltreffer. Die Ergebnisliste zeigt zunächst 20 Filme; **Weitere anzeigen** oder Scrollen nahe am Listenende lädt die nächsten 20, ohne den restlichen Katalog neu zu zeichnen.
 
-Ist die lokale Liste leer oder dünn (kein exakter Titel, zu wenige starke Treffer), fragt die App den Such-Proxy. Der Proxy spricht mit TMDB (`language=de-DE`, `region=DE`, `include_adult=false`). Die App mappt die Treffer ins bestehende Filmformat (Titel, Originaltitel, Poster, Bewertung). Lokale und Live-Treffer werden zusammengeführt, nach derselben Relevanz sortiert und paginiert; bei Dubletten bleibt die lokale Fassung (Laufzeit, Aliase). Ein hinzugefügter Live-Treffer landet im Profil (`localStorage`) und im Sitzungs-Katalog, damit Cover, Watchlist und Demnächst auch ohne weiteren Proxy-Aufruf funktionieren. Fehlende Laufzeit und Besetzung lädt die App beim Hinzufügen einmal nach. Poster bleiben TMDB-Bild-URLs.
+Ist die lokale Liste leer oder dünn (kein exakter Titel, zu wenige starke Treffer), fragt die App den Such-Proxy. Der Proxy spricht mit TMDB (`language=de-DE`, `region=DE`, `include_adult=false`). Die App mappt die Treffer ins bestehende Filmformat (Titel, Originaltitel, Poster, Bewertung). Lokale und Live-Treffer werden zusammengeführt, nach derselben Relevanz sortiert und paginiert; bei Dubletten bleibt die lokale Fassung (Laufzeit, Aliase). Ein hinzugefügter Live-Treffer landet im Profil (`localStorage`) und im Sitzungs-Katalog, damit Cover, Watchlist und Demnächst auch ohne weiteren Proxy-Aufruf funktionieren. Poster bleiben TMDB-Bild-URLs.
+
+Fehlende Laufzeit und Besetzung lädt die Watchlist-Suche im Hintergrund für die sichtbaren Zeilen nach: zuerst etwa die ersten acht, beim Scrollen neu sichtbare Zeilen, höchstens drei Abrufe gleichzeitig (`GET /movie/:id` mit Besetzung). Die Suche bleibt bedienbar. Anhaken lädt dieselbe Detailzeile nach, falls sie noch fehlt.
+
+Der Schauspieler-Filter auf Entdecken lädt nach der Auswahl die Filmografie (`GET /person/:id/movie_credits`) und mischt sie mit dem lokalen Katalog. Der Chip zeigt dann die gemeinsame Anzahl, zum Beispiel `Tom Cruise · 48 Filme`. Ohne Proxy oder bei Fehler bleiben nur die lokalen Treffer.
 
 Ist `window.SEARCH_PROXY` leer oder der Proxy nicht erreichbar, bleibt die lokale Suche nutzbar. Treffer wie Inception oder Interstellar kommen aus dem Katalog. Schlägt nur die Online-Suche fehl und es gibt keine lokalen Treffer, erscheint ein dezenter Hinweis statt einer harten Fehlermeldung.
 
@@ -44,7 +48,9 @@ npx wrangler dev
 
 In der lokalen `config.js` dann `window.SEARCH_PROXY = "http://127.0.0.1:8787";` setzen. Diese Zeile nicht mit echtem Schlüssel committen. Ohne Proxy-URL sucht die App nur im lokalen Katalog.
 
-Prüfen: `curl https://<worker>/search/movie?query=Gladiator` liefert JSON ohne `api_key`. Im Browser-Netzwerk der Seite darf der TMDB-Schlüssel nie auftauchen.
+Allowlist, nichts weiter: `GET /search/movie`, `GET /search/person`, `GET /movie/:id` (nur `append_to_response=credits`), `GET /person/:id/movie_credits`. Kein Discover, keine offenen Personen-Pfade. Nach einer Änderung an `worker/src/index.js` den live Worker `cinex-search` neu deployen: im Ordner `worker/` `npx wrangler deploy`, oder den Dateiinhalt im Cloudflare-Dashboard unter Workers & Pages → `cinex-search` einfügen und deployen. Das Secret `TMDB_API_KEY` bleibt liegen.
+
+Prüfen: `curl https://<worker>/search/movie?query=Gladiator` und `curl https://<worker>/person/500/movie_credits` liefern JSON ohne `api_key`. `curl -o /dev/null -s -w "%{http_code}" https://<worker>/discover/movie` bleibt 404. Im Browser-Netzwerk der Seite darf der TMDB-Schlüssel nie auftauchen.
 
 ### Katalog aktualisieren (GitHub Actions)
 
