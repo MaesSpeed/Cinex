@@ -99,6 +99,41 @@ test("person search and movie details stay on the allowlist", async () => {
   assert.equal(blocked.url.searchParams.has("append_to_response"), false);
 });
 
+test("person movie credits stay on the allowlist", async () => {
+  const paths = [];
+  const fetchImpl = (url) => {
+    paths.push(String(url));
+    return Promise.resolve(new Response(JSON.stringify({
+      id: 500,
+      cast: [{ id: 562, title: "Die Firma", adult: false }],
+      crew: [],
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+  };
+  const ok = await call(
+    "/person/500/movie_credits?api_key=browser-secret&append_to_response=videos&query=ignored",
+    { fetchImpl }
+  );
+  assert.equal(ok.status, 200);
+  const upstream = new URL(paths[0]);
+  assert.equal(upstream.pathname, "/3/person/500/movie_credits");
+  assert.equal(upstream.searchParams.get("api_key"), KEY);
+  assert.equal(upstream.searchParams.get("language"), "de-DE");
+  assert.equal(upstream.searchParams.get("include_adult"), "false");
+  assert.equal(upstream.searchParams.has("append_to_response"), false);
+  assert.equal(upstream.searchParams.has("query"), false);
+  const text = await ok.text();
+  assert.equal(text.includes(KEY), false);
+  assert.equal(text.includes("browser-secret"), false);
+  assert.equal(text.includes("Die Firma"), true);
+
+  assert.equal((await call("/person/500", { fetchImpl })).status, 404);
+  assert.equal((await call("/person/500/tv_credits", { fetchImpl })).status, 404);
+  assert.equal((await call("/person/500/combined_credits", { fetchImpl })).status, 404);
+  assert.equal((await call("/person/nope/movie_credits", { fetchImpl })).status, 404);
+  assert.equal((await call("/discover/movie?with_cast=500", { fetchImpl })).status, 404);
+  assert.equal(paths.length, 1);
+});
+
 test("empty search does not call TMDB", async () => {
   let called = false;
   const res = await call("/search/movie?query=", {

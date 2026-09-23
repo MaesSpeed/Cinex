@@ -1,10 +1,12 @@
 /**
  * Server-side TMDB search proxy. The browser never receives TMDB_API_KEY.
- * Allowlist: GET /search/movie, GET /search/person, GET /movie/:id
+ * Allowlist: GET /search/movie, GET /search/person, GET /movie/:id,
+ * GET /person/:id/movie_credits
  */
 const TMDB_API = "https://api.themoviedb.org/3";
 const SEARCH_PATHS = new Set(["/search/movie", "/search/person"]);
 const MOVIE_PATH = /^\/movie\/(\d+)$/;
+const PERSON_CREDITS_PATH = /^\/person\/(\d+)\/movie_credits$/;
 const RATE_WINDOW_MS = 10_000;
 const RATE_MAX = 30;
 const buckets = new Map();
@@ -135,7 +137,8 @@ export async function handleSearchProxy(request, env, fetchImpl) {
 
   const movie = MOVIE_PATH.test(path);
   const search = SEARCH_PATHS.has(path);
-  if (!movie && !search) {
+  const personCredits = PERSON_CREDITS_PATH.test(path);
+  if (!movie && !search && !personCredits) {
     return json({ error: "not_found" }, 404, origin);
   }
 
