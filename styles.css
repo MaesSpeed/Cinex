@@ -181,11 +181,11 @@ img { max-width: 100%; display: block; }
 }
 
 .acct-btn {
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
   padding: 0;
   border: 0;
-  border-radius: 15px;
+  border-radius: 16px;
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -206,13 +206,13 @@ img { max-width: 100%; display: block; }
 
 .acct-plate {
   position: relative;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: 14px;
   overflow: hidden;
   background:
-    radial-gradient(120% 90% at 100% 110%, rgba(214, 96, 42, 0.45), transparent 54%),
-    radial-gradient(80% 70% at 0% 0%, rgba(255, 196, 120, 0.18), transparent 48%),
+    radial-gradient(120% 90% at 100% 110%, rgba(214, 96, 42, 0.5), transparent 56%),
+    radial-gradient(90% 80% at 0% 0%, rgba(255, 186, 110, 0.22), transparent 50%),
     #090a0d;
   box-shadow: 0 1px 4px rgba(8, 18, 32, 0.28);
 }
@@ -224,9 +224,9 @@ img { max-width: 100%; display: block; }
 }
 
 .acct-plate.is-lg {
-  width: 48px;
-  height: 48px;
-  border-radius: 15px;
+  width: 50px;
+  height: 50px;
+  border-radius: 16px;
 }
 
 .acct-wave {
@@ -234,18 +234,32 @@ img { max-width: 100%; display: block; }
   inset: 0;
   pointer-events: none;
   background: linear-gradient(
+    122deg,
+    transparent 0%,
+    transparent 36%,
+    rgba(255, 176, 90, 0.16) 46%,
+    rgba(255, 210, 140, 0.42) 52%,
+    rgba(210, 78, 28, 0.2) 60%,
+    transparent 72%
+  );
+}
+
+.acct-wave::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
     118deg,
     transparent 0%,
-    transparent 32%,
-    rgba(255, 186, 110, 0.06) 40%,
-    rgba(255, 214, 150, 0.7) 49%,
-    rgba(232, 120, 48, 0.42) 56%,
-    rgba(160, 52, 18, 0.18) 64%,
-    transparent 74%,
+    transparent 34%,
+    rgba(255, 186, 110, 0.08) 42%,
+    rgba(255, 226, 170, 0.78) 50%,
+    rgba(232, 110, 40, 0.46) 57%,
+    rgba(160, 52, 18, 0.16) 66%,
+    transparent 76%,
     transparent 100%
   );
   background-size: 240% 100%;
-  background-position: 42% 0;
   animation: shine-b 4.4s ease-in-out infinite;
 }
 
@@ -263,27 +277,27 @@ img { max-width: 100%; display: block; }
   grid-area: 1 / 1;
   font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-weight: 800;
-  font-size: 32px;
-  line-height: 0.82;
-  letter-spacing: -0.04em;
+  font-size: 38px;
+  line-height: 0.76;
+  letter-spacing: -0.045em;
   user-select: none;
 }
 
 .acct-plate.is-lg .acct-letter-rim,
 .acct-plate.is-lg .acct-letter-fill {
-  font-size: 36px;
+  font-size: 42px;
 }
 
 .acct-letter-rim {
+  z-index: 0;
   color: transparent;
-  -webkit-text-stroke: 1.35px #ffb15a;
-  filter:
-    drop-shadow(0 0 0.6px #ffe0b0)
-    drop-shadow(0 0 1.4px #ff9a3c)
-    drop-shadow(0 0 2.6px rgba(224, 96, 32, 0.85));
+  -webkit-text-stroke: 1.15px #ffb15a;
+  filter: drop-shadow(0 0 1px #ffd7a1) drop-shadow(0 0 2px rgba(226, 104, 36, 0.9));
 }
 
 .acct-letter-fill {
+  position: relative;
+  z-index: 1;
   color: #e07a32;
   -webkit-text-fill-color: #e07a32;
 }
@@ -3146,7 +3160,7 @@ body.has-footer.footer-open.watch-sheet-open .snackbar {
   .suggest-hero.is-shining::after,
   .tag-manage-card.is-waving::after,
   .suggest-results .swipe-track:has(.suggest-card.is-open),
-  .acct-wave {
+  .acct-wave::after {
     animation: none;
   }
 
