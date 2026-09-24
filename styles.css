@@ -1529,15 +1529,20 @@ body.on-home #app {
   margin-right: auto;
 }
 
-.film-row.suggest-card {
-  container-type: inline-size;
+.film-row.suggest-card.is-tall:not(.is-open) .film-row-body {
+  position: relative;
+  justify-content: flex-start;
 }
 
-.btn-primary.suggest-inline-watch.film-expand-watch {
-  width: 60cqw;
-  max-width: 60cqw;
-  margin-left: calc(20cqw - 82px);
-  margin-right: auto;
+.film-row.suggest-card.is-tall:not(.is-open) .suggest-inline-watch {
+  position: absolute;
+  left: 50%;
+  top: 75%;
+  z-index: 1;
+  width: 60%;
+  max-width: 60%;
+  margin: 0;
+  transform: translate(-50%, -50%);
 }
 
 .btn-ghost {
@@ -2585,17 +2590,53 @@ body.on-lists.has-footer.footer-open #app {
   background: #fff8e8;
 }
 
+.film-row.seen-card {
+  flex: 0 0 auto;
+  align-items: stretch;
+}
+
 .film-row.seen-card .film-row-head {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
   height: auto;
   min-height: 76px;
   cursor: default;
+  align-items: stretch;
+}
+
+.film-row.seen-card .poster {
+  width: 40px;
+  height: auto;
+  min-height: 100%;
+  align-self: stretch;
+}
+
+.film-row.seen-card .film-row-body {
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 6px;
+  height: auto;
+  min-height: 100%;
+  padding: 8px 8px 8px 0;
 }
 
 .film-row.seen-card .film-row-title {
+  flex: 0 0 auto;
   white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  overflow: visible;
+  text-overflow: unset;
+  display: block;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
+.film-row.seen-card .seen-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .film-row.seen-card.is-fresh {
@@ -2603,13 +2644,19 @@ body.on-lists.has-footer.footer-open #app {
   animation: suggest-lava-pulse 1.8s ease-in-out infinite;
 }
 
-.film-row.seen-card.is-fresh .film-row-head,
-.film-row.seen-card.is-fresh .poster {
-  min-height: 152px;
+.film-row.seen-card.is-fresh .film-row-head {
+  min-height: 148px;
+}
+
+.film-row.seen-card.is-fresh .seen-stack {
+  flex: 1 1 auto;
+  justify-content: space-evenly;
+  min-height: min-content;
 }
 
 .seen-meta {
   margin: 0;
+  max-width: 100%;
   font-size: 12px;
   font-weight: 650;
   color: var(--muted);
@@ -2653,7 +2700,7 @@ body.on-lists.has-footer.footer-open #app {
   align-items: center;
   width: fit-content;
   max-width: 100%;
-  margin-top: 4px;
+  margin-top: 0;
   padding: 6px 8px 6px 10px;
   border-radius: 16px;
   background: #fff;
@@ -2661,7 +2708,15 @@ body.on-lists.has-footer.footer-open #app {
   box-shadow: 0 8px 22px rgba(16, 42, 67, 0.14);
 }
 
+.seen-rate-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
 .seen-rate-bubble .rates {
+  flex-wrap: wrap;
   margin: 0;
 }
 

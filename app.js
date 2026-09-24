@@ -2544,7 +2544,6 @@
       if (chips.every((chip) => chip.hidden) && chips[0]) chips[0].hidden = false;
       });
     });
-    window.requestAnimationFrame(syncWavePhase);
   }
 
   function clearAllFilters() {
@@ -6548,10 +6547,12 @@
           ${posterTile(film, { lazy: true, size: fresh ? POSTER_SIZE_CARD : POSTER_SIZE_THUMB })}
           <div class="film-row-body">
             <h3 class="film-row-title">${escapeHtml(film.title)}</h3>
-            ${fresh ? `<span class="chip is-lava seen-fresh-chip">Gerade angeschaut</span>` : ""}
-            <p class="seen-meta">Zuletzt gesehen: ${escapeHtml(seenDate)}</p>
-            <p class="seen-meta">Bewertung: ${rateValue}</p>
-            ${bubbleHtml}
+            <div class="seen-stack">
+              ${fresh ? `<span class="chip is-lava seen-fresh-chip">Gerade angeschaut</span>` : ""}
+              <p class="seen-meta">Zuletzt gesehen: ${escapeHtml(seenDate)}</p>
+              <p class="seen-meta seen-rate-line">Bewertung: ${rateValue}</p>
+              ${bubbleHtml}
+            </div>
           </div>
         </div>
       </article>
@@ -6977,6 +6978,9 @@
   }
 
   function render() {
+    // Phase is captured before any lava wave is mounted. Rewriting --wave-phase
+    // after paint restarts the header icon from the top-left of the sweep.
+    syncWaveClock();
     if (state.watchSheet === "zufall" || (state.watchSheet === "similar" && state.screen === "discover")) {
       /* keep overlay */
     } else if (state.screen !== "lists" || (state.listTab !== "watch" && state.listTab !== "queue")) {
@@ -7047,34 +7051,14 @@
     else clearTagWave();
     bindAccountCovers(app);
     scheduleFooterSync();
-    syncWaveClock();
-    window.requestAnimationFrame(() => {
-      syncWavePhase();
-      window.requestAnimationFrame(syncWavePhase);
-    });
   }
 
   const WAVE_MS = 4400;
 
   function syncWaveClock() {
     const time = performance.now() % WAVE_MS;
-    document.documentElement.style.setProperty("--wave-phase", `-${time}ms`);
+    document.documentElement.style.setProperty("--wave-phase", `-${Math.round(time)}ms`);
     return time;
-  }
-
-  function syncWavePhase() {
-    const time = syncWaveClock();
-    if (typeof document.getAnimations !== "function") return;
-    document.getAnimations().forEach((anim) => {
-      if (anim.animationName !== "shine-b") return;
-      let duration = 0;
-      try {
-        const timing = anim.effect && anim.effect.getTiming();
-        duration = timing && typeof timing.duration === "number" ? timing.duration : 0;
-      } catch { /* ignore */ }
-      if (Math.abs(duration - WAVE_MS) > 1) return;
-      try { anim.currentTime = time; } catch { /* delay on --wave-phase still lines them up */ }
-    });
   }
 
   function goBack() {
