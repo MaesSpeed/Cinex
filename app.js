@@ -506,8 +506,10 @@
     pending.then((stored) => {
       if (!stored) return;
       if (state.watchSheet) paintWatchSheetList();
-      if (state.screen === "lists") refreshWatchList();
-      else if (state.screen === "done") render();
+      if (state.screen === "lists") {
+        if (state.listTab === "seen" && state.justWatchedId && filmId(stored) === state.justWatchedId) render();
+        else refreshWatchList();
+      } else if (state.screen === "done") render();
     });
   }
 
@@ -917,6 +919,8 @@
     ratedFilter: "sehr-gut",
     tagFilter: [],
     seenOnlyUnrated: false,
+    justWatchedId: null,
+    pinJustWatched: false,
     chosen: null,
     addName: "",
     addPlate: "schwarz-lava",
@@ -1211,6 +1215,8 @@
     state.screen = "lists";
     state.discoverView = "hub";
     state.expandedFilmId = null;
+    state.justWatchedId = null;
+    state.pinJustWatched = false;
   }
 
   function persistSession() {
@@ -2669,6 +2675,8 @@
     closeAccountMenu();
     state.profile = null;
     state.expandedFilmId = null;
+    state.justWatchedId = null;
+    state.pinJustWatched = false;
     state.screen = "profiles";
     persistSession();
     render();
@@ -2680,6 +2688,8 @@
     state.user = null;
     state.profile = null;
     state.expandedFilmId = null;
+    state.justWatchedId = null;
+    state.pinJustWatched = false;
     state.screen = "login";
     persistSession();
     render();
@@ -3934,7 +3944,6 @@
             ${entdeckenIconHtml(true)}
             <span class="suggest-hero-copy">
               <strong>Filme vorschlagen</strong>
-              <span class="menu-sub">Drei Treffer · Filter greifen mit</span>
             </span>
           </button>
           <div data-role="discover-chips">${active}</div>
@@ -4201,6 +4210,11 @@
             </div>
           </div>
         ` : "";
+    const justWatched = !!(opts.gesehen && state.justWatchedId && state.justWatchedId === hid);
+    const justChip = justWatched ? `<span class="just-watched-chip">Gerade angeschaut</span>` : "";
+    const watchAction = expandable
+      ? `<button type="button" class="btn btn-primary film-expand-watch" data-act="choose" data-id="${id}">Anschauen</button>`
+      : "";
     const meta = genre ? `<p class="film-expand-meta"><strong>${escapeHtml(genre)}</strong></p>` : "";
     const providerLine = formatProviderLine(film && (film.providers || fallbackProvidersFor(film)));
     const stream = providerLine.text
@@ -4211,6 +4225,7 @@
       : `<div class="film-expand-stream" data-role="film-expand-stream" hidden></div>`;
     const expand = expandable ? `
         <div class="film-row-expand"${open ? "" : " hidden"}>
+          ${watchAction}
           ${plot ? `<p class="film-expand-plot">${escapeHtml(plot)}</p>` : ""}
           ${meta}
           ${seenLine}
@@ -4225,10 +4240,11 @@
         </div>
       ` : "";
     const article = `
-      <article class="film-row${unrated ? " is-unrated" : ""}${opts.swipeMode ? " swipe-front" : ""}${expandable ? " is-expandable" : ""}${open ? " is-open" : ""}"${opts.swipeMode ? "" : " data-swipe-row"} data-id="${id}"${opts.gesehen ? ' data-seen="1"' : ""}>
+      <article class="film-row${unrated ? " is-unrated" : ""}${opts.swipeMode ? " swipe-front" : ""}${expandable ? " is-expandable" : ""}${open ? " is-open" : ""}${justWatched ? " is-just-watched" : ""}"${opts.swipeMode ? "" : " data-swipe-row"} data-id="${id}"${opts.gesehen ? ' data-seen="1"' : ""}>
         <div class="film-row-head"${expandable ? ` data-act="film-expand" data-id="${id}" aria-expanded="${open}"` : ""}>
           ${posterTile(film, { lazy: true, size: POSTER_SIZE_THUMB })}
           <div class="film-row-body">
+            ${justChip}
             <div class="film-row-titleline">
               <h3 class="film-row-title">${escapeHtml(film.title)}</h3>
               ${runtime ? `<span class="duration-pill">${escapeHtml(runtime)}</span>` : ""}
@@ -6908,10 +6924,15 @@
       }
     }
     else if (state.screen === "lists") {
-      const keptListScroll = captureSameTabListScroll();
+      const pinJust = state.pinJustWatched;
+      state.pinJustWatched = false;
+      const keptListScroll = pinJust ? null : captureSameTabListScroll();
       blurAppFocus();
       app.innerHTML = renderLists();
-      restoreSameTabListScroll(keptListScroll);
+      if (pinJust) {
+        const list = app.querySelector("[data-role=film-list]");
+        if (list) list.scrollTop = 0;
+      } else restoreSameTabListScroll(keptListScroll);
       bindFilmListScroll();
       observeListPostersSoon(app);
       const shown = app.querySelectorAll(".film-row");
@@ -7023,7 +7044,10 @@
     if (!filmOverview(film)) {
       const text = await fetchFilmOverview(film);
       if (text && state.expandedFilmId === filmId(film) && !box.querySelector(".film-expand-plot")) {
-        box.insertAdjacentHTML("afterbegin", `<p class="film-expand-plot">${escapeHtml(clipPlot(text))}</p>`);
+        const plotHtml = `<p class="film-expand-plot">${escapeHtml(clipPlot(text))}</p>`;
+        const watchBtn = box.querySelector(".film-expand-watch");
+        if (watchBtn) watchBtn.insertAdjacentHTML("afterend", plotHtml);
+        else box.insertAdjacentHTML("afterbegin", plotHtml);
       }
     }
     const names = await loadFilmProviders(film);
@@ -7174,8 +7198,14 @@
     saveQueue(queue().filter((row) => String(row.id) !== hid));
     resetSessionPicks();
     state.chosen = film;
-    state.screen = "done";
+    state.justWatchedId = hid;
+    state.screen = "lists";
+    state.listTab = "seen";
+    state.seenOnlyUnrated = false;
+    state.expandedFilmId = hid;
     state.discoverView = "hub";
+    state.pinJustWatched = true;
+    closeWatchSheet();
     render();
     burstConfetti();
     showSnack("Angesehen");
