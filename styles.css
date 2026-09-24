@@ -1951,7 +1951,10 @@ body.on-lists.has-footer.footer-open #app {
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   gap: 8px;
+  overflow-x: hidden;
 }
 
 .lists-screen .screen-title {
@@ -1961,6 +1964,36 @@ body.on-lists.has-footer.footer-open #app {
 
 .lists-screen .tabs {
   flex: 0 0 auto;
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  padding: 4px 0 2px;
+  scrollbar-width: none;
+}
+
+.lists-screen .tabs::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.lists-screen .tab {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 4px;
+  font-size: clamp(10px, 2.9vw, 13.5px);
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+.lists-screen .tab:has(.badge) {
+  flex: 1.15 1 auto;
+  padding-right: 16px;
 }
 
 .list-toolbar {
@@ -1969,6 +2002,18 @@ body.on-lists.has-footer.footer-open #app {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lists-screen .suggest-chips,
+.lists-screen .chip,
+.lists-screen .watch-add-chip {
+  max-width: 100%;
+}
+
+.lists-screen .chip {
+  overflow-wrap: anywhere;
 }
 
 .list-toolbar .suggest-chips:empty {
@@ -2099,6 +2144,8 @@ body.on-lists.has-footer.footer-open #app {
 .film-list {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   overflow-x: hidden;
   overflow-y: scroll;
   -webkit-overflow-scrolling: touch;
@@ -2116,6 +2163,7 @@ body.on-lists.has-footer.footer-open #app {
   -webkit-appearance: none;
   appearance: none;
   width: 7px;
+  height: 0;
   background: #d7e2eb;
 }
 
@@ -2251,6 +2299,49 @@ body.on-lists.has-footer.footer-open #app {
 .film-row.is-open {
   box-shadow: 0 4px 14px rgba(0, 102, 179, 0.12);
   border: 1px solid rgba(0, 102, 179, 0.18);
+}
+
+.film-row.is-just-watched,
+.film-row.is-just-watched.is-open {
+  z-index: 1;
+  border: 2px solid #c56a42;
+  box-shadow:
+    0 0 0 1px rgba(232, 176, 112, 0.55),
+    0 0 14px 2px rgba(196, 96, 72, 0.28);
+}
+
+.film-row.is-just-watched .film-row-head {
+  height: auto;
+  min-height: 56px;
+}
+
+.film-row.is-just-watched.is-expandable .poster {
+  height: auto;
+  align-self: stretch;
+  min-height: 56px;
+}
+
+.just-watched-chip {
+  align-self: flex-start;
+  display: inline-flex;
+  margin: 1px 0 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #c56a42;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.35;
+  text-transform: uppercase;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.film-expand-watch {
+  width: 100%;
+  margin: 0 0 8px;
+  font-weight: 750;
 }
 
 .swipe-track:has(.film-row.is-open) {
