@@ -2091,6 +2091,25 @@ body.on-lists.has-footer.footer-open #app {
   padding: 3px 10px 3px 5px;
 }
 
+.watch-search-chip {
+  padding: 3px 10px 3px 8px;
+}
+
+.watch-search-glass {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--blue);
+}
+
+.watch-search-glass svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
 .watch-zufall-stack {
   position: relative;
   width: 26px;
