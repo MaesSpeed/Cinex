@@ -2328,6 +2328,12 @@ body.on-lists.has-footer.footer-open #app {
   overflow: hidden;
 }
 
+/* Watchlist rows sit in .swipe-track (flex-shrink: 0). Bewertete, Tags and
+   Angesehen are direct flex children; default shrink clips an open card. */
+.film-list > .film-row {
+  flex: 0 0 auto;
+}
+
 .film-row.is-open {
   box-shadow: 0 4px 14px rgba(0, 102, 179, 0.12);
   border: 1px solid rgba(0, 102, 179, 0.18);
