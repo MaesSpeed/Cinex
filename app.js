@@ -82,6 +82,14 @@
     { tmdb: 157336, src: "https://image.tmdb.org/t/p/w185/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg" },
   ];
 
+  const TAG_STARTER_DEFS = [
+    { id: "t155", title: "Dark Knight" },
+    { id: "t557", title: "Spider-Man" },
+    { id: "t13", title: "Forrest" },
+    { id: "t361743", title: "Maverick" },
+    { id: "t157336", title: "Interstellar" },
+  ];
+
   const LOGIN_POSTERS = [
     { id: "t557", title: "Spider-Man", poster: "https://image.tmdb.org/t/p/w185/2xSL6CAWsynawHFDGdJSGutUj9X.jpg" },
     { id: "t155", title: "The Dark Knight", poster: "https://image.tmdb.org/t/p/w185/z1DfRQf2CgnROyhVZ6ch8FbWt71.jpg" },
@@ -925,6 +933,10 @@
     tagEditId: null,
     editTagName: "",
     editTagColor: "#0066B3",
+    editTagPlate: "hell",
+    editTagCover: null,
+    tagCoverSheet: false,
+    tagCoverCandidate: null,
     expandedFilmId: null,
   };
 
@@ -971,9 +983,19 @@
     { id: "hell-lava", label: "Hell", sub: "Lava" },
     { id: "schwarz-lava", label: "Schwarz", sub: "Lava" },
   ];
+  const TAG_PLATE_CHOICES = [
+    { id: "hell", label: "Hell" },
+    { id: "schwarz", label: "Schwarz" },
+    { id: "hell-lava", label: "Hell", sub: "Lava-Buchstaben" },
+    { id: "schwarz-lava", label: "Schwarz", sub: "Lava-Buchstaben" },
+  ];
 
   function normalizePlate(value) {
     return PLATE_IDS.includes(value) ? value : DEFAULT_PLATE;
+  }
+
+  function normalizeTagPlate(value) {
+    return PLATE_IDS.includes(value) ? value : "hell";
   }
 
   function normalizeCover(value) {
@@ -1066,12 +1088,63 @@
     saveJson(pkey("history"), list);
   }
 
+  function tagStarterCovers() {
+    return TAG_STARTER_DEFS.map((def) => {
+      const film = LOGIN_POSTERS.find((row) => row.id === def.id);
+      const poster = film && film.poster ? film.poster : "";
+      if (!poster) return null;
+      return { id: def.id, title: def.title, poster };
+    }).filter(Boolean);
+  }
+
+  function migrateTags(list) {
+    const starters = tagStarterCovers();
+    let changed = false;
+    const next = list.map((tag, index) => {
+      if (!tag || typeof tag !== "object") return tag;
+      const plate = normalizeTagPlate(tag.plate);
+      let cover = normalizeCover(tag.cover);
+      if (!cover && starters.length) cover = starters[index % starters.length];
+      const plateChanged = tag.plate !== plate;
+      const coverChanged = !coversEqual(tag.cover, cover);
+      if (!plateChanged && !coverChanged) return tag;
+      changed = true;
+      const copy = Object.assign({}, tag, { plate });
+      if (cover) copy.cover = cover;
+      return copy;
+    });
+    if (changed) saveTags(next);
+    return next;
+  }
+
   function customTags() {
-    return loadJson(pkey("tags"), []);
+    const list = loadJson(pkey("tags"), []);
+    if (!Array.isArray(list)) return [];
+    return migrateTags(list);
   }
 
   function saveTags(list) {
     saveJson(pkey("tags"), list);
+  }
+
+  function tagCovers() {
+    const list = loadJson(pkey("tagCovers"), []);
+    if (!Array.isArray(list)) return [];
+    const starters = new Set(tagStarterCovers().map((row) => row.id));
+    const seen = new Set();
+    const out = [];
+    for (const row of list) {
+      const cover = normalizeCover(row);
+      if (!cover || !cover.poster) continue;
+      if (cover.id && (starters.has(cover.id) || seen.has(cover.id))) continue;
+      if (cover.id) seen.add(cover.id);
+      out.push(cover);
+    }
+    return out;
+  }
+
+  function saveTagCovers(list) {
+    saveJson(pkey("tagCovers"), list);
   }
 
   function filmTags() {
@@ -1097,10 +1170,11 @@
       { id: "bot", name: "Bot - Apptesti", avatar: "av3", plate: "schwarz-lava" },
     ];
     saveProfiles("u-test", profiles);
+    const covers = tagStarterCovers();
     const tags = [
-      { id: "tag-omma", name: "Omma", color: "#ef6c00" },
-      { id: "tag-kumpel", name: "Kumpel", color: "#0066B3" },
-      { id: "tag-relax", name: "entspannen", color: "#2e7d32" },
+      { id: "tag-omma", name: "Omma", color: "#ef6c00", plate: "hell", cover: covers[0] },
+      { id: "tag-kumpel", name: "Kumpel", color: "#0066B3", plate: "hell", cover: covers[1] || covers[0] },
+      { id: "tag-relax", name: "entspannen", color: "#2e7d32", plate: "hell", cover: covers[2] || covers[0] },
     ];
     const prefix = "wdq.p.u-test.tester.";
     saveJson(`${prefix}tags`, tags);
@@ -1575,11 +1649,11 @@
   function bindAccountCovers(root) {
     const scope = root || headerActions;
     if (!scope) return;
-    scope.querySelectorAll(".acct-letter-fill[data-cover]").forEach((el) => {
+    scope.querySelectorAll(".acct-letter-fill[data-cover], .tag-chip-fill[data-cover]").forEach((el) => {
       if (el.dataset.coverBound === "1") return;
       el.dataset.coverBound = "1";
       const src = el.dataset.cover || "";
-      const plate = el.closest(".acct-plate");
+      const plate = el.closest(".acct-plate, .tag-chip");
       if (!src) {
         if (plate) plate.classList.add("is-fallback");
         return;
@@ -1616,9 +1690,7 @@
   }
 
   function tagPillHtml(tag) {
-    const name = String(tag && tag.name ? tag.name : "").slice(0, 10);
-    const color = (tag && tag.color) || "#0066B3";
-    return `<span class="tag-pill" style="--tag-color:${escapeHtml(color)}">${escapeHtml(name)}</span>`;
+    return tagChipHtml(tag, { size: "mini" });
   }
 
   function colorSpectrumHtml(scope, hex) {
@@ -2331,12 +2403,20 @@
     return chips;
   }
 
+  function activeFilterChipBody(chip) {
+    if (chip.kind === "tag") {
+      const tag = customTags().find((row) => row.id === chip.id);
+      if (tag) return tagChipHtml(tag, { size: "mini" });
+    }
+    return `<span>${escapeHtml(chip.label)}</span>`;
+  }
+
   function renderActiveFilterChips() {
     const chips = filterChipRows();
     if (!chips.length) return "";
     const items = chips.map((chip) => `
-      <span class="active-chip">
-        <span>${escapeHtml(chip.label)}</span>
+      <span class="active-chip${chip.kind === "tag" ? " is-tag" : ""}">
+        ${activeFilterChipBody(chip)}
         <button type="button" class="active-chip-x" data-act="remove-filter" data-kind="${escapeHtml(chip.kind)}" data-id="${escapeHtml(chip.id)}" aria-label="${escapeHtml(chip.label)} entfernen">${ICONS.chipX}</button>
       </span>
     `).join("");
@@ -2353,7 +2433,9 @@
       return `<span class="hint filter-empty">${key === "tags" ? "Noch keine eigenen Tags" : ""}</span>`;
     }
     const chips = items.map((item) => (
-      `<button type="button" class="chip" data-act="${item.act}" ${item.attrs} aria-pressed="${item.on}">${escapeHtml(item.label)}</button>`
+      item.chipHtml
+        ? item.chipHtml
+        : `<button type="button" class="chip" data-act="${item.act}" ${item.attrs} aria-pressed="${item.on}">${escapeHtml(item.label)}</button>`
     )).join("");
     const expanded = !!state.filterMore[key];
     return `
@@ -2374,7 +2456,7 @@
       const key = row.dataset.chipRow;
       const wrap = row.closest(".filter-card, .zufall-chip-row") || row.parentElement;
       const moreBtn = wrap ? wrap.querySelector("[data-act=filter-more], [data-act=zufall-more]") : null;
-      const chips = [...row.querySelectorAll(".chip")];
+      const chips = [...row.querySelectorAll(".chip, .tag-chip")];
       chips.forEach((chip) => { chip.hidden = false; });
       if (state.filterMore[key]) {
         row.classList.add("is-expanded");
@@ -2483,19 +2565,7 @@
   }
 
   function openAddTagModal() {
-    state.newTagName = "";
-    state.newTagColor = "#0066B3";
-    openModal(`
-      <div class="card modal-card is-center tag-add-modal">
-        <h2>Tag hinzufügen</h2>
-        <input class="glow-input" data-act="tag-name" maxlength="10" placeholder="Tagname (max. 10 Zeichen)" value="" aria-label="Tagname">
-        ${colorSpectrumHtml("add", state.newTagColor)}
-        <div class="modal-actions">
-          <button type="button" class="btn btn-primary btn-confirm" data-act="tag-add-save">speichern</button>
-          <button type="button" class="btn btn-ghost" data-act="modal-close">Abbrechen</button>
-        </div>
-      </div>
-    `);
+    openTagEditor(null);
   }
 
   function askDeleteTag(id) {
@@ -2516,24 +2586,64 @@
   }
 
   function saveNewTag() {
-    const name = clampTagName(state.newTagName);
-    if (!name) return;
-    const list = customTags();
-    list.push({ id: `tag-${Date.now()}`, name, color: state.newTagColor || "#0066B3" });
-    saveTags(list);
-    state.newTagName = "";
-    closeModal();
+    state.editTagName = state.newTagName;
+    state.editTagPlate = "hell";
+    state.editTagCover = tagStarterCovers()[0] || null;
+    state.tagEditId = null;
+    saveEditedTag();
+  }
+
+  function resetTagEditor() {
+    state.tagEditId = null;
+    state.tagCoverSheet = false;
+    state.tagCoverCandidate = null;
+    state.coverQuery = "";
+    state.coverHits = [];
+    state.coverStatus = "";
+  }
+
+  function openTagEditor(tag) {
+    const starters = tagStarterCovers();
+    state.tagEditId = tag ? tag.id : null;
+    state.editTagName = tag ? tag.name : "";
+    state.editTagPlate = tag ? normalizeTagPlate(tag.plate) : "hell";
+    state.editTagCover = tag ? (normalizeCover(tag.cover) || starters[0] || null) : (starters[0] || null);
+    state.tagCoverSheet = false;
+    state.tagCoverCandidate = null;
+    state.coverQuery = "";
+    state.coverHits = [];
+    state.coverStatus = "";
+    state.screen = "tag-edit";
     render();
+    if (!state.editTagName) {
+      const input = app.querySelector("[data-act=edit-tag-name]");
+      if (input) input.focus();
+    }
   }
 
   function saveEditedTag() {
-    const id = state.tagEditId;
     const name = clampTagName(state.editTagName);
-    if (!id || !name) return;
-    saveTags(customTags().map((tag) => (
-      tag.id === id ? { ...tag, name, color: state.editTagColor || tag.color } : tag
-    )));
-    state.tagEditId = null;
+    if (!name) {
+      showSnack("Bitte einen Namen eingeben.", "warn");
+      return;
+    }
+    const plate = normalizeTagPlate(state.editTagPlate);
+    const cover = normalizeCover(state.editTagCover) || tagStarterCovers()[0] || null;
+    const id = state.tagEditId;
+    if (id) {
+      saveTags(customTags().map((tag) => (
+        tag.id === id ? Object.assign({}, tag, { name, plate, cover }) : tag
+      )));
+    } else {
+      const list = customTags();
+      const row = { id: `tag-${Date.now()}`, name, plate };
+      if (cover) row.cover = cover;
+      list.push(row);
+      saveTags(list);
+    }
+    resetTagEditor();
+    state.screen = "tags";
+    closeModal();
     render();
   }
 
@@ -2625,8 +2735,11 @@
   function updateHeader() {
     const menuWasOpen = !!(headerActions.querySelector(".acct-menu") && !headerActions.querySelector(".acct-menu").hidden);
     const items = [];
-    if (["tags", "done", "profile-add"].includes(state.screen)) {
+    if (["tags", "done", "profile-add", "tag-edit"].includes(state.screen)) {
       items.push(`<button type="button" class="icon-btn" data-act="back" aria-label="Zurück" title="Zurück">${ICONS.back}</button>`);
+    }
+    if (state.screen === "tag-edit") {
+      items.push(`<button type="button" class="tag-save-head" data-act="tag-edit-save">Speichern</button>`);
     }
     if ((state.screen === "discover" || state.screen === "lists") && state.profile) {
       items.push(accountMenuHtml());
@@ -3528,6 +3641,8 @@
   function paintCoverHits() {
     const box = app.querySelector("[data-role=cover-results]");
     if (box) box.innerHTML = coverHitsHtml();
+    const tagBox = app.querySelector("[data-role=tag-cover-hits]");
+    if (tagBox) tagBox.innerHTML = tagCoverHitsHtml();
   }
 
   function paintProfileLetters() {
@@ -3708,10 +3823,12 @@
       on: state.filters.genres.includes(g),
     }));
     const tagItems = customTags().map((t) => ({
-      act: "filter-tag",
-      attrs: `data-id="${t.id}"`,
-      label: t.name,
-      on: state.filters.tags.includes(t.id),
+      chipHtml: tagChipHtml(t, {
+        size: "mini",
+        act: "filter-tag",
+        attrs: `data-id="${escapeHtml(t.id)}"`,
+        pressed: state.filters.tags.includes(t.id),
+      }),
     }));
     const streamItems = STREAMING_CHIPS.map((s) => ({
       act: "filter-stream",
@@ -4174,9 +4291,12 @@
 
   function renderFilmTagChips(film) {
     const have = tagsFor(film.id);
-    return customTags().map((t) => `
-      <button type="button" class="chip" data-act="film-tag" data-id="${escapeHtml(filmId(film))}" data-tag="${t.id}" aria-pressed="${have.includes(t.id)}">${escapeHtml(t.name)}</button>
-    `).join("");
+    return customTags().map((t) => tagChipHtml(t, {
+      size: "mini",
+      act: "film-tag",
+      attrs: `data-id="${escapeHtml(filmId(film))}" data-tag="${escapeHtml(t.id)}"`,
+      pressed: have.includes(t.id),
+    })).join("");
   }
 
   function searchStatusText() {
@@ -6121,6 +6241,19 @@
       const n = zufallUnionCount([id]);
       if (!n) return "";
       const on = selected.has(id);
+      if (String(id).startsWith("tag:")) {
+        const tag = customTags().find((row) => row.id === String(id).slice(4));
+        if (tag) {
+          return tagChipHtml(tag, {
+            size: "mini",
+            act: "zufall-source",
+            attrs: `data-id="${escapeHtml(id)}"`,
+            pressed: on,
+            count: n,
+            mark: on && selected.size > 1,
+          });
+        }
+      }
       return `<button type="button" class="chip${on && selected.size === 1 ? " is-lava" : ""}" data-act="zufall-source" data-id="${escapeHtml(id)}" aria-pressed="${on}">${escapeHtml(meta.label)} (${n})${on && selected.size > 1 ? " ✓" : ""}</button>`;
     }).join("");
     const uber = zufallUberLabel(state.zufallSources);
@@ -6273,9 +6406,13 @@
 
   function renderTagsTab() {
     const tags = customTags();
-    const chips = tags.map((t) => `
-      <button type="button" class="chip" data-act="tag-filter" data-id="${t.id}" aria-pressed="${state.tagFilter.includes(t.id)}">${escapeHtml(t.name)} ${countFilmsWithTag(t.id)}</button>
-    `).join("");
+    const chips = tags.map((t) => tagChipHtml(t, {
+      size: "mini",
+      act: "tag-filter",
+      attrs: `data-id="${escapeHtml(t.id)}"`,
+      pressed: state.tagFilter.includes(t.id),
+      count: countFilmsWithTag(t.id),
+    })).join("");
     const selected = state.tagFilter.slice().sort();
     const map = filmTags();
     const films = selected.length
@@ -6332,40 +6469,276 @@
     `;
   }
 
+  function coverFromFilm(film) {
+    if (!film || !film.title || !film.poster) return null;
+    return normalizeCover({
+      id: filmId(film),
+      title: film.title,
+      poster: String(film.poster),
+    });
+  }
+
+  function coverDisplayTitle(cover) {
+    const row = normalizeCover(cover);
+    if (!row) return "Cover";
+    const starter = tagStarterCovers().find((item) => item.id && item.id === row.id);
+    if (starter) return starter.title;
+    return row.title || "Cover";
+  }
+
+  function tagPlatePhrase(plate) {
+    const id = normalizeTagPlate(plate);
+    if (id === "schwarz") return "Schwarz";
+    if (id === "hell-lava") return "Hell · Lava-Buchstaben";
+    if (id === "schwarz-lava") return "Schwarz · Lava-Buchstaben";
+    return "Hell";
+  }
+
+  function tagPlateHere(plate) {
+    const id = normalizeTagPlate(plate);
+    if (id === "schwarz") return "Schwarz";
+    if (id === "hell-lava") return "Hell + Lava-Buchstaben";
+    if (id === "schwarz-lava") return "Schwarz + Lava-Buchstaben";
+    return "Hell";
+  }
+
+  function tagDraftRecord() {
+    const starters = tagStarterCovers();
+    return {
+      id: state.tagEditId || "",
+      name: clampTagName(state.editTagName) || "Tag",
+      plate: normalizeTagPlate(state.editTagPlate),
+      cover: normalizeCover(state.editTagCover) || starters[0] || null,
+    };
+  }
+
+  function tagChipHtml(tag, opts) {
+    const options = opts || {};
+    const plate = normalizeTagPlate(tag && tag.plate);
+    const lava = plate === "hell-lava" || plate === "schwarz-lava";
+    const warm = plate === "schwarz" || plate === "schwarz-lava";
+    const size = options.size || "list";
+    const word = options.word != null ? String(options.word) : (clampTagName(tag && tag.name) || "Tag");
+    const safeWord = escapeHtml(word);
+    const src = escapeHtml(coverSrcFrom(options.cover !== undefined ? options.cover : (tag && tag.cover)));
+    const letterAttr = options.draft ? ` data-role="tag-draft-letters"` : "";
+    const count = options.count != null
+      ? `<span class="tag-chip-count"${options.act ? ` aria-hidden="true"` : ""}>${escapeHtml(String(options.count))}${options.mark ? " ✓" : ""}</span>`
+      : "";
+    const pressed = !!options.pressed;
+    const classes = [
+      "tag-chip",
+      `is-${plate}`,
+      lava ? "is-lava" : "",
+      warm ? "is-dark" : "",
+      `is-${size}`,
+      pressed ? "is-on" : "",
+    ].filter(Boolean).join(" ");
+    const aria = options.aria || (options.count != null ? `${word} ${options.count}` : word);
+    const interactive = !!options.act;
+    const tagName = interactive ? "button" : "span";
+    const typeAttr = interactive ? ` type="button"` : "";
+    const actAttr = interactive ? ` data-act="${escapeHtml(options.act)}"` : "";
+    const pressedAttr = interactive ? ` aria-pressed="${pressed ? "true" : "false"}"` : "";
+    const ariaAttr = interactive ? ` aria-label="${escapeHtml(aria)}"` : "";
+    const extra = options.attrs ? ` ${options.attrs}` : "";
+    const wordHidden = interactive ? ` aria-hidden="true"` : "";
+    return `<${tagName} class="${classes}"${typeAttr}${actAttr}${pressedAttr}${ariaAttr}${extra}><span class="tag-chip-plate" aria-hidden="true"></span><span class="tag-chip-wave${warm ? " is-warm" : ""}" aria-hidden="true"></span><span class="tag-chip-word"${wordHidden}>${lava ? `<span class="tag-chip-stroke"${letterAttr}>${safeWord}</span>` : ""}<span class="tag-chip-fill" data-cover="${src}"${letterAttr}>${safeWord}</span></span>${count}</${tagName}>`;
+  }
+
+  function tagCoverTileHtml(cover, opts) {
+    const options = opts || {};
+    const on = !!options.on;
+    const caption = options.caption || coverDisplayTitle(cover);
+    const src = coverSrcFrom(cover);
+    const act = options.act || "tag-pick-cover";
+    return `
+      <button type="button" class="tag-cover${on ? " is-on" : ""}${options.row ? " is-row" : ""}" data-act="${escapeHtml(act)}" data-id="${escapeHtml(cover.id || "")}" aria-pressed="${on ? "true" : "false"}" aria-label="${escapeHtml(caption)}">
+        <img src="${escapeHtml(src)}" alt="" decoding="async" referrerpolicy="no-referrer">
+        <span class="tag-cover-cap">${escapeHtml(caption)}</span>
+        ${on ? `<span class="tag-cover-check" aria-hidden="true">✓</span>` : ""}
+      </button>
+    `;
+  }
+
+  function tagCoverCandidateOn(cover) {
+    const picked = normalizeCover(state.tagCoverCandidate);
+    return !!(picked && cover && picked.id && picked.id === cover.id);
+  }
+
+  function watchCoversForTagAdd() {
+    return watchlist()
+      .slice()
+      .sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0))
+      .map((row) => coverFromFilm(findFilm(row.id)))
+      .filter((cover) => cover && cover.poster)
+      .filter((cover, index, list) => list.findIndex((item) => item.id === cover.id) === index)
+      .slice(0, 12);
+  }
+
+  function tagCoverHitsHtml() {
+    const query = state.coverQuery.trim();
+    if (query) {
+      if (state.coverStatus === "loading" && !(state.coverHits || []).length) {
+        return `<p class="hint">Suche …</p>`;
+      }
+      const tiles = (state.coverHits || []).map((film) => {
+        const cover = coverFromFilm(film);
+        if (!cover) return "";
+        return tagCoverTileHtml(cover, {
+          on: tagCoverCandidateOn(cover),
+          act: "tag-cover-candidate",
+          row: true,
+          caption: cover.title,
+        });
+      }).join("");
+      if (!tiles) return `<p class="hint">Kein Film gefunden.</p>`;
+      return `<div class="tag-cover-row">${tiles}</div>`;
+    }
+    const watch = watchCoversForTagAdd();
+    if (!watch.length) return `<p class="hint">Watchlist ist leer. Oben nach einem Film suchen.</p>`;
+    const tiles = watch.map((cover) => tagCoverTileHtml(cover, {
+      on: tagCoverCandidateOn(cover),
+      act: "tag-cover-candidate",
+      row: true,
+    })).join("");
+    return `<div class="tag-cover-row">${tiles}</div>`;
+  }
+
+  function renderTagCoverGrid() {
+    const selected = normalizeCover(state.editTagCover);
+    const tiles = tagStarterCovers().concat(tagCovers()).map((cover) => {
+      const on = !!(selected && cover.id && selected.id === cover.id);
+      return tagCoverTileHtml(cover, { on, act: "tag-pick-cover" });
+    }).join("");
+    return `
+      <div class="tag-cover-grid">
+        ${tiles}
+        <button type="button" class="tag-cover is-add" data-act="tag-cover-add" aria-expanded="${state.tagCoverSheet ? "true" : "false"}">
+          <span class="tag-cover-plus" aria-hidden="true">+</span>
+          <span class="tag-cover-add-lbl">Cover<br>hinzufügen</span>
+        </button>
+      </div>
+    `;
+  }
+
+  function renderTagCoverSheet() {
+    if (!state.tagCoverSheet) return "";
+    return `
+      <div class="tag-cover-sheet">
+        <h4>Cover hinzufügen</h4>
+        <p>Aus Watchlist / Suche wählen → landet in deiner Cover-Liste und ist für alle Tags nutzbar.</p>
+        <input class="glow-input" data-act="tag-cover-search" value="${escapeHtml(state.coverQuery)}" placeholder="Film suchen" aria-label="Film suchen" autocomplete="off" enterkeyhint="search">
+        <div data-role="tag-cover-hits">${tagCoverHitsHtml()}</div>
+        <div class="tag-cover-actions">
+          <button type="button" class="btn btn-ghost" data-act="tag-cover-cancel">Abbrechen</button>
+          <button type="button" class="btn btn-primary" data-act="tag-cover-commit">Zur Liste</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderTagPlatePicks(cover) {
+    return TAG_PLATE_CHOICES.map((choice) => {
+      const on = normalizeTagPlate(state.editTagPlate) === choice.id;
+      const sub = choice.sub ? `<em>${escapeHtml(choice.sub)}</em>` : "";
+      return `
+        <button type="button" class="tag-plate${on ? " is-on" : ""}" data-act="tag-pick-plate" data-id="${choice.id}" aria-pressed="${on ? "true" : "false"}">
+          ${tagChipHtml({ name: "Aa", plate: choice.id, cover }, { size: "swatch", word: "Aa" })}
+          <span class="tag-plate-name">${escapeHtml(choice.label)}${sub}</span>
+        </button>
+      `;
+    }).join("");
+  }
+
+  function renderTagListPreview(draft) {
+    const others = customTags().filter((tag) => tag.id !== state.tagEditId).slice(0, 5);
+    const mine = tagChipHtml(draft, { size: "mini", pressed: true, draft: true });
+    const rest = others.map((tag) => tagChipHtml(tag, { size: "mini" })).join("");
+    return `<div class="tag-edit-live">${mine}${rest}</div>`;
+  }
+
+  function renderTagEdit() {
+    const draft = tagDraftRecord();
+    const title = state.tagEditId ? "Tag bearbeiten" : "Tag hinzufügen";
+    return `
+      <h2 class="screen-title home-title">${title}</h2>
+      <div class="tag-edit">
+        <section class="card tag-edit-block tag-edit-preview">
+          <p class="tag-edit-kicker">Vorschau</p>
+          ${tagChipHtml(draft, { size: "preview", draft: true })}
+          <p class="tag-edit-meta">${escapeHtml(tagPlatePhrase(draft.plate))} · Cover ${escapeHtml(coverDisplayTitle(draft.cover))}<br>eigene Cover landen dauerhaft in der Liste</p>
+        </section>
+        <section class="card tag-edit-block">
+          <h3>Name</h3>
+          <p class="tag-edit-sub">Kurzer Tag-Name, z. B. Kumpel oder Fam.</p>
+          <input class="glow-input" data-act="edit-tag-name" maxlength="10" value="${escapeHtml(state.editTagName)}" placeholder="Tagname" aria-label="Tagname">
+        </section>
+        <section class="card tag-edit-block">
+          <h3>Cover</h3>
+          <p class="tag-edit-sub">Festes Set + deine eigenen. Tippe „+“ um aus Filmen / Suche eins hinzuzufügen.</p>
+          ${renderTagCoverGrid()}
+          ${renderTagCoverSheet()}
+        </section>
+        <section class="card tag-edit-block">
+          <h3>Platte</h3>
+          <p class="tag-edit-sub">Nur Hell oder Schwarz — optional mit lavaumrandeten Buchstaben.</p>
+          <div class="tag-plate-grid">${renderTagPlatePicks(draft.cover)}</div>
+        </section>
+        <section class="card tag-edit-block">
+          <h3>So wirkt’s in der Liste</h3>
+          <p class="tag-edit-sub">Dieselbe Platte + Cover-Spray (hier ${escapeHtml(tagPlateHere(draft.plate))}).</p>
+          ${renderTagListPreview(draft)}
+        </section>
+        <p class="tag-edit-foot">Neue Tags starten mit Hell (ohne Lava-Buchstaben). Cover und Platte jederzeit änderbar. Eigene Cover bleiben in der Auswahlliste.</p>
+        ${state.tagEditId ? `<button type="button" class="btn btn-danger-soft tag-edit-delete" data-act="ask-delete-tag" data-id="${escapeHtml(state.tagEditId)}">Tag löschen</button>` : ""}
+      </div>
+    `;
+  }
+
+  function paintTagDraftLetters() {
+    const word = clampTagName(state.editTagName) || "Tag";
+    app.querySelectorAll("[data-role=tag-draft-letters]").forEach((el) => {
+      el.textContent = word;
+    });
+  }
+
+  function commitTagCover() {
+    const cover = normalizeCover(state.tagCoverCandidate);
+    if (!cover || !cover.poster) {
+      showSnack("Bitte ein Cover wählen.", "warn");
+      return;
+    }
+    const known = tagStarterCovers().concat(tagCovers()).some((row) => row.id && row.id === cover.id);
+    if (!known) {
+      const next = tagCovers();
+      next.push(cover);
+      saveTagCovers(next);
+    }
+    state.editTagCover = cover;
+    state.tagCoverSheet = false;
+    state.tagCoverCandidate = null;
+    state.coverQuery = "";
+    state.coverHits = [];
+    state.coverStatus = "";
+    render();
+  }
+
   function renderTagsManage() {
     const tags = sortedTags();
     const rows = tags.map((t) => {
       const n = countFilmsWithTag(t.id);
-      const editing = state.tagEditId === t.id;
       const countLabel = n === 1 ? "1 Film getaggt" : `${n} Filme getaggt`;
-      const pill = editing
-        ? tagPillHtml({ ...t, name: clampTagName(state.editTagName) || t.name, color: state.editTagColor || t.color })
-        : tagPillHtml(t);
       return `
         <article class="card tag-manage-card" data-tag-card="${t.id}">
           <div class="tag-manage-row">
-            ${pill}
+            ${tagChipHtml(t, { size: "list" })}
             <button type="button" class="tag-count" data-act="tag-jump" data-id="${t.id}">
               <span>${escapeHtml(countLabel)}</span>
               ${ICONS.jump}
             </button>
-            <button type="button" class="tag-edit-toggle" data-act="${editing ? "tag-edit-close" : "tag-edit-open"}" data-id="${t.id}">
-              ${editing ? "fertig" : "bearbeiten"}
-            </button>
+            <button type="button" class="tag-edit-toggle" data-act="tag-edit-open" data-id="${t.id}">bearbeiten</button>
           </div>
-          ${editing ? `
-            <div class="tag-manage-editor">
-              <label class="field">
-                <span>Name</span>
-                <input class="glow-input" data-act="edit-tag-name" maxlength="10" value="${escapeHtml(state.editTagName)}" placeholder="Tagname (max. 10 Zeichen)" aria-label="Tagname">
-              </label>
-              ${colorSpectrumHtml("edit", state.editTagColor || t.color)}
-              <div class="tag-edit-actions">
-                <button type="button" class="btn btn-danger-soft" data-act="ask-delete-tag" data-id="${t.id}">löschen</button>
-                <button type="button" class="btn btn-primary" data-act="tag-edit-save" data-id="${t.id}">speichern</button>
-              </div>
-            </div>
-          ` : ""}
         </article>
       `;
     }).join("");
@@ -6547,9 +6920,11 @@
       if (state.expandedFilmId) enrichExpandedFilm(state.expandedFilmId);
     }
     else if (state.screen === "tags") app.innerHTML = renderTagsManage();
+    else if (state.screen === "tag-edit") app.innerHTML = renderTagEdit();
     else if (state.screen === "done") app.innerHTML = renderDone();
     if (state.screen === "tags") scheduleTagWave();
     else clearTagWave();
+    bindAccountCovers(app);
     scheduleFooterSync();
   }
 
@@ -6558,7 +6933,10 @@
       dismissWatchSheet();
       return;
     }
-    if (state.screen === "profile-add") state.screen = "profiles";
+    if (state.screen === "tag-edit") {
+      resetTagEditor();
+      state.screen = "tags";
+    } else if (state.screen === "profile-add") state.screen = "profiles";
     else if (state.screen === "lists" || state.screen === "tags" || state.screen === "done") {
       if (state.screen === "tags") state.tagEditId = null;
       state.screen = "discover";
@@ -7330,19 +7708,62 @@
     if (act === "tag-edit-open") {
       const tag = customTags().find((x) => x.id === t.dataset.id);
       if (!tag) return;
-      state.tagEditId = tag.id;
-      state.editTagName = tag.name;
-      state.editTagColor = tag.color;
-      render();
+      openTagEditor(tag);
       return;
     }
     if (act === "tag-edit-close") {
-      state.tagEditId = null;
+      resetTagEditor();
+      state.screen = "tags";
       render();
       return;
     }
     if (act === "tag-edit-save") {
       saveEditedTag();
+      return;
+    }
+    if (act === "tag-pick-plate") {
+      state.editTagPlate = normalizeTagPlate(t.dataset.id);
+      render();
+      return;
+    }
+    if (act === "tag-pick-cover") {
+      const cover = tagStarterCovers().concat(tagCovers()).find((row) => row.id === t.dataset.id);
+      if (cover) state.editTagCover = cover;
+      render();
+      return;
+    }
+    if (act === "tag-cover-add") {
+      state.tagCoverSheet = !state.tagCoverSheet;
+      if (!state.tagCoverSheet) {
+        state.tagCoverCandidate = null;
+        state.coverQuery = "";
+        state.coverHits = [];
+        state.coverStatus = "";
+      }
+      render();
+      return;
+    }
+    if (act === "tag-cover-cancel") {
+      state.tagCoverSheet = false;
+      state.tagCoverCandidate = null;
+      state.coverQuery = "";
+      state.coverHits = [];
+      state.coverStatus = "";
+      render();
+      return;
+    }
+    if (act === "tag-cover-commit") {
+      commitTagCover();
+      return;
+    }
+    if (act === "tag-cover-candidate") {
+      const fromHit = (state.coverHits || []).map(coverFromFilm).find((row) => row && row.id === t.dataset.id);
+      const fromWatch = watchCoversForTagAdd().find((row) => row.id === t.dataset.id);
+      const cover = fromHit || fromWatch;
+      if (!cover) return;
+      state.tagCoverCandidate = cover;
+      const box = app.querySelector("[data-role=tag-cover-hits]");
+      if (box) box.innerHTML = tagCoverHitsHtml();
       return;
     }
     if (act === "tag-jump") {
@@ -7367,6 +7788,10 @@
     if (event.key === "Enter" && (act === "login-name" || act === "login-pass")) {
       event.preventDefault();
       submitAuth();
+    }
+    if (event.key === "Enter" && act === "edit-tag-name") {
+      event.preventDefault();
+      saveEditedTag();
     }
   });
 
@@ -7399,8 +7824,11 @@
     if (act === "tag-name") state.newTagName = t.value.slice(0, 10);
     if (act === "edit-tag-name") {
       state.editTagName = t.value.slice(0, 10);
-      const pill = t.closest("[data-tag-card]") && t.closest("[data-tag-card]").querySelector(".tag-pill");
-      if (pill) pill.textContent = clampTagName(t.value) || pill.textContent;
+      paintTagDraftLetters();
+    }
+    if (act === "tag-cover-search") {
+      state.coverQuery = t.value;
+      scheduleCoverSearch(t.value);
     }
     if (act === "spectrum-hue" || act === "spectrum-sat") onSpectrumInput(t);
     if (act === "search") {
@@ -7430,6 +7858,7 @@
     const t = event.target.closest("[data-act]");
     if (!t) return;
     if (t.dataset.act === "back") goBack();
+    if (t.dataset.act === "tag-edit-save") saveEditedTag();
     if (t.dataset.act === "switch" || t.dataset.act === "account-switch") switchToProfiles();
     if (t.dataset.act === "account-menu") toggleAccountMenu();
     if (t.dataset.act === "account-settings") {
@@ -7491,7 +7920,10 @@
       saveFilmTags(map);
       state.filters.tags = state.filters.tags.filter((x) => x !== id);
       state.tagFilter = state.tagFilter.filter((x) => x !== id);
-      if (state.tagEditId === id) state.tagEditId = null;
+      if (state.tagEditId === id || state.screen === "tag-edit") {
+        resetTagEditor();
+        state.screen = "tags";
+      }
       closeModal();
       render();
       return;
