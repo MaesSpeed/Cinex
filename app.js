@@ -5075,6 +5075,7 @@
   }
 
   function openWatchSearchSheet() {
+    closeFilmMenus();
     if (!state.watchSheetBaselineIds) captureWatchSheetBaseline();
     state.watchSheet = "search";
     resetWatchSheetPage();
@@ -6433,6 +6434,10 @@
         <button type="button" class="watch-add-chip" data-act="watch-sheet-open">
           <span class="watch-add-plus">${ICONS.plus}</span>
           Hinzufügen
+        </button>
+        <button type="button" class="watch-add-chip watch-search-chip" data-act="watch-search-open">
+          <span class="watch-search-glass" aria-hidden="true">${ICONS.search}</span>
+          Suchen
         </button>
         <button type="button" class="watch-add-chip watch-zufall-chip" data-act="zufall-open"${empty ? " disabled" : ""} title="${empty ? "Mind. 1 Film" : "Zufallswahl"}" aria-disabled="${empty ? "true" : "false"}">
           <span class="watch-zufall-stack" data-role="zufall-chip-icon">${zufallChipTiles()}</span>
