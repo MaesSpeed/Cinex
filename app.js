@@ -4321,6 +4321,7 @@
     if (state.screen !== "lists" || (state.listTab !== "watch" && state.listTab !== "queue")) return;
     const list = app.querySelector("[data-role=film-list]");
     if (!list) return;
+    const scrollTop = list.scrollTop;
     if (state.listTab === "queue") {
       const rows = renderQueueRows();
       list.innerHTML = rows || `<p class="hint">Noch nichts unter Demnächst.</p>`;
@@ -4331,6 +4332,12 @@
       list.innerHTML = rows || `<p class="hint">Noch nichts auf der Watchlist.</p>`;
       observeListPostersSoon(list);
       enrichListCast(watchlistFilms());
+    }
+    if (scrollTop) {
+      list.scrollTop = scrollTop;
+      window.requestAnimationFrame(() => {
+        if (list.isConnected && Math.abs(list.scrollTop - scrollTop) > 1) list.scrollTop = scrollTop;
+      });
     }
     paintZufallChip();
     updateFooter();
@@ -6089,6 +6096,103 @@
     `;
   }
 
+  function currentListTabInDom() {
+    const selected = app.querySelector('.lists-screen .tab[aria-selected="true"]');
+    return selected && selected.dataset.id ? selected.dataset.id : "";
+  }
+
+  function captureSameTabListScroll() {
+    if (state.screen !== "lists") return null;
+    const list = app.querySelector("[data-role=film-list]");
+    if (!list) return null;
+    const tab = currentListTabInDom();
+    if (!tab || tab !== state.listTab) return null;
+    const anchorId = state.expandedFilmId ? String(state.expandedFilmId) : "";
+    const anchor = anchorId
+      ? [...list.querySelectorAll(".film-row")].find((row) => row.dataset.id === anchorId)
+      : null;
+    return {
+      tab,
+      top: list.scrollTop,
+      anchorId: anchor ? anchorId : "",
+      offset: anchor ? anchor.getBoundingClientRect().top - list.getBoundingClientRect().top : null,
+    };
+  }
+
+  function restoreSameTabListScroll(saved) {
+    if (!saved || state.screen !== "lists" || saved.tab !== state.listTab) return;
+    const apply = () => {
+      if (state.screen !== "lists" || state.listTab !== saved.tab) return;
+      const list = app.querySelector("[data-role=film-list]");
+      if (!list) return;
+      if (Math.abs(list.scrollTop - saved.top) > 1) list.scrollTop = saved.top;
+      if (!saved.anchorId || saved.offset == null) return;
+      const anchor = [...list.querySelectorAll(".film-row")].find((row) => row.dataset.id === saved.anchorId);
+      if (!anchor) return;
+      const delta = (anchor.getBoundingClientRect().top - list.getBoundingClientRect().top) - saved.offset;
+      if (Math.abs(delta) > 0.5) list.scrollTop += delta;
+    };
+    apply();
+    window.requestAnimationFrame(() => {
+      apply();
+      window.requestAnimationFrame(apply);
+    });
+  }
+
+  function blurAppFocus() {
+    const active = document.activeElement;
+    if (active && active !== document.body && app.contains(active) && typeof active.blur === "function") {
+      active.blur();
+    }
+  }
+
+  function setFilmRowOpen(row, open) {
+    if (!open) {
+      const active = document.activeElement;
+      if (active && row.contains(active) && typeof active.blur === "function") active.blur();
+    }
+    row.classList.toggle("is-open", open);
+    const head = row.querySelector(":scope > .film-row-head");
+    if (head) head.setAttribute("aria-expanded", open ? "true" : "false");
+    const chevron = head && head.querySelector(".film-row-chevron");
+    if (chevron) {
+      chevron.setAttribute("aria-expanded", open ? "true" : "false");
+      chevron.setAttribute("aria-label", open ? "Zuklappen" : "Aufklappen");
+      chevron.innerHTML = open ? ICONS.chevronUp : ICONS.chevron;
+    }
+    const panel = row.querySelector(":scope > .film-row-expand");
+    if (panel) panel.hidden = !open;
+  }
+
+  // Expand only toggles the row. Rebuilding the list drops scrollTop back to 0.
+  function applyListFilmExpand(openId, anchorId) {
+    if (state.screen !== "lists") return false;
+    const list = app.querySelector("[data-role=film-list]");
+    if (!list) return false;
+    const rows = [...list.querySelectorAll(".film-row.is-expandable")];
+    if (!rows.length) return false;
+    const openKey = openId ? String(openId) : "";
+    if (openKey && !rows.some((row) => row.dataset.id === openKey)) return false;
+    const anchor = rows.find((row) => row.dataset.id === String(anchorId || "")) || null;
+    const offsetBefore = anchor
+      ? anchor.getBoundingClientRect().top - list.getBoundingClientRect().top
+      : null;
+    const scrollBefore = list.scrollTop;
+    rows.forEach((row) => setFilmRowOpen(row, !!openKey && row.dataset.id === openKey));
+    const pin = () => {
+      if (!list.isConnected) return;
+      if (anchor && anchor.isConnected && offsetBefore != null) {
+        const delta = (anchor.getBoundingClientRect().top - list.getBoundingClientRect().top) - offsetBefore;
+        if (Math.abs(delta) > 0.5) list.scrollTop += delta;
+        return;
+      }
+      if (Math.abs(list.scrollTop - scrollBefore) > 1) list.scrollTop = scrollBefore;
+    };
+    pin();
+    window.requestAnimationFrame(pin);
+    return true;
+  }
+
   function render() {
     if (state.watchSheet === "zufall" || (state.watchSheet === "similar" && state.screen === "discover")) {
       /* keep overlay */
@@ -6131,7 +6235,10 @@
       }
     }
     else if (state.screen === "lists") {
+      const keptListScroll = captureSameTabListScroll();
+      blurAppFocus();
       app.innerHTML = renderLists();
+      restoreSameTabListScroll(keptListScroll);
       bindFilmListScroll();
       observeListPostersSoon(app);
       const shown = app.querySelectorAll(".film-row");
@@ -6821,8 +6928,11 @@
       const hid = filmId(t.dataset.id);
       state.expandedFilmId = state.expandedFilmId === hid ? null : hid;
       closeFilmMenus();
+      if (applyListFilmExpand(state.expandedFilmId, hid)) {
+        if (state.expandedFilmId) enrichExpandedFilm(state.expandedFilmId);
+        return;
+      }
       render();
-      if (state.expandedFilmId) enrichExpandedFilm(state.expandedFilmId);
       return;
     }
     if (act === "film-menu") {
