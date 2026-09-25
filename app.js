@@ -1992,7 +1992,7 @@
     const curated = suggestIsCurated(film);
     const genres = filmGenres(film);
     const inflated = rating >= 8.9 && !curated && votes < 800 && popularity < 40;
-    const known = curated || familiarity >= 0.58 || votes >= 400 || popularity >= 18;
+    const known = curated || familiarity >= 0.75 || votes >= 400 || popularity >= 18;
     const feature = minutes >= SUGGEST_FEATURE_MIN && minutes <= 220;
     const sane = rating >= 6 && rating < 9.5;
     const weakDoku = genres.includes("Doku") && votes < 500 && popularity < 25;
@@ -2032,14 +2032,46 @@
   function suggestGuideBonus(film) {
     const direction = directionBias(film);
     if (!(anyFilterOn() || direction > 0)) return 0;
-    return filterFitScore(film) * 34 + direction * 28;
+    // Alias hits sit around 12. Extra genre overlap past that must not
+    // promote a narrower mockbuster over the real film.
+    const steered = Math.min(direction, 12) * 10 + Math.max(0, direction - 12) * 3;
+    return filterFitScore(film) * 34 + steered;
+  }
+
+  function suggestSignalMatch(film) {
+    const direction = directionBias(film);
+    if (direction >= 8) return true;
+    if (state.filters.genres.length && filmGenres(film).some((name) => state.filters.genres.includes(name))) {
+      return true;
+    }
+    if (state.filters.dauerOn) {
+      const minutes = filmMinutesOf(film);
+      if (minutes > 0 && minutes <= Number(state.filters.dauer) + 10) return true;
+    }
+    if ((state.filters.types || []).length && filmMatchesType(film)) return true;
+    if ((state.filters.actors || []).length && filmMatchesActors(film)) return true;
+    if ((state.filters.similar || []).length && filmSimilarScore(film) >= 3.2) return true;
+    if (state.filters.streaming.length) {
+      const have = Array.isArray(film.providers) ? film.providers : film.streaming;
+      if (Array.isArray(have) && have.some((id) => state.filters.streaming.includes(id))) return true;
+    }
+    if (state.filters.tags.length && state.filters.tags.some((tag) => tagsFor(film.id).includes(tag))) return true;
+    return false;
+  }
+
+  function suggestionBucket(film) {
+    const tier = suggestTier(film);
+    if (tier >= 2) return 2;
+    const direction = directionBias(film);
+    if (!(anyFilterOn() || direction > 0)) return tier;
+    return suggestSignalMatch(film) ? 0 : 1;
   }
 
   function rankSuggestionPool(pool) {
     return (pool || [])
       .map((film) => ({
         film,
-        tier: suggestTier(film),
+        tier: suggestionBucket(film),
         score: suggestQualityScore(film) + suggestGuideBonus(film),
       }))
       .sort((a, b) => (a.tier - b.tier) || (b.score - a.score));
