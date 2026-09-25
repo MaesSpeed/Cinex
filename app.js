@@ -6427,7 +6427,7 @@
   }
 
   function renderListSearchChip() {
-    return `<button type="button" class="watch-add-chip watch-search-chip" data-act="watch-search-open"><span class="watch-search-glass" aria-hidden="true">${ICONS.search}</span>Suchen</button>`;
+    return `<button type="button" class="watch-add-chip watch-search-chip" data-act="watch-search-open"><span class="watch-search-glass" aria-hidden="true">${ICONS.search}</span> Suchen</button>`;
   }
 
   function renderWatchTab() {
