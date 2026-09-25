@@ -2095,6 +2095,19 @@ body.on-lists.has-footer.footer-open #app {
   padding: 3px 10px 3px 8px;
 }
 
+.list-toolbar > .watch-search-chip {
+  flex: 0 0 auto;
+}
+
+.list-toolbar:not(.is-tags) > .suggest-chips {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.list-toolbar.is-tags > .watch-search-chip {
+  align-self: center;
+}
+
 .watch-search-glass {
   width: 18px;
   height: 18px;
