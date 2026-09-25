@@ -3086,7 +3086,7 @@ body.on-lists.has-footer.footer-open #app {
     transparent 100%
   );
   background-size: 220% 100%;
-  animation: shine-b 0.95s ease-in-out;
+  animation: shine-b var(--wave-duration) ease-in-out var(--wave-phase) infinite;
 }
 
 .color-spectrum {
@@ -4011,7 +4011,8 @@ body.on-login #app {
   overflow-x: hidden;
 }
 
-.zufall-head .sheet-title {
+.zufall-head .sheet-title,
+.sheet-panel.is-search .sheet-title {
   padding: 0 36px;
 }
 
@@ -4117,7 +4118,7 @@ body.on-login #app {
   padding: 3px 10px;
 }
 
-.zufall-close {
+.sheet-close {
   position: absolute;
   right: 0;
   top: 16px;
@@ -4133,7 +4134,7 @@ body.on-login #app {
   place-items: center;
 }
 
-.zufall-close svg {
+.sheet-close svg {
   width: 20px;
   height: 20px;
   display: block;
