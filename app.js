@@ -6426,6 +6426,10 @@
     `;
   }
 
+  function renderListSearchChip() {
+    return `<button type="button" class="watch-add-chip watch-search-chip" data-act="watch-search-open"><span class="watch-search-glass" aria-hidden="true">${ICONS.search}</span>Suchen</button>`;
+  }
+
   function renderWatchTab() {
     const rows = renderWatchRows();
     const empty = watchlist().length < 1;
@@ -6435,10 +6439,7 @@
           <span class="watch-add-plus">${ICONS.plus}</span>
           Hinzufügen
         </button>
-        <button type="button" class="watch-add-chip watch-search-chip" data-act="watch-search-open">
-          <span class="watch-search-glass" aria-hidden="true">${ICONS.search}</span>
-          Suchen
-        </button>
+        ${renderListSearchChip()}
         <button type="button" class="watch-add-chip watch-zufall-chip" data-act="zufall-open"${empty ? " disabled" : ""} title="${empty ? "Mind. 1 Film" : "Zufallswahl"}" aria-disabled="${empty ? "true" : "false"}">
           <span class="watch-zufall-stack" data-role="zufall-chip-icon">${zufallChipTiles()}</span>
           Zufall
@@ -6462,6 +6463,7 @@
           <span class="watch-add-plus">${ICONS.plus}</span>
           Hinzufügen
         </button>
+        ${renderListSearchChip()}
         <button type="button" class="watch-add-chip watch-zufall-chip" data-act="zufall-open"${empty ? " disabled" : ""} title="${empty ? "Mind. 1 Film" : "Zufallswahl"}" aria-disabled="${empty ? "true" : "false"}">
           <span class="watch-zufall-stack" data-role="zufall-chip-icon">${zufallChipTiles()}</span>
           Zufall
@@ -6481,6 +6483,7 @@
     const rows = films.map((film) => renderListRow(film, { rates: true })).join("");
     return `
       <div class="list-toolbar">
+        ${renderListSearchChip()}
         <div class="suggest-chips">${chips}</div>
       </div>
       <section class="film-list" data-role="film-list">${rows || `<p class="hint">Keine Filme mit dieser Bewertung.</p>`}</section>
@@ -6512,6 +6515,7 @@
     return `
       ${exactHint}
       <div class="list-toolbar is-tags">
+        ${renderListSearchChip()}
         <button type="button" class="tags-manage-btn" data-act="tags">Tags verwalten</button>
         <div class="suggest-chips">${chips || `<span class="hint">Noch keine eigenen Tags</span>`}</div>
       </div>
@@ -6582,6 +6586,7 @@
     }).join("");
     return `
       <div class="list-toolbar">
+        ${renderListSearchChip()}
         <div class="suggest-chips">
           <button type="button" class="chip" data-act="seen-unrated" aria-pressed="${state.seenOnlyUnrated}">nur unbewertet</button>
           <button type="button" class="chip" data-act="seen-all" aria-pressed="${!state.seenOnlyUnrated}">alle</button>
@@ -6986,7 +6991,8 @@
     // Phase is captured before any lava wave is mounted. Rewriting --wave-phase
     // after paint restarts the header icon from the top-left of the sweep.
     syncWaveClock();
-    if (state.watchSheet === "zufall" || (state.watchSheet === "similar" && state.screen === "discover")) {
+    const keepSearchOnLists = state.watchSheet === "search" && state.screen === "lists";
+    if (state.watchSheet === "zufall" || (state.watchSheet === "similar" && state.screen === "discover") || keepSearchOnLists) {
       /* keep overlay */
     } else if (state.screen !== "lists" || (state.listTab !== "watch" && state.listTab !== "queue")) {
       closeWatchSheet();
