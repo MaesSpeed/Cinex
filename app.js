@@ -6728,8 +6728,10 @@
     return `
       ${exactHint}
       <div class="list-toolbar is-tags">
-        ${renderListSearchChip()}
-        <button type="button" class="tags-manage-btn" data-act="tags">Tags verwalten</button>
+        <div class="tags-toolbar-actions">
+          ${renderListSearchChip()}
+          <button type="button" class="watch-add-chip tags-manage-btn" data-act="tags">Tags verwalten</button>
+        </div>
         <div class="suggest-chips">${chips || `<span class="hint">Noch keine eigenen Tags</span>`}</div>
       </div>
       <section class="film-list" data-role="film-list">${selected.length ? (rows || `<p class="hint">Keine Filme mit genau diesen Tags.</p>`) : `<p class="hint">Tags wählen, um Filme zu sehen.</p>`}</section>

@@ -2104,8 +2104,17 @@ body.on-lists.has-footer.footer-open #app {
   min-width: 0;
 }
 
-.list-toolbar.is-tags > .watch-search-chip {
-  align-self: center;
+.tags-toolbar-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.tags-toolbar-actions > .watch-add-chip {
+  flex: 0 0 auto;
 }
 
 .watch-search-glass {
@@ -4105,20 +4114,7 @@ body.on-login #app {
 }
 
 .tags-manage-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  align-self: center;
-  min-height: 36px;
-  margin: 2px auto 4px;
-  padding: 8px 16px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: #fff;
-  color: var(--blue);
-  font-size: 0.85rem;
-  font-weight: 700;
-  cursor: pointer;
+  padding: 3px 10px;
 }
 
 .zufall-close {
