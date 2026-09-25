@@ -1756,13 +1756,15 @@
   function runTagWave() {
     if (state.screen !== "tags") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    tagWaveTimeouts.forEach((id) => window.clearTimeout(id));
+    tagWaveTimeouts = [];
     const cards = [...app.querySelectorAll("[data-tag-card]")];
     cards.forEach((card, i) => {
       const startId = window.setTimeout(() => {
         card.classList.remove("is-waving");
         void card.offsetWidth;
         card.classList.add("is-waving");
-        const doneId = window.setTimeout(() => card.classList.remove("is-waving"), 1000);
+        const doneId = window.setTimeout(() => card.classList.remove("is-waving"), WAVE_MS);
         tagWaveTimeouts.push(doneId);
       }, i * 240);
       tagWaveTimeouts.push(startId);
@@ -1774,7 +1776,9 @@
     if (state.screen !== "tags") return;
     const first = window.setTimeout(runTagWave, 320);
     tagWaveTimeouts.push(first);
-    tagWaveTimer = window.setInterval(runTagWave, 6000);
+    const count = app.querySelectorAll("[data-tag-card]").length;
+    const cycle = WAVE_MS + Math.max(0, count - 1) * 240 + 1800;
+    tagWaveTimer = window.setInterval(runTagWave, cycle);
   }
 
   const SNACK_MARK = {
@@ -5179,10 +5183,11 @@
     const searching = state.watchSheet === "search";
     if (searching) {
       return `
-        <div class="sheet-panel is-search" data-role="sheet-panel">
+        <div class="sheet-panel is-search" data-role="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="watch-search-title">
           <div class="sheet-head" data-role="sheet-drag">
             <div class="sheet-handle" aria-hidden="true"></div>
-            <h2 class="sheet-title">Film suchen</h2>
+            <h2 class="sheet-title" id="watch-search-title">Film suchen</h2>
+            <button type="button" class="sheet-close" data-act="watch-sheet-close" aria-label="Schließen">${ICONS.close}</button>
           </div>
           <div class="sheet-search-wrap">
             <span class="sheet-search-icon">${ICONS.search}</span>
@@ -6592,7 +6597,7 @@
         <div class="sheet-head zufall-head" data-role="sheet-drag">
           <div class="sheet-handle" aria-hidden="true"></div>
           <h2 class="sheet-title">Zufallswahl</h2>
-          <button type="button" class="zufall-close" data-act="watch-sheet-close" aria-label="Schließen">${ICONS.close}</button>
+          <button type="button" class="sheet-close" data-act="watch-sheet-close" aria-label="Schließen">${ICONS.close}</button>
         </div>
         <div class="zufall-sources" data-role="zufall-sources">${renderZufallSourceChips()}</div>
         <div class="zufall-body">
@@ -8586,7 +8591,14 @@
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeAccountMenu();
+    if (event.key !== "Escape") return;
+    if (!modalEl.hidden) return;
+    if (state.watchSheet) {
+      event.preventDefault();
+      dismissWatchSheet();
+      return;
+    }
+    closeAccountMenu();
   });
 
   window.addEventListener("touchstart", (event) => {
@@ -8642,6 +8654,7 @@
 
   function sheetDragBlocked(event) {
     if (!state.watchSheet || !watchSheetEl || watchSheetEl.hidden) return true;
+    if (event.target.closest("[data-act=watch-sheet-close]")) return true;
     if (event.target.closest("[data-role=sheet-drag]")) return false;
     if (state.watchSheet === "search" && event.target.closest("[data-act=watch-search], .sheet-search-wrap")) return false;
     if (event.target.closest("button, a, input, [data-role=zufall-carousel], [data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open], [data-act=watch-more], [data-role=watch-more], [data-swipe-row], [data-act=zufall-source], [data-act=zufall-more]")) return true;
