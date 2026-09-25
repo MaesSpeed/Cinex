@@ -902,6 +902,7 @@
     shortlist: [],
     sessionBlocked: new Set(),
     sessionSkip: new Set(),
+    sessionSuggestGenres: new Set(),
     directionSeeds: [],
     seenRateFor: "",
     listTab: "watch",
@@ -1825,6 +1826,7 @@
   function resetSessionPicks() {
     state.sessionBlocked = new Set();
     state.sessionSkip = new Set();
+    state.sessionSuggestGenres = new Set();
     state.directionSeeds = [];
     state.shortlist = [];
     state.currentPicks = [];
@@ -1887,13 +1889,203 @@
     return best;
   }
 
-  function scoreFilm(film) {
-    const fit = filterFitScore(film);
-    const direction = directionBias(film);
-    if (anyFilterOn() || direction > 0) {
-      return fit * 1000 + direction * 450 + filmRecognitionScore(film);
+  // Raw vote_average put 10.0 long-tail titles first. Tier real features ahead
+  // of shorts and untrusted perfect scores; popularity wins when we have it.
+  const SUGGEST_FEATURE_MIN = 80;
+  const SUGGEST_SHORT_MAX = 44;
+  const SUGGEST_IDENTITY = [
+    "Horror", "Komödie", "Animation", "Romanze", "Krimi", "Drama",
+    "Fantasy", "Sci-Fi", "Thriller", "Action", "Abenteuer",
+  ];
+  let suggestFamiliarity = null;
+  let suggestCuratedIds = new Set();
+
+  function invalidateSuggestIndex() {
+    suggestFamiliarity = null;
+  }
+
+  function ensureSuggestIndex() {
+    if (suggestFamiliarity) return;
+    const map = new Map();
+    const list = offlineFilms && offlineFilms.length ? offlineFilms : [];
+    const total = Math.max(list.length, 1);
+    list.forEach((film, index) => {
+      const id = filmId(film);
+      if (!id) return;
+      const rank = 1 - index / total;
+      const prev = map.get(id);
+      if (prev == null || rank > prev) map.set(id, rank);
+    });
+    const curated = new Set();
+    const mark = (id, floor) => {
+      if (!id) return;
+      curated.add(String(id));
+      map.set(String(id), Math.max(map.get(String(id)) || 0, floor));
+    };
+    for (const film of FILMS) mark(filmId(film), 0.97);
+    for (const id of BLOCKBUSTER_IDS) mark(`t${id}`, 0.96);
+    for (const id of KLASSIKER_IDS) mark(`t${id}`, 0.96);
+    suggestCuratedIds = curated;
+    suggestFamiliarity = map;
+  }
+
+  function suggestIsCurated(film) {
+    ensureSuggestIndex();
+    return suggestCuratedIds.has(filmId(film));
+  }
+
+  function suggestFamiliarityOf(film) {
+    ensureSuggestIndex();
+    const known = suggestFamiliarity.get(filmId(film));
+    if (known != null) return known;
+    const popularity = Number(film && film.popularity) || 0;
+    const votes = Number(film && film.vote_count) || 0;
+    if (popularity >= 40 || votes >= 1500) return 0.9;
+    if (popularity >= 15 || votes >= 400) return 0.7;
+    return 0;
+  }
+
+  function suggestIdentity(film) {
+    const names = filmGenres(film);
+    for (const name of SUGGEST_IDENTITY) {
+      if (names.includes(name)) return name;
     }
-    return Number(film.vote_average || 6) + fit + Math.random() * 0.85;
+    return names[0] || "Film";
+  }
+
+  function suggestTieBreak(film) {
+    const id = filmId(film);
+    let hash = 0;
+    for (let i = 0; i < id.length; i += 1) hash = (hash * 33 + id.charCodeAt(i)) >>> 0;
+    return (hash % 1000) / 1000 * 1.1;
+  }
+
+  function suggestQualityScore(film) {
+    const popularity = Number(film && film.popularity) || 0;
+    const votes = Number(film && film.vote_count) || 0;
+    const rating = Number((film && (film.rating != null ? film.rating : film.vote_average)) || 0) || 0;
+    const minutes = filmMinutesOf(film);
+    const familiarity = suggestFamiliarityOf(film);
+    const curated = suggestIsCurated(film);
+    let used = rating;
+    if (!curated && votes < 800) used = Math.min(rating, rating >= 8.9 ? 7.2 : 8.25);
+    let score = used * 4.8;
+    if (popularity > 0) score += Math.log10(1 + popularity) * 22;
+    if (votes > 0) score += Math.log10(1 + votes) * 14;
+    if (familiarity > 0 && popularity < 12 && votes < 200) score += familiarity * 36;
+    if (curated) score += 16;
+    if (minutes >= 90 && minutes <= 180) score += 6;
+    else if (minutes >= SUGGEST_FEATURE_MIN && minutes <= 210) score += 3;
+    else if (minutes > 0 && minutes < SUGGEST_SHORT_MAX) score -= 10;
+    const genres = filmGenres(film);
+    if (genres.includes("Doku") && votes < 600 && popularity < 30) score -= 12;
+    if (genres.includes("TV-Film") && votes < 600) score -= 8;
+    return score + suggestTieBreak(film);
+  }
+
+  function suggestTier(film) {
+    const minutes = filmMinutesOf(film);
+    const rating = Number((film && (film.rating != null ? film.rating : film.vote_average)) || 0) || 0;
+    const votes = Number(film && film.vote_count) || 0;
+    const popularity = Number(film && film.popularity) || 0;
+    const familiarity = suggestFamiliarityOf(film);
+    const curated = suggestIsCurated(film);
+    const genres = filmGenres(film);
+    const inflated = rating >= 8.9 && !curated && votes < 800 && popularity < 40;
+    const known = curated || familiarity >= 0.58 || votes >= 400 || popularity >= 18;
+    const feature = minutes >= SUGGEST_FEATURE_MIN && minutes <= 220;
+    const sane = rating >= 6 && rating < 9.5;
+    const weakDoku = genres.includes("Doku") && votes < 500 && popularity < 25;
+    const weakTv = genres.includes("TV-Film") && votes < 400 && popularity < 20;
+    if (feature && sane && known && !inflated && !weakDoku && !weakTv) return 0;
+    const micro = minutes > 0 && minutes < SUGGEST_SHORT_MAX;
+    const fakePerfect = rating >= 9.5 && votes < 400 && popularity < 30 && !curated;
+    const unknownLength = !minutes && votes < 300 && popularity < 20 && familiarity < 0.8;
+    if (micro || fakePerfect || rating <= 0 || unknownLength) return 2;
+    if (rating > 0 && rating < 4.5 && votes < 150) return 2;
+    return 1;
+  }
+
+  function suggestShouldDiversify() {
+    if (state.filters.genres.length) return false;
+    if ((state.filters.types || []).length) return false;
+    if ((state.filters.similar || []).length) return false;
+    if ((state.directionSeeds || []).length) return false;
+    return true;
+  }
+
+  function suggestDiversityPenalty(film, chosen) {
+    const identity = suggestIdentity(film);
+    let penalty = 0;
+    if ((chosen || []).some((other) => suggestIdentity(other) === identity)) penalty += 22;
+    const seen = state.sessionSuggestGenres;
+    if (seen && seen.has && seen.has(identity)) penalty += 11;
+    const mine = filmGenres(film);
+    for (const other of chosen || []) {
+      for (const name of filmGenres(other)) {
+        if (mine.includes(name)) penalty += 1.8;
+      }
+    }
+    return penalty;
+  }
+
+  function suggestGuideBonus(film) {
+    const direction = directionBias(film);
+    if (!(anyFilterOn() || direction > 0)) return 0;
+    return filterFitScore(film) * 34 + direction * 28;
+  }
+
+  function rankSuggestionPool(pool) {
+    return (pool || [])
+      .map((film) => ({
+        film,
+        tier: suggestTier(film),
+        score: suggestQualityScore(film) + suggestGuideBonus(film),
+      }))
+      .sort((a, b) => (a.tier - b.tier) || (b.score - a.score));
+  }
+
+  function takeSuggestionFilms(ranked, count, genreContext) {
+    const diversify = suggestShouldDiversify();
+    const chosen = (genreContext || []).slice();
+    const seen = new Set(chosen.map((film) => filmId(film)));
+    const remaining = [];
+    for (const row of ranked || []) {
+      const id = filmId(row.film);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      remaining.push(row);
+    }
+    const out = [];
+    while (out.length < count && remaining.length) {
+      let bestIndex = 0;
+      if (diversify) {
+        let bestValue = -Infinity;
+        const bestTier = remaining[0].tier;
+        const limit = Math.min(remaining.length, 36);
+        for (let i = 0; i < limit; i += 1) {
+          const row = remaining[i];
+          if (row.tier !== bestTier) break;
+          const value = row.score - suggestDiversityPenalty(row.film, chosen);
+          if (value > bestValue) {
+            bestValue = value;
+            bestIndex = i;
+          }
+        }
+      }
+      const [row] = remaining.splice(bestIndex, 1);
+      chosen.push(row.film);
+      out.push(row.film);
+    }
+    return out;
+  }
+
+  function rememberSuggestGenres(films) {
+    if (!state.sessionSuggestGenres) state.sessionSuggestGenres = new Set();
+    for (const film of films || []) {
+      if (!film) continue;
+      state.sessionSuggestGenres.add(suggestIdentity(film));
+    }
   }
 
   function rememberDirection(film) {
@@ -2065,30 +2257,19 @@
     return pool;
   }
 
-  function pickFilms(count, excludeIds) {
+  function pickFilms(count, excludeIds, genreContext) {
     const pool = buildPool(excludeIds);
-    const ranked = pool
-      .map((film) => ({ film, score: scoreFilm(film) }))
-      .sort((a, b) => b.score - a.score);
-    const out = [];
-    const used = new Set();
-    for (const row of ranked) {
-      const id = filmId(row.film);
-      if (used.has(id)) continue;
-      used.add(id);
-      out.push(row.film);
-      if (out.length >= count) break;
-    }
+    const ranked = rankSuggestionPool(pool);
+    const out = takeSuggestionFilms(ranked, count, genreContext || []);
     if (!hasHardFilters() && out.length < count) {
-      for (const film of shuffle(state.catalog)) {
-        if (!passesHardFilters(film)) continue;
-        if (out.some((x) => filmId(x) === filmId(film))) continue;
-        out.push(film);
+      for (const row of ranked) {
+        if (out.some((film) => filmId(film) === filmId(row.film))) continue;
+        out.push(row.film);
         if (out.length >= count) break;
       }
     }
     if (!out.length && state.catalog.length && !hasHardFilters()) {
-      return shuffle(state.catalog).slice(0, Math.max(count, 1));
+      return ranked.slice(0, Math.max(count, 1)).map((row) => row.film);
     }
     return out;
   }
@@ -2124,17 +2305,10 @@
   function refillSuggestionStack() {
     const need = SUGGEST_STACK - state.currentPicks.length;
     if (need <= 0) return;
-    const ranked = suggestionCandidates(state.currentPicks.map(filmId))
-      .map((film) => ({ film, score: scoreFilm(film) }))
-      .sort((a, b) => b.score - a.score);
-    const used = new Set(state.currentPicks.map(filmId));
-    for (const row of ranked) {
-      const id = filmId(row.film);
-      if (used.has(id)) continue;
-      used.add(id);
-      state.currentPicks.push(row.film);
-      if (state.currentPicks.length >= SUGGEST_STACK) break;
-    }
+    const ranked = rankSuggestionPool(suggestionCandidates(state.currentPicks.map(filmId)));
+    const next = takeSuggestionFilms(ranked, need, state.currentPicks);
+    for (const film of next) state.currentPicks.push(film);
+    rememberSuggestGenres(next);
   }
 
   let discoverKey = "";
@@ -2198,11 +2372,16 @@
   }
 
   function discoverParams(page) {
+    const guided = anyFilterOn();
     const params = {
       sort_by: "popularity.desc",
       page: String(page),
       include_video: "false",
+      "vote_count.gte": guided ? "40" : "250",
     };
+    if (!guided) params["vote_average.gte"] = "6";
+    const allowShort = state.filters.dauerOn && Number(state.filters.dauer) < SUGGEST_FEATURE_MIN;
+    if (!allowShort) params["with_runtime.gte"] = guided ? "50" : "80";
     const ids = state.filters.genres
       .map((name) => GENRE_NAME_TO_ID[name])
       .filter((id) => Number.isFinite(id));
@@ -2313,9 +2492,11 @@
       await yieldToPaint();
       if (Array.isArray(data) && data.length > 20) {
         offlineFilms = await normalizeFilmsChunked(data);
+        invalidateSuggestIndex();
       }
     } catch {
       offlineFilms = cloneFilms(FILMS);
+      invalidateSuggestIndex();
     }
   }
 
@@ -7224,6 +7405,7 @@
     await ensureDiscoverPool(80);
     if (!state.catalog.length) state.catalog = cloneFilms(offlineFilms);
     state.currentPicks = pickThree();
+    rememberSuggestGenres(state.currentPicks);
     render();
     scheduleFooterSync({ reset: true });
     enrichPicks();
@@ -7236,7 +7418,9 @@
   async function replacePick(oldId) {
     await ensureDiscoverPool(20);
     const exclude = state.currentPicks.concat(state.shortlist).map(filmId);
-    const next = pickFilms(1, exclude)[0];
+    const keep = state.currentPicks.filter((film) => filmId(film) !== filmId(oldId));
+    const next = pickFilms(1, exclude, keep)[0];
+    if (next) rememberSuggestGenres([next]);
     state.currentPicks = state.currentPicks.map((film) => (
       filmId(film) === filmId(oldId) ? (next || film) : film
     ));
