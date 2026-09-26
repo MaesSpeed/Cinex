@@ -852,6 +852,10 @@
     menu: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>`,
     chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`,
     chevronUp: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>`,
+    play: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8.15 5.15c-.78-.47-1.75.1-1.75 1v11.7c0 .9.97 1.47 1.75 1l9.85-5.85c.75-.45.75-1.55 0-2L8.15 5.15z"/></svg>`,
+    richtung: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.9 3.55 3.35 10.05c-.72.29-.68 1.32.06 1.55l6.15 1.84 1.84 6.15c.23.74 1.26.78 1.55.06l6.5-16.55c.28-.7-.35-1.33-1.05-1.05z"/></svg>`,
+    bookmark: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M7 4.2h10c.55 0 1 .45 1 1V20l-6-3.5L6 20V5.2c0-.55.45-1 1-1z"/></svg>`,
+    bookmarkOn: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 3.5h10c.83 0 1.5.67 1.5 1.5V21l-6.5-3.8L5.5 21V5c0-.83.67-1.5 1.5-1.5z"/></svg>`,
   };
 
   function rateIcon(id) {
@@ -4238,6 +4242,10 @@
     });
   }
 
+  function anschauenButtonHtml(className, attrs) {
+    return `<button type="button" class="btn btn-primary ${className}" ${attrs}><span class="btn-play" aria-hidden="true">${ICONS.play}</span>Anschauen</button>`;
+  }
+
   function renderSuggestCard(film) {
     film = filmWithPoster(film) || film;
     const id = escapeHtml(filmId(film));
@@ -4252,7 +4260,7 @@
       : "";
     const inlineWatch = open
       ? ""
-      : `<button type="button" class="btn btn-primary suggest-inline-watch film-expand-watch" data-act="choose" data-id="${id}">Anschauen</button>`;
+      : anschauenButtonHtml("suggest-inline-watch film-expand-watch", `data-act="choose" data-id="${id}"`);
     const onWatch = isOnWatchlist(film);
     const inQueue = isOnQueue(film);
     const memberChips = [
@@ -4268,12 +4276,11 @@
     const tags = renderFilmTagChips(film);
     const expand = `
       <div class="film-row-expand"${open ? "" : " hidden"}>
-        <button type="button" class="btn btn-primary suggest-watch-btn film-expand-watch" data-act="choose" data-id="${id}">Anschauen</button>
-        <div class="suggest-split">
-          <button type="button" class="btn btn-compact" data-act="suggest-tag" data-id="${id}">Taggen</button>
-          <button type="button" class="btn btn-compact" data-act="suggest-watch" data-id="${id}" aria-pressed="${onWatch}">Watchlist</button>
+        <div class="suggest-actions">
+          ${anschauenButtonHtml("suggest-action suggest-action-watch film-expand-watch", `data-act="choose" data-id="${id}"`)}
+          <button type="button" class="btn suggest-action suggest-action-richtung" data-act="richtung" data-id="${id}"><span class="suggest-action-ico" aria-hidden="true">${ICONS.richtung}</span>Passende Richtung</button>
+          <button type="button" class="btn suggest-action suggest-action-watchlist" data-act="suggest-watch" data-id="${id}" aria-pressed="${onWatch ? "true" : "false"}"><span class="suggest-action-ico" aria-hidden="true">${onWatch ? ICONS.bookmarkOn : ICONS.bookmark}</span>Watchlist</button>
         </div>
-        <button type="button" class="btn btn-compact suggest-richtung" data-act="richtung" data-id="${id}">passende Richtung</button>
         ${listsBlock}
         <p class="film-expand-in-label">Tags</p>
         <div class="film-expand-tags" data-role="suggest-tags">${tags || `<span class="hint">Noch keine eigenen Tags</span>`}</div>
@@ -4489,7 +4496,7 @@
     const justWatched = !!(opts.gesehen && state.justWatchedId && state.justWatchedId === hid);
     const justChip = justWatched ? `<span class="just-watched-chip">Gerade angeschaut</span>` : "";
     const watchAction = expandable
-      ? `<button type="button" class="btn btn-primary film-expand-watch" data-act="choose" data-id="${id}">Anschauen</button>`
+      ? anschauenButtonHtml("film-expand-watch", `data-act="choose" data-id="${id}"`)
       : "";
     const meta = genre ? `<p class="film-expand-meta"><strong>${escapeHtml(genre)}</strong></p>` : "";
     const providerLine = formatProviderLine(film && (film.providers || fallbackProvidersFor(film)));
@@ -6636,7 +6643,7 @@
               <p class="zufall-stream-label">verfügbar auf:</p>
               <p class="zufall-providers" data-role="zufall-providers"></p>
             </div>
-            <button type="button" class="btn btn-primary zufall-watch" data-act="choose" data-id="">Anschauen</button>
+            ${anschauenButtonHtml("zufall-watch", `data-act="choose" data-id=""`)}
             <button type="button" class="zufall-again" data-act="zufall-again">Erneut drehen</button>
           </div>
         </div>
