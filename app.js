@@ -6695,7 +6695,7 @@
   function renderRatedTab() {
     const all = ratings();
     const chips = RATE_KEYS.map((r) => `
-      <button type="button" class="chip" data-act="rated-filter" data-id="${r.id}" aria-pressed="${state.ratedFilter === r.id}">${r.label}</button>
+      <button type="button" class="watch-add-chip rated-filter-chip" data-act="rated-filter" data-id="${r.id}" aria-pressed="${state.ratedFilter === r.id}">${r.label}</button>
     `).join("");
     const films = state.catalog.filter((f) => all[filmId(f)] === state.ratedFilter);
     const rows = films.map((film) => renderListRow(film, { rates: true })).join("");
