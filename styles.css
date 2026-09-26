@@ -4019,9 +4019,21 @@ body.on-login #app {
   .swipe-front.is-dismissing { transition: none; }
 }
 
+/* Draft 1 „Weiße Platte“: hell plate like tag chips, airy side arcs behind the posters. */
 .zufall-panel {
   padding-top: 2px;
   overflow-x: hidden;
+  background:
+    radial-gradient(ellipse 90% 132% at -28% 50%,
+      transparent 34.85%, #b4cce2 35.28%, #b4cce2 35.62%, transparent 36.08%,
+      transparent 43.85%, #c0d4e6 44.22%, #c0d4e6 44.52%, transparent 44.95%,
+      transparent 52.7%, #c9dced 53.02%, #c9dced 53.3%, transparent 53.68%,
+      transparent 61.45%, #d4e4f0 61.74%, #d4e4f0 61.98%, transparent 62.32%),
+    radial-gradient(ellipse 90% 132% at 128% 50%,
+      transparent 34.9%, #c0d4e6 35.32%, #c0d4e6 35.64%, transparent 36.1%,
+      transparent 43.95%, #cadcee 44.32%, #cadcee 44.6%, transparent 45.02%,
+      transparent 52.85%, #d5e5f1 53.16%, #d5e5f1 53.42%, transparent 53.78%),
+    linear-gradient(105deg, #f3f8fd 0%, #fff 46%, #e8f3fb 100%);
 }
 
 .zufall-head .sheet-title,
