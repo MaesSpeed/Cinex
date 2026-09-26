@@ -1047,28 +1047,84 @@ body.on-home #app {
   box-shadow: var(--shadow);
 }
 
-.suggest-split {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.suggest-actions {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  margin: 8px 0;
+  margin: 2px 0 12px;
 }
 
-.suggest-split .btn[aria-pressed="true"] {
-  background: var(--blue-soft);
-  color: var(--blue);
-  border-color: rgba(0, 102, 179, 0.35);
-  box-shadow: inset 0 0 0 1.5px var(--ember-border);
-}
-
-.suggest-richtung {
+.suggest-actions .suggest-action {
+  display: flex;
   width: 100%;
-  margin: 4px 0;
+  max-width: none;
+  min-height: 48px;
+  margin: 0;
+  padding: 10px 16px;
+  border-width: 1.5px;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 750;
+  line-height: 1.1;
+  gap: 10px;
+  white-space: nowrap;
 }
 
-.suggest-watch-btn {
-  margin: 4px 0;
-  font-weight: 750;
+.suggest-actions .btn-primary.suggest-action.film-expand-watch {
+  width: 100%;
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.suggest-actions .suggest-action-richtung {
+  background: #f5c518;
+  color: #1a1408;
+  border-color: #e0b10a;
+}
+
+.suggest-actions .suggest-action-richtung:active {
+  background: #e6b40c;
+}
+
+.suggest-actions .suggest-action-watchlist {
+  background: #fff;
+  color: var(--blue);
+  border-color: var(--blue);
+}
+
+.suggest-actions .suggest-action-watchlist:active {
+  background: #f4f9fc;
+}
+
+.suggest-actions .suggest-action-watchlist[aria-pressed="true"] {
+  background: #f3f8fc;
+  box-shadow: inset 0 0 0 1px var(--blue);
+}
+
+.suggest-action-ico,
+.btn-play {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.btn-play {
+  width: 16px;
+  height: 16px;
+}
+
+.suggest-actions .btn-play,
+.suggest-action-ico {
+  width: 18px;
+  height: 18px;
+}
+
+.suggest-action-ico svg,
+.btn-play svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .film-expand-tags.is-focus {
@@ -1519,7 +1575,6 @@ body.on-home #app {
   font-weight: 700;
 }
 
-.btn-primary.suggest-watch-btn,
 .btn-primary.suggest-inline-watch,
 .btn-primary.film-expand-watch {
   display: flex;
@@ -1527,6 +1582,7 @@ body.on-home #app {
   max-width: 60%;
   margin-left: auto;
   margin-right: auto;
+  white-space: nowrap;
 }
 
 .film-row.suggest-card.is-tall:not(.is-open) .film-row-body {
@@ -4522,6 +4578,7 @@ body.on-login #app {
   margin-top: 18px;
   border-radius: 14px;
   min-height: 46px;
+  white-space: nowrap;
 }
 
 .zufall-again {
