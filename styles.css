@@ -2095,6 +2095,19 @@ body.on-lists.has-footer.footer-open #app {
   padding: 3px 10px 3px 8px;
 }
 
+.rated-filter-chip {
+  margin: 0;
+  padding: 3px 12px;
+  white-space: nowrap;
+}
+
+.rated-filter-chip[aria-pressed="true"] {
+  background: var(--blue-soft);
+  color: var(--blue);
+  border-color: var(--blue);
+  box-shadow: inset 0 0 0 0.5px var(--blue);
+}
+
 .list-toolbar > .watch-search-chip {
   flex: 0 0 auto;
 }
