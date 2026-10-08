@@ -742,11 +742,25 @@ body.on-home #app {
   box-sizing: border-box;
   cursor: pointer;
   display: grid;
-  grid-template-columns: 72px 1fr;
+  grid-template-columns: 72px 1fr auto;
   align-items: center;
   gap: 12px;
   width: 100%;
   min-height: 64px;
+}
+
+.discover-hero-play {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 3px rgba(11, 58, 99, 0.16));
+}
+
+.discover-hero-play svg {
+  width: 48px;
+  height: 48px;
+  display: block;
+  overflow: visible;
 }
 
 .discover-hero .suggest-hero-copy {
@@ -1112,8 +1126,8 @@ body.on-home #app {
 }
 
 .btn-play {
-  width: 16px;
-  height: 16px;
+  width: 24px;
+  height: 24px;
 }
 
 .suggest-actions .btn-play,
@@ -1122,11 +1136,21 @@ body.on-home #app {
   height: 18px;
 }
 
+.suggest-actions .btn-play {
+  width: 26px;
+  height: 26px;
+}
+
 .suggest-action-ico svg,
 .btn-play svg {
   width: 100%;
   height: 100%;
   display: block;
+  overflow: visible;
+}
+
+.enamel-play-svg {
+  filter: drop-shadow(0 2px 2px rgba(11, 58, 99, 0.2));
 }
 
 .film-expand-tags.is-focus {
@@ -1909,6 +1933,10 @@ body.on-home #app {
 
 .rate svg { width: 28px; height: 20px; display: block; }
 
+.rate-thumb-svg {
+  filter: drop-shadow(0 1px 1px rgba(16, 32, 48, 0.18));
+}
+
 .rate.sel {
   outline: 2px solid #14202b;
   outline-offset: 1px;
@@ -2444,6 +2472,57 @@ body.on-lists.has-footer.footer-open #app {
 
 .swipe-action-queue {
   background: var(--snack);
+}
+
+.swipe-track.is-swipe-hint .swipe-action-queue {
+  background: var(--blue);
+}
+
+.swipe-track.is-swipe-hint {
+  overflow: visible;
+}
+
+.swipe-track.is-swipe-hint .swipe-front {
+  animation: watch-swipe-hint-nudge 2.4s ease-in-out 0.35s 1;
+  box-shadow: 0 3px 12px rgba(0, 102, 179, 0.14);
+}
+
+.swipe-track.is-swipe-hint::after {
+  content: "Wischen";
+  position: absolute;
+  right: 8px;
+  top: -9px;
+  z-index: 4;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  box-shadow: 0 2px 6px rgba(0, 102, 179, 0.28);
+}
+
+.swipe-track.is-swipe-hint::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  z-index: 4;
+  width: 26px;
+  height: 26px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  opacity: 0.55;
+  background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='none'%3E%3Cpath d='M8 14c0-4 2.8-7.2 6.5-8.2V4.5c0-.6.7-.9 1.1-.5l7.4 6.2c.4.3.4.9 0 1.2l-7.4 6.2c-.4.4-1.1.1-1.1-.5V20c-2.2.4-4 1.6-5.2 3.2-.3.4-.8 0-.6-.5.8-1.6 2.2-3 4-3.7V14z' fill='%235b6b7a'/%3E%3C/svg%3E");
+}
+
+@keyframes watch-swipe-hint-nudge {
+  0%, 100% { transform: translateX(0); }
+  22% { transform: translateX(34px); }
+  48% { transform: translateX(34px); }
+  70% { transform: translateX(6px); }
 }
 
 .swipe-action[hidden] {
@@ -3313,10 +3392,81 @@ body.on-lists.has-footer.footer-open #app {
 }
 
 .site-footer button svg,
-.site-footer .nav-zufall-icon {
+.site-footer .nav-zufall-icon,
+.site-footer .nav-listen-icon {
   width: 22px;
   height: 22px;
   display: block;
+}
+
+.nav-listen-icon {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+}
+
+.nav-listen-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5px;
+  width: 24px;
+  padding: 2px 2px 2.5px;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow:
+    0 0 0 0.5px rgba(197, 213, 227, 0.95),
+    0 1px 3px rgba(16, 32, 48, 0.16);
+}
+
+.nav-listen-row {
+  display: grid;
+  grid-template-columns: 8px 1fr 9px;
+  align-items: center;
+  gap: 1.5px;
+  min-height: 4px;
+}
+
+.nav-listen-poster {
+  width: 8px;
+  height: 11px;
+  border-radius: 1px;
+  object-fit: cover;
+  background: #7ebce0;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.7);
+}
+
+.nav-listen-poster.is-ph {
+  display: block;
+  background: linear-gradient(145deg, #8ec0e0, #5a8eb8);
+}
+
+.nav-listen-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.nav-listen-lines i {
+  display: block;
+  height: 1px;
+  border-radius: 1px;
+  background: #dce4ec;
+}
+
+.nav-listen-lines i:first-child {
+  width: 100%;
+}
+
+.nav-listen-lines i:last-child {
+  width: 72%;
+}
+
+.nav-listen-pill {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--blue);
 }
 
 .site-footer button[data-nav="entdecken"] {
@@ -4221,6 +4371,7 @@ body.on-login #app {
   .login-carousel-inner.is-hinting { animation: none; }
   .login-carousel { transition: none; }
   .swipe-front.is-dismissing { transition: none; }
+  .swipe-track.is-swipe-hint .swipe-front { animation: none; transform: translateX(28px); }
 }
 
 .zufall-panel {

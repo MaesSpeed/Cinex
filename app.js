@@ -852,34 +852,60 @@
     menu: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>`,
     chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`,
     chevronUp: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>`,
-    play: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8.15 5.15c-.78-.47-1.75.1-1.75 1v11.7c0 .9.97 1.47 1.75 1l9.85-5.85c.75-.45.75-1.55 0-2L8.15 5.15z"/></svg>`,
     richtung: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.9 3.55 3.35 10.05c-.72.29-.68 1.32.06 1.55l6.15 1.84 1.84 6.15c.23.74 1.26.78 1.55.06l6.5-16.55c.28-.7-.35-1.33-1.05-1.05z"/></svg>`,
     bookmark: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M7 4.2h10c.55 0 1 .45 1 1V20l-6-3.5L6 20V5.2c0-.55.45-1 1-1z"/></svg>`,
     bookmarkOn: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 3.5h10c.83 0 1.5.67 1.5 1.5V21l-6.5-3.8L5.5 21V5c0-.83.67-1.5 1.5-1.5z"/></svg>`,
   };
 
+  function svgPaintId(prefix) {
+    return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  const THUMB_RIM = "#a8b6c4";
+
+  function thumbEnamel(x, y, base, shade) {
+    return `<g transform="translate(${x} ${y})">
+      <path d="M7 8v-4.2c0-1.4.8-2.4 2-2.4s2 1 2 2.4V8h4.2c1.2 0 2 .9 1.8 2l-.8 5.2c-.2 1.1-1.1 1.8-2.2 1.8H7z" fill="${base}" stroke="${THUMB_RIM}" stroke-width="0.8" stroke-linejoin="round"/>
+      <rect x="0" y="8" width="6.2" height="9" rx="1.2" fill="${shade}" stroke="${THUMB_RIM}" stroke-width="0.8"/>
+      <path d="M1.1 9.4c1.6-1.1 3.6-1 4.9.2" fill="none" stroke="#fff" stroke-opacity="0.45" stroke-width="0.55" stroke-linecap="round"/>
+    </g>`;
+  }
+
   function rateIcon(id) {
+    const yellow = thumbEnamel(0, 0, "var(--yellow)", "#e0b020");
+    const red = thumbEnamel(0, 0, "var(--red)", "#cf2f2b");
     if (id === "sehr-gut") {
-      return `<svg viewBox="0 0 36 22" aria-hidden="true">
-        <g fill="#2e7d32">${thumb(2, 2)}${thumb(12, 2)}</g>
+      return `<svg viewBox="0 0 36 22" aria-hidden="true" class="rate-thumb-svg">
+        ${thumbEnamel(2, 2, "var(--green-strong)", "#256d2a")}${thumbEnamel(12, 2, "var(--green-strong)", "#256d2a")}
       </svg>`;
     }
     if (id === "gut") {
-      return `<svg viewBox="0 0 36 22" aria-hidden="true"><g fill="#81c784">${thumb(8, 2)}</g></svg>`;
+      return `<svg viewBox="0 0 36 22" aria-hidden="true" class="rate-thumb-svg">${thumbEnamel(8, 2, "var(--green-soft)", "#6fbb76")}</svg>`;
     }
     if (id === "ok") {
-      return `<svg viewBox="0 0 36 22" aria-hidden="true">
-        <g fill="#f4c430" transform="translate(18 11) rotate(-90) translate(-10 -9)">${thumb(2, 2)}</g>
+      return `<svg viewBox="0 0 36 22" aria-hidden="true" class="rate-thumb-svg">
+        <g transform="translate(18 11) rotate(-90) translate(-10 -9)">${yellow}</g>
       </svg>`;
     }
-    return `<svg viewBox="0 0 36 22" aria-hidden="true">
-      <g fill="#e53935" transform="translate(18 11) rotate(180) translate(-10 -9)">${thumb(2, 2)}</g>
+    return `<svg viewBox="0 0 36 22" aria-hidden="true" class="rate-thumb-svg">
+      <g transform="translate(18 11) rotate(180) translate(-10 -9)">${red}</g>
     </svg>`;
   }
 
-  function thumb(x, y) {
-    return `<path d="M${x + 7} ${y + 8}v-4.2c0-1.4.8-2.4 2-2.4s2 1 2 2.4V8h4.2c1.2 0 2 .9 1.8 2l-.8 5.2c-.2 1.1-1.1 1.8-2.2 1.8H${x + 7}z"/>
-      <rect x="${x}" y="${y + 8}" width="6.2" height="9" rx="1.2"/>`;
+  function enamelPlayIcon() {
+    const gid = svgPaintId("emberPlay");
+    return `<svg class="enamel-play-svg" viewBox="0 0 58 58" fill="none" aria-hidden="true">
+      <circle cx="29" cy="29" r="22" fill="rgba(255,255,255,.46)" stroke="#d4926a" stroke-width="1.15"/>
+      <circle cx="29" cy="29" r="18.5" fill="url(#${gid})" stroke="rgba(255,255,255,.96)" stroke-width="1"/>
+      <defs>
+        <linearGradient id="${gid}" x1="17" y1="12" x2="42" y2="48" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#fff"/>
+          <stop offset=".55" stop-color="#f8fbfe"/>
+          <stop offset="1" stop-color="#deedf6"/>
+        </linearGradient>
+      </defs>
+      <path d="M25 19.5L39 29 25 38.5z" fill="#0872bc"/>
+    </svg>`;
   }
 
   const state = {
@@ -3092,8 +3118,7 @@
       return;
     }
     footer.classList.toggle("is-visible", open);
-    const reserve = open || (state.screen === "lists" && !footer.hidden);
-    document.body.classList.toggle("footer-open", reserve);
+    document.body.classList.toggle("footer-open", open);
   }
 
   function contentOverflows() {
@@ -3110,6 +3135,7 @@
     if (!list) return;
     let last = list.scrollTop;
     list.addEventListener("scroll", () => {
+      dismissWatchSwipeHint();
       const y = list.scrollTop;
       onScrollDir(y - last, list);
       last = y;
@@ -3171,6 +3197,7 @@
       zufallBtn.title = empty ? "Mind. 1 Film" : "Zufallswahl";
     }
     paintFooterZufallIcon();
+    paintFooterListenIcon();
     if (isDesktopNav()) setPhoneFooterOpen(true);
   }
 
@@ -4232,6 +4259,7 @@
             <span class="suggest-hero-copy">
               <strong>Filme vorschlagen</strong>
             </span>
+            <span class="discover-hero-play btn-play" aria-hidden="true">${enamelPlayIcon()}</span>
           </button>
           <div data-role="discover-chips">${active}</div>
         </article>
@@ -4249,7 +4277,7 @@
   }
 
   function anschauenButtonHtml(className, attrs) {
-    return `<button type="button" class="btn btn-primary ${className}" ${attrs}><span class="btn-play" aria-hidden="true">${ICONS.play}</span>Anschauen</button>`;
+    return `<button type="button" class="btn btn-primary ${className}" ${attrs}><span class="btn-play" aria-hidden="true">${enamelPlayIcon()}</span>Anschauen</button>`;
   }
 
   function renderSuggestCard(film) {
@@ -5141,6 +5169,8 @@
         if (list.isConnected && Math.abs(list.scrollTop - scrollTop) > 1) list.scrollTop = scrollTop;
       });
     }
+    paintFooterListenIcon();
+    if (state.listTab === "watch") window.requestAnimationFrame(() => maybeWatchlistSwipeHint());
     paintZufallChip();
     updateFooter();
     scheduleFooterSync();
@@ -6619,6 +6649,49 @@
     icon.innerHTML = `<span class="watch-zufall-stack">${zufallChipTiles()}</span>`;
   }
 
+  function listenIconRowsHtml() {
+    const films = watchlistFilms().slice(0, 4);
+    const placeholders = [0, 1, 2, 3].map((i) => {
+      const film = films[i];
+      const poster = film ? (posterUrl(film, POSTER_SIZE_THUMB) || film.poster) : "";
+      const thumb = poster
+        ? `<img class="nav-listen-poster" src="${escapeHtml(poster)}" alt="" width="8" height="11" decoding="async" referrerpolicy="no-referrer">`
+        : `<span class="nav-listen-poster is-ph" aria-hidden="true"></span>`;
+      return `<span class="nav-listen-row">${thumb}<span class="nav-listen-lines" aria-hidden="true"><i></i><i></i></span><span class="nav-listen-pill" aria-hidden="true"></span></span>`;
+    });
+    return placeholders.join("");
+  }
+
+  function paintFooterListenIcon() {
+    const icon = footer && footer.querySelector("[data-role=footer-listen-icon]");
+    if (!icon) return;
+    icon.innerHTML = `<span class="nav-listen-card" aria-hidden="true">${listenIconRowsHtml()}</span>`;
+  }
+
+  function watchSwipeHintSeen() {
+    if (!state.user || !state.profile) return true;
+    return !!loadJson(pkey("watchSwipeHint"), false);
+  }
+
+  function dismissWatchSwipeHint() {
+    if (!state.user || !state.profile || watchSwipeHintSeen()) return;
+    saveJson(pkey("watchSwipeHint"), true);
+    document.querySelectorAll(".swipe-track.is-swipe-hint").forEach((row) => {
+      row.classList.remove("is-swipe-hint");
+    });
+  }
+
+  function maybeWatchlistSwipeHint() {
+    if (watchSwipeHintSeen()) return;
+    if (state.screen !== "lists" || state.listTab !== "watch") return;
+    const list = app.querySelector("[data-role=film-list]");
+    if (!list || !list.querySelector(".swipe-track")) return;
+    const track = list.querySelector(".swipe-track");
+    if (!track || track.classList.contains("is-swipe-hint")) return;
+    track.classList.add("is-swipe-hint");
+    window.setTimeout(() => dismissWatchSwipeHint(), 5200);
+  }
+
   function openZufallSheet() {
     const origin = defaultZufallOrigin().filter((id) => zufallSourceMeta(id));
     state.zufallOrigin = origin.slice();
@@ -7385,6 +7458,7 @@
       } else restoreSameTabListScroll(keptListScroll);
       bindFilmListScroll();
       observeListPostersSoon(app);
+      if (state.listTab === "watch") window.requestAnimationFrame(() => maybeWatchlistSwipeHint());
       const shown = app.querySelectorAll(".film-row");
       const films = [...shown].map((row) => findFilm(row.dataset.id)).filter(Boolean);
       if (state.listTab !== "seen") enrichListCast(films);
@@ -8257,6 +8331,7 @@
       return;
     }
     if (act === "list-tab") {
+      dismissWatchSwipeHint();
       state.listTab = t.dataset.id;
       state.expandedFilmId = null;
       state.seenRateFor = "";
@@ -8685,6 +8760,7 @@
 
   function beginRowSwipe(event) {
     if (event.pointerType === "mouse" && event.button !== 0) return;
+    dismissWatchSwipeHint();
     const row = event.target.closest("[data-swipe-row]");
     if (!row || !row.dataset.swipeMode) return;
     if (event.target.closest("[data-act=film-menu], .film-menu-pop, [data-act=watch-toggle], .film-row-expand, [data-act=rate], [data-act=film-tag], [data-act=choose], .suggest-inline-watch")) return;
