@@ -919,6 +919,9 @@
     watchSheetBaselineIds: null,
     watchCat: "blockbuster",
     watchSearch: "",
+    watchSearchContext: null,
+    searchContextAddedIds: [],
+    highlightWatchlistId: "",
     watchVisibleCount: WATCH_PAGE_SIZE,
     discoverPage: 0,
     discoverTotalPages: 1,
@@ -1802,18 +1805,23 @@
   function hideSnack() {
     window.clearTimeout(showSnack.tid);
     snackbar.hidden = true;
-    snackbar.classList.remove("is-danger", "is-warn", "is-info");
+    snackbar.classList.remove("is-danger", "is-warn", "is-info", "is-context");
     document.body.classList.remove("snack-on");
   }
 
-  function showSnack(text, tone) {
+  function showSnack(text, tone, extras) {
     const kind = snackKind(tone);
+    const tags = extras && extras.tags ? extras.tags : [];
     snackbar.hidden = false;
     snackbar.classList.toggle("is-danger", kind === "danger");
     snackbar.classList.toggle("is-warn", kind === "warn");
     snackbar.classList.toggle("is-info", kind === "info");
+    snackbar.classList.toggle("is-context", !!(extras && extras.context));
     document.body.classList.add("snack-on");
-    snackbar.innerHTML = `<span class="snackbar-mark" aria-hidden="true">${SNACK_MARK[kind]}</span><span class="snackbar-text">${escapeHtml(text)}</span>`;
+    const tagsHtml = tags.length
+      ? `<span class="snackbar-tags">${tags.map((tag) => `<span class="snackbar-tag">${escapeHtml(tag)}</span>`).join("")}</span>`
+      : "";
+    snackbar.innerHTML = `<span class="snackbar-mark" aria-hidden="true">${SNACK_MARK[kind]}</span><span class="snackbar-text">${escapeHtml(text)}</span>${tagsHtml}`;
     window.clearTimeout(showSnack.tid);
     showSnack.tid = window.setTimeout(hideSnack, 2600);
   }
@@ -4495,6 +4503,8 @@
         ` : "";
     const justWatched = !!(opts.gesehen && state.justWatchedId && state.justWatchedId === hid);
     const justChip = justWatched ? `<span class="just-watched-chip">Gerade angeschaut</span>` : "";
+    const searchAdded = !!(opts.searchContextAdded && onWatch);
+    const searchAddedBadge = searchAdded ? `<span class="search-added-badge" aria-hidden="true">In Watchlist</span>` : "";
     const watchAction = expandable
       ? anschauenButtonHtml("film-expand-watch", `data-act="choose" data-id="${id}"`)
       : "";
@@ -4522,9 +4532,10 @@
         </div>
       ` : "";
     const article = `
-      <article class="film-row${unrated ? " is-unrated" : ""}${opts.swipeMode ? " swipe-front" : ""}${expandable ? " is-expandable" : ""}${open ? " is-open" : ""}${justWatched ? " is-just-watched" : ""}"${opts.swipeMode ? "" : " data-swipe-row"} data-id="${id}"${opts.gesehen ? ' data-seen="1"' : ""}>
+      <article class="film-row${unrated ? " is-unrated" : ""}${opts.swipeMode ? " swipe-front" : ""}${expandable ? " is-expandable" : ""}${open ? " is-open" : ""}${justWatched ? " is-just-watched" : ""}${searchAdded ? " is-search-context-added" : ""}${opts.watchlistFlash ? " is-watchlist-flash" : ""}"${opts.swipeMode ? "" : " data-swipe-row"} data-id="${id}"${opts.gesehen ? ' data-seen="1"' : ""}>
         <div class="film-row-head"${expandable ? ` data-act="film-expand" data-id="${id}" aria-expanded="${open}"` : ""}>
           ${posterTile(film, { lazy: true, size: POSTER_SIZE_THUMB })}
+          ${searchAddedBadge}
           <div class="film-row-body">
             ${justChip}
             <div class="film-row-titleline">
@@ -4872,7 +4883,7 @@
     const ranked = rankSearchFilms(allKnownFilms(), query);
     return {
       ranked,
-      visible: withoutWatchlisted(ranked),
+      visible: ranked,
       thin: localTitleSearchIsThin(ranked, query),
     };
   }
@@ -4884,7 +4895,7 @@
   function watchSheetAllFilms() {
     if (state.watchSheet === "search") {
       if (!state.watchSearch.trim()) return [];
-      return withoutWatchlisted(state.searchHits || []);
+      return state.searchHits || [];
     }
     return withoutWatchlisted(watchCategoryFilms(state.watchCat || "blockbuster"));
   }
@@ -4948,7 +4959,9 @@
       return false;
     }
     const moreWrap = list.querySelector("[data-role=watch-more]");
-    const html = extra.map((film) => renderListRow(film, { toggle: true })).join("");
+    const html = extra.map((film) => (
+      state.watchSheet === "search" ? renderSearchResultRow(film) : renderListRow(film, { toggle: true })
+    )).join("");
     if (moreWrap) moreWrap.insertAdjacentHTML("beforebegin", html);
     else list.insertAdjacentHTML("beforeend", html);
     if (to >= all.length) {
@@ -4994,9 +5007,85 @@
     return "Keine Filme in dieser Kategorie.";
   }
 
+  function sheetLeavesBgHtml(variant) {
+    const layer = variant === "b" ? "sheet-bg-leaves-b" : "sheet-bg-leaves-a";
+    const soft = variant === "b" ? "" : '<span class="sheet-leaf soft"></span><span class="sheet-leaf soft"></span>';
+    return `<div class="sheet-bg ${layer}" aria-hidden="true">${"<span class=\"sheet-leaf\"></span>".repeat(6)}${soft}</div>`;
+  }
+
+  function resolveWatchSearchContext() {
+    if (state.screen !== "lists") return null;
+    if (state.listTab === "tags" && state.tagFilter.length) {
+      return { kind: "tags", tagIds: state.tagFilter.slice() };
+    }
+    if (state.listTab === "rated") {
+      const rate = RATE_KEYS.find((r) => r.id === (state.ratedFilter || "sehr-gut"));
+      return { kind: "rated", rating: state.ratedFilter || "sehr-gut", label: rate ? rate.label : "" };
+    }
+    if (state.listTab === "seen") {
+      return { kind: "seen" };
+    }
+    return null;
+  }
+
+  function renderWatchSearchContextBanner() {
+    const ctx = state.watchSearchContext;
+    if (!ctx) return "";
+    if (ctx.kind === "tags") {
+      const chips = (ctx.tagIds || []).map((id) => {
+        const tag = customTags().find((row) => row.id === id);
+        if (!tag) return "";
+        return `<span class="search-ctx-chip"><span class="search-ctx-dot" aria-hidden="true"></span>${escapeHtml(tag.name)}</span>`;
+      }).join("");
+      return `<div class="search-ctx-banner" role="status"><span class="search-ctx-label">Wird getaggt mit:</span>${chips}</div>`;
+    }
+    if (ctx.kind === "rated") {
+      const label = ctx.label || (RATE_KEYS.find((r) => r.id === ctx.rating)?.label || "");
+      return `<div class="search-ctx-banner" role="status"><span class="search-ctx-label">Wird bewertet als:</span><span class="search-ctx-chip"><span class="search-ctx-dot" aria-hidden="true"></span>${escapeHtml(label)}</span></div>`;
+    }
+    if (ctx.kind === "seen") {
+      return `<div class="search-ctx-banner" role="status"><span class="search-ctx-label">Kontext:</span><span class="search-ctx-chip"><span class="search-ctx-dot" aria-hidden="true"></span>Angesehen</span></div>`;
+    }
+    return "";
+  }
+
+  function renderWatchlistSearchRow(film) {
+    film = filmWithPoster(film) || film;
+    const runtime = durationPill(film);
+    const cast = filmCastLine(film);
+    const id = escapeHtml(filmId(film));
+    const hid = filmId(film);
+    const article = `
+      <article class="film-row is-on-watchlist swipe-front" data-id="${id}">
+        <div class="film-row-head">
+          ${posterTile(film, { lazy: true, size: POSTER_SIZE_THUMB })}
+          <div class="film-row-body">
+            <div class="film-row-titleline">
+              <h3 class="film-row-title">${escapeHtml(film.title)}</h3>
+              ${runtime ? `<span class="duration-pill">${escapeHtml(runtime)}</span>` : ""}
+            </div>
+            ${cast ? `<p class="film-row-cast">${escapeHtml(cast)}</p>` : ""}
+          </div>
+        </div>
+        <div class="search-watchlist-tray">
+          <button type="button" class="search-watchlist-goto" data-act="watch-search-goto" data-id="${id}">In Watchlist anzeigen <span class="arrow" aria-hidden="true">→</span></button>
+          ${anschauenButtonHtml("search-watchlist-watch", `data-act="choose" data-id="${id}"`)}
+        </div>
+      </article>
+    `;
+    return wrapSwipeTrack(article, hid, "search");
+  }
+
+  function renderSearchResultRow(film) {
+    if (isOnWatchlist(film)) return renderWatchlistSearchRow(film);
+    const added = (state.searchContextAddedIds || []).includes(filmId(film));
+    const row = renderListRow(film, { toggle: true, swipeMode: "search", searchContextAdded: added });
+    return row;
+  }
+
   function renderWatchSheetRows(films) {
     if (!films.length) return `<p class="hint">${escapeHtml(watchSheetEmptyText())}</p>`;
-    return films.map((film) => renderListRow(film, { toggle: true, swipeMode: "search" })).join("");
+    return films.map((film) => renderSearchResultRow(film)).join("");
   }
 
   function paintWatchSheetList() {
@@ -5026,7 +5115,10 @@
   }
 
   function renderWatchRows() {
-    return watchlistFilms().map((film) => renderListRow(film, { swipeMode: "watch" })).join("");
+    return watchlistFilms().map((film) => renderListRow(film, {
+      swipeMode: "watch",
+      watchlistFlash: state.highlightWatchlistId === filmId(film),
+    })).join("");
   }
 
   function refreshWatchList() {
@@ -5190,7 +5282,8 @@
     const searching = state.watchSheet === "search";
     if (searching) {
       return `
-        <div class="sheet-panel is-search" data-role="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="watch-search-title">
+        <div class="sheet-panel is-search has-sheet-bg" data-role="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="watch-search-title">
+          ${sheetLeavesBgHtml("b")}
           <div class="sheet-head" data-role="sheet-drag">
             <div class="sheet-handle" aria-hidden="true"></div>
             <h2 class="sheet-title" id="watch-search-title">Film suchen</h2>
@@ -5200,6 +5293,7 @@
             <span class="sheet-search-icon">${ICONS.search}</span>
             <input data-act="watch-search" placeholder="Film suchen" value="${escapeHtml(state.watchSearch)}" autocomplete="off" enterkeyhint="search">
           </div>
+          ${renderWatchSearchContextBanner()}
           <section class="film-list" data-role="watch-sheet-list">${renderWatchSheetListInner()}</section>
         </div>
       `;
@@ -5302,6 +5396,7 @@
   function openWatchSearchSheet() {
     closeFilmMenus();
     if (!state.watchSheetBaselineIds) captureWatchSheetBaseline();
+    state.watchSearchContext = resolveWatchSearchContext();
     state.watchSheet = "search";
     resetWatchSheetPage();
     paintWatchSheet();
@@ -5322,6 +5417,8 @@
     state.filterMore.zufall = false;
     clearWatchSheetBaseline();
     state.watchSearch = "";
+    state.watchSearchContext = null;
+    state.searchContextAddedIds = [];
     state.searchHits = [];
     state.searchStatus = "";
     state.similarQuery = "";
@@ -5871,7 +5968,7 @@
     try {
       const data = await proxyFetch("/search/movie", { query });
       if (seq !== searchSeq) return;
-      const remote = withoutWatchlisted((data.results || []).map(fromTmdbMovie).filter((film) => film && film.title));
+      const remote = (data.results || []).map(fromTmdbMovie).filter((film) => film && film.title);
       const merged = [];
       const seen = new Set();
       for (const film of local.concat(remote)) {
@@ -5880,7 +5977,7 @@
         seen.add(id);
         merged.push(film);
       }
-      state.searchHits = withoutWatchlisted(rankSearchFilms(merged, query, true));
+      state.searchHits = rankSearchFilms(merged, query, true);
       state.searchStatus = state.searchHits.length ? "ok" : "empty";
     } catch {
       if (seq !== searchSeq) return;
@@ -6600,7 +6697,8 @@
 
   function renderZufallSheetHtml() {
     return `
-      <div class="sheet-panel zufall-panel" data-role="sheet-panel">
+      <div class="sheet-panel zufall-panel has-sheet-bg" data-role="sheet-panel">
+        ${sheetLeavesBgHtml("a")}
         <div class="sheet-head zufall-head" data-role="sheet-drag">
           <div class="sheet-handle" aria-hidden="true"></div>
           <h2 class="sheet-title">Zufallswahl</h2>
@@ -7530,11 +7628,71 @@
     return removed;
   }
 
+  function applyWatchSearchContext(film) {
+    const ctx = state.watchSearchContext;
+    if (!ctx || !film) return null;
+    const id = filmId(film);
+    if (ctx.kind === "tags") {
+      const map = filmTags();
+      const have = new Set(map[id] || []);
+      (ctx.tagIds || []).forEach((tagId) => have.add(tagId));
+      map[id] = Array.from(have);
+      saveFilmTags(map);
+      const labels = (ctx.tagIds || []).map((tagId) => customTags().find((row) => row.id === tagId)?.name).filter(Boolean);
+      return { message: "Zur Watchlist + Tag", tags: labels, context: true };
+    }
+    if (ctx.kind === "rated") {
+      setRating(id, ctx.rating);
+      const label = ctx.label || (RATE_KEYS.find((r) => r.id === ctx.rating)?.label || "");
+      return { message: "Zur Watchlist + Bewertung", tags: label ? [label] : [], context: true };
+    }
+    if (ctx.kind === "seen") {
+      const rows = history().filter((row) => String(row.id) !== id);
+      rows.unshift({ id, title: film.title, at: Date.now() });
+      saveHistory(rows.slice(0, 300));
+      return { message: "Zur Watchlist + Angesehen", tags: ["Angesehen"], context: true };
+    }
+    return null;
+  }
+
+  function rememberSearchContextAdd(id) {
+    const hid = String(id);
+    if (!state.searchContextAddedIds.includes(hid)) {
+      state.searchContextAddedIds = state.searchContextAddedIds.concat(hid);
+    }
+  }
+
+  function jumpToWatchlistFilm(film) {
+    if (!film) return;
+    const hid = filmId(film);
+    state.screen = "lists";
+    state.listTab = "watch";
+    state.expandedFilmId = null;
+    state.highlightWatchlistId = hid;
+    closeWatchSheet();
+    render();
+    window.requestAnimationFrame(() => {
+      const list = app.querySelector("[data-role=film-list]");
+      const row = list && list.querySelector(`.film-row[data-id="${CSS.escape(hid)}"]`);
+      if (row) {
+        row.scrollIntoView({ block: "center", behavior: "smooth" });
+        row.classList.add("is-watchlist-flash");
+        window.setTimeout(() => {
+          row.classList.remove("is-watchlist-flash");
+          if (state.highlightWatchlistId === hid) state.highlightWatchlistId = "";
+        }, 2200);
+      } else {
+        state.highlightWatchlistId = "";
+      }
+    });
+  }
+
   function toggleWatchFilm(film) {
     if (!film) return;
     rememberFilm(film);
     if (isOnWatchlist(film)) {
       removeFromWatchlist(film);
+      state.searchContextAddedIds = state.searchContextAddedIds.filter((id) => id !== filmId(film));
       paintWatchToggles();
       refreshWatchList();
       if (state.watchSheet) paintWatchSheetList();
@@ -7544,9 +7702,15 @@
     addWatch(film);
     let queued = false;
     if (state.listTab === "queue") queued = addQueue(film);
+    const ctxSnack = state.watchSheet === "search" ? applyWatchSearchContext(film) : null;
+    if (ctxSnack) rememberSearchContextAdd(filmId(film));
     paintWatchToggles();
     refreshWatchList();
     if (state.watchSheet) paintWatchSheetList();
+    if (ctxSnack) {
+      showSnack(ctxSnack.message, "success", { tags: ctxSnack.tags, context: true });
+      return;
+    }
     showSnack(queued ? "Zu Watchlist und Demnächst hinzugefügt" : `${film.title} zur Watchlist hinzugefügt`);
   }
 
@@ -7620,6 +7784,10 @@
     }
     if (act === "watch-search-open") {
       openWatchSearchSheet();
+      return true;
+    }
+    if (act === "watch-search-goto") {
+      jumpToWatchlistFilm(findFilm(t.dataset.id));
       return true;
     }
     if (act === "watch-cat") {
@@ -8664,7 +8832,7 @@
     if (event.target.closest("[data-act=watch-sheet-close]")) return true;
     if (event.target.closest("[data-role=sheet-drag]")) return false;
     if (state.watchSheet === "search" && event.target.closest("[data-act=watch-search], .sheet-search-wrap")) return false;
-    if (event.target.closest("button, a, input, [data-role=zufall-carousel], [data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open], [data-act=watch-more], [data-role=watch-more], [data-swipe-row], [data-act=zufall-source], [data-act=zufall-more]")) return true;
+    if (event.target.closest("button, a, input, [data-role=zufall-carousel], [data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open], [data-act=watch-search-goto], [data-act=watch-more], [data-role=watch-more], [data-swipe-row], [data-act=zufall-source], [data-act=zufall-more]")) return true;
     const list = event.target.closest("[data-role=watch-sheet-list], [data-role=similar-list]");
     if (list && list.scrollTop > 2) return true;
     return false;
