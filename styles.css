@@ -4223,6 +4223,7 @@ body.on-login #app {
   .login-carousel-inner.is-hinting { animation: none; }
   .login-carousel { transition: none; }
   .swipe-front.is-dismissing { transition: none; }
+  .swipe-track.is-swipe-hint .swipe-front { animation: none; transform: translateX(28px); }
 }
 
 /* Draft 1 „Weiße Platte“: hell plate like tag chips, airy side arcs behind the posters. */
