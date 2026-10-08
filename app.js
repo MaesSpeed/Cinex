@@ -900,7 +900,19 @@
     similarStatus: "",
     similarDraft: [],
     similarVisible: 20,
-    filterMore: { genre: false, tags: false, streaming: false, types: false, zufall: false },
+    filterMore: {
+      genre: false,
+      tags: false,
+      streaming: false,
+      types: false,
+      zufall: false,
+      listWatch: false,
+      listQueue: false,
+      listRated: false,
+      listTags: false,
+      listTagsActions: false,
+      listSeen: false,
+    },
     shinePaused: false,
     currentPicks: [],
     shortlist: [],
@@ -1742,47 +1754,6 @@
     state.editTagColor = hex;
     const pill = app.querySelector(`[data-tag-card="${state.tagEditId}"] .tag-pill`);
     if (pill) pill.style.setProperty("--tag-color", hex);
-  }
-
-  let tagWaveTimer = 0;
-  let tagWaveTimeouts = [];
-
-  function clearTagWave() {
-    window.clearInterval(tagWaveTimer);
-    tagWaveTimer = 0;
-    tagWaveTimeouts.forEach((id) => window.clearTimeout(id));
-    tagWaveTimeouts = [];
-    app.querySelectorAll(".tag-manage-card.is-waving").forEach((card) => {
-      card.classList.remove("is-waving");
-    });
-  }
-
-  function runTagWave() {
-    if (state.screen !== "tags") return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    tagWaveTimeouts.forEach((id) => window.clearTimeout(id));
-    tagWaveTimeouts = [];
-    const cards = [...app.querySelectorAll("[data-tag-card]")];
-    cards.forEach((card, i) => {
-      const startId = window.setTimeout(() => {
-        card.classList.remove("is-waving");
-        void card.offsetWidth;
-        card.classList.add("is-waving");
-        const doneId = window.setTimeout(() => card.classList.remove("is-waving"), WAVE_MS);
-        tagWaveTimeouts.push(doneId);
-      }, i * 240);
-      tagWaveTimeouts.push(startId);
-    });
-  }
-
-  function scheduleTagWave() {
-    clearTagWave();
-    if (state.screen !== "tags") return;
-    const first = window.setTimeout(runTagWave, 320);
-    tagWaveTimeouts.push(first);
-    const count = app.querySelectorAll("[data-tag-card]").length;
-    const cycle = WAVE_MS + Math.max(0, count - 1) * 240 + 1800;
-    tagWaveTimer = window.setInterval(runTagWave, cycle);
   }
 
   const SNACK_MARK = {
@@ -2697,6 +2668,18 @@
     `;
   }
 
+  function renderListChipRow(key, chipsHtml) {
+    const expanded = !!state.filterMore[key];
+    return `
+      <div class="list-chip-row${expanded ? " is-expanded" : ""}">
+        <div class="filter-chips${expanded ? " is-expanded" : ""}" data-chip-row="${key}">
+          ${chipsHtml}
+        </div>
+        <button type="button" class="chip-more${expanded ? " is-weniger" : ""}" data-act="filter-more" data-key="${key}"${expanded ? "" : " hidden"}>${expanded ? "weniger" : "mehr"}</button>
+      </div>
+    `;
+  }
+
   function renderOverflowChips(key, items) {
     if (!items.length) {
       return `<span class="hint filter-empty">${key === "tags" ? "Noch keine eigenen Tags" : ""}</span>`;
@@ -2715,17 +2698,25 @@
     `;
   }
 
+  function chipOverflowRank(chip, key) {
+    if (key === "listRated" || key === "listSeen" || key === "listTags") {
+      return chip.getAttribute("aria-pressed") === "true" ? 2 : 0;
+    }
+    return 0;
+  }
+
   function paintChipOverflow() {
     const roots = [];
     if (state.screen === "discover" && state.discoverView === "hub") roots.push(app);
+    if (state.screen === "lists") roots.push(app);
     if (state.watchSheet === "zufall") roots.push(watchSheetEl);
     roots.forEach((root) => {
       if (!root) return;
       root.querySelectorAll("[data-chip-row]").forEach((row) => {
       const key = row.dataset.chipRow;
-      const wrap = row.closest(".filter-card, .zufall-chip-row") || row.parentElement;
+      const wrap = row.closest(".filter-card, .zufall-chip-row, .list-chip-row") || row.parentElement;
       const moreBtn = wrap ? wrap.querySelector("[data-act=filter-more], [data-act=zufall-more]") : null;
-      const chips = [...row.querySelectorAll(".chip, .tag-chip")];
+      const chips = [...row.querySelectorAll(".chip, .tag-chip, .watch-add-chip")].filter((chip) => !chip.classList.contains("watch-zufall-hint"));
       chips.forEach((chip) => { chip.hidden = false; });
       if (state.filterMore[key]) {
         row.classList.add("is-expanded");
@@ -2754,6 +2745,13 @@
         for (const chip of hideOrder) {
           if (!overflows()) break;
           if (chip.dataset.origin === "1") continue;
+          chip.hidden = true;
+        }
+      } else if (key === "listRated" || key === "listSeen" || key === "listTags") {
+        const hideOrder = chips.slice().reverse().sort((a, b) => chipOverflowRank(a, key) - chipOverflowRank(b, key));
+        for (const chip of hideOrder) {
+          if (!overflows()) break;
+          if (chipOverflowRank(chip, key) >= 2) continue;
           chip.hidden = true;
         }
       } else {
@@ -6658,8 +6656,7 @@
   function renderWatchTab() {
     const rows = renderWatchRows();
     const empty = watchlist().length < 1;
-    return `
-      <div class="list-toolbar">
+    const chips = `
         <button type="button" class="watch-add-chip" data-act="watch-sheet-open">
           <span class="watch-add-plus">${ICONS.plus}</span>
           Hinzufügen
@@ -6669,6 +6666,10 @@
           <span class="watch-zufall-stack" data-role="zufall-chip-icon">${zufallChipTiles()}</span>
           Zufall
         </button>
+    `;
+    return `
+      <div class="list-toolbar">
+        ${renderListChipRow("listWatch", chips)}
         <span class="watch-zufall-hint" data-role="zufall-empty-hint"${empty ? "" : " hidden"}>Mind. 1 Film</span>
       </div>
       <section class="film-list" data-role="film-list">${rows || `<p class="hint">Noch nichts auf der Watchlist.</p>`}</section>
@@ -6682,8 +6683,7 @@
   function renderQueueTab() {
     const rows = renderQueueRows();
     const empty = queue().length < 1;
-    return `
-      <div class="list-toolbar">
+    const chips = `
         <button type="button" class="watch-add-chip" data-act="watch-sheet-open">
           <span class="watch-add-plus">${ICONS.plus}</span>
           Hinzufügen
@@ -6693,6 +6693,10 @@
           <span class="watch-zufall-stack" data-role="zufall-chip-icon">${zufallChipTiles()}</span>
           Zufall
         </button>
+    `;
+    return `
+      <div class="list-toolbar">
+        ${renderListChipRow("listQueue", chips)}
         <span class="watch-zufall-hint" data-role="zufall-empty-hint"${empty ? "" : " hidden"}>Mind. 1 Film</span>
       </div>
       <section class="film-list" data-role="film-list">${rows || `<p class="hint">Noch nichts unter Demnächst.</p>`}</section>
@@ -6706,10 +6710,10 @@
     `).join("");
     const films = state.catalog.filter((f) => all[filmId(f)] === state.ratedFilter);
     const rows = films.map((film) => renderListRow(film, { rates: true })).join("");
+    const toolbarChips = `${renderListSearchChip()}${chips}`;
     return `
       <div class="list-toolbar">
-        ${renderListSearchChip()}
-        <div class="suggest-chips">${chips}</div>
+        ${renderListChipRow("listRated", toolbarChips)}
       </div>
       <section class="film-list" data-role="film-list">${rows || `<p class="hint">Keine Filme mit dieser Bewertung.</p>`}</section>
     `;
@@ -6724,29 +6728,33 @@
       pressed: state.tagFilter.includes(t.id),
       count: countFilmsWithTag(t.id),
     })).join("");
-    const selected = state.tagFilter.slice().sort();
+    const selected = state.tagFilter;
     const map = filmTags();
     const films = selected.length
       ? state.catalog.filter((f) => {
-        const have = (map[filmId(f)] || []).slice().sort();
-        return have.length === selected.length && have.every((id, i) => id === selected[i]);
+        const have = map[filmId(f)] || [];
+        return selected.every((tagId) => have.includes(tagId));
       })
       : [];
     const rows = films.map((film) => renderListRow(film, {})).join("");
-    const exactTag = selected.length === 1 ? tags.find((t) => t.id === selected[0]) : null;
-    const exactHint = exactTag
-      ? `<p class="hint hint-with-pill" style="margin-top:12px">Genau dieser Tag: ${tagPillHtml(exactTag)}</p>`
-      : "";
-    return `
-      ${exactHint}
-      <div class="list-toolbar is-tags">
-        <div class="tags-toolbar-actions">
+    let listBody = "";
+    if (!selected.length) {
+      listBody = `<p class="tags-filter-empty">Bitte mindestens einen Tag auswählen</p>`;
+    } else if (!rows) {
+      listBody = `<p class="tags-filter-empty">Für diese Tagkombination ist kein Film vorhanden</p>`;
+    } else {
+      listBody = rows;
+    }
+    const actionChips = `
           ${renderListSearchChip()}
           <button type="button" class="watch-add-chip tags-manage-btn" data-act="tags">Tags verwalten</button>
-        </div>
-        <div class="suggest-chips">${chips || `<span class="hint">Noch keine eigenen Tags</span>`}</div>
+    `;
+    return `
+      <div class="list-toolbar is-tags">
+        ${renderListChipRow("listTagsActions", actionChips)}
+        ${renderListChipRow("listTags", chips || `<span class="hint filter-empty">Noch keine eigenen Tags</span>`)}
       </div>
-      <section class="film-list" data-role="film-list">${selected.length ? (rows || `<p class="hint">Keine Filme mit genau diesen Tags.</p>`) : `<p class="hint">Tags wählen, um Filme zu sehen.</p>`}</section>
+      <section class="film-list" data-role="film-list">${listBody}</section>
     `;
   }
 
@@ -6811,13 +6819,14 @@
         rateLabel,
       });
     }).join("");
+    const chips = `
+          <button type="button" class="watch-add-chip rated-filter-chip" data-act="seen-unrated" aria-pressed="${state.seenOnlyUnrated}">Unbewertete</button>
+          <button type="button" class="watch-add-chip rated-filter-chip" data-act="seen-all" aria-pressed="${!state.seenOnlyUnrated}">Alle</button>
+    `;
+    const toolbarChips = `${renderListSearchChip()}${chips}`;
     return `
       <div class="list-toolbar">
-        ${renderListSearchChip()}
-        <div class="suggest-chips">
-          <button type="button" class="chip" data-act="seen-unrated" aria-pressed="${state.seenOnlyUnrated}">nur unbewertet</button>
-          <button type="button" class="chip" data-act="seen-all" aria-pressed="${!state.seenOnlyUnrated}">alle</button>
-        </div>
+        ${renderListChipRow("listSeen", toolbarChips)}
       </div>
       <section class="film-list" data-role="film-list">${cards || `<p class="hint">Noch keine gesehenen Filme.</p>`}</section>
     `;
@@ -7024,9 +7033,10 @@
           <p class="tag-edit-meta">${escapeHtml(tagPlatePhrase(draft.plate))} · Cover ${escapeHtml(coverDisplayTitle(draft.cover))}<br>eigene Cover landen dauerhaft in der Liste</p>
         </section>
         <section class="card tag-edit-block">
-          <h3>Name</h3>
-          <p class="tag-edit-sub">Kurzer Tag-Name, z. B. Kumpel oder Fam.</p>
-          <input class="glow-input" data-act="edit-tag-name" maxlength="10" value="${escapeHtml(state.editTagName)}" placeholder="Tagname" aria-label="Tagname">
+          <label class="tag-name-label">
+            <span class="tag-name-label-main">Tagname</span><span class="tag-name-label-hint"> (max. 10 Zeichen)</span>
+          </label>
+          <input class="glow-input" data-act="edit-tag-name" maxlength="10" value="${escapeHtml(state.editTagName)}" placeholder="z. B. Omma" aria-label="Tagname (max. 10 Zeichen)">
         </section>
         <section class="card tag-edit-block">
           <h3>Cover</h3>
@@ -7281,12 +7291,11 @@
       const films = [...shown].map((row) => findFilm(row.dataset.id)).filter(Boolean);
       if (state.listTab !== "seen") enrichListCast(films);
       if (state.expandedFilmId) enrichExpandedFilm(state.expandedFilmId);
+      window.requestAnimationFrame(paintChipOverflow);
     }
     else if (state.screen === "tags") app.innerHTML = renderTagsManage();
     else if (state.screen === "tag-edit") app.innerHTML = renderTagEdit();
     else if (state.screen === "done") app.innerHTML = renderDone();
-    if (state.screen === "tags") scheduleTagWave();
-    else clearTagWave();
     bindAccountCovers(app);
     scheduleFooterSync();
   }
@@ -7759,7 +7768,21 @@
     if (act === "toggle-filters") {
       state.filtersOpen = !state.filtersOpen;
       if (state.filtersOpen) state.shinePaused = false;
-      else state.filterMore = { genre: false, tags: false, streaming: false, types: false, zufall: false };
+      else {
+        state.filterMore = {
+          genre: false,
+          tags: false,
+          streaming: false,
+          types: false,
+          zufall: false,
+          listWatch: false,
+          listQueue: false,
+          listRated: false,
+          listTags: false,
+          listTagsActions: false,
+          listSeen: false,
+        };
+      }
       render();
       return;
     }
