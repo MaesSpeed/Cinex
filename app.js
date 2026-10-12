@@ -967,6 +967,8 @@
     ratedFilter: "sehr-gut",
     tagFilter: [],
     seenOnlyUnrated: false,
+    seenViewsExpanded: {},
+    seenDateEditId: "",
     justWatchedId: null,
     pinJustWatched: false,
     chosen: null,
@@ -1138,12 +1140,123 @@
     saveJson(pkey("queue"), list);
   }
 
+  function historyViews(row) {
+    if (!row || typeof row !== "object") return [];
+    if (Array.isArray(row.views) && row.views.length) {
+      return row.views.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => b - a);
+    }
+    const at = Number(row.at);
+    return Number.isFinite(at) && at > 0 ? [at] : [];
+  }
+
   function history() {
-    return loadJson(pkey("history"), []);
+    const rows = loadJson(pkey("history"), []);
+    let changed = false;
+    const next = rows.map((row) => {
+      if (!row || typeof row !== "object") return row;
+      if (Array.isArray(row.views) && row.views.length) return row;
+      const at = Number(row.at);
+      if (!Number.isFinite(at) || at <= 0) return row;
+      changed = true;
+      return Object.assign({}, row, { views: [at] });
+    });
+    if (changed) saveHistory(next);
+    return changed ? next : rows;
   }
 
   function saveHistory(list) {
     saveJson(pkey("history"), list);
+  }
+
+  function recordFilmWatched(film, at) {
+    if (!film) return;
+    const when = Number.isFinite(Number(at)) ? Number(at) : Date.now();
+    const hid = filmId(film);
+    const rows = history();
+    const idx = rows.findIndex((row) => String(row.id) === hid);
+    let entry;
+    if (idx >= 0) {
+      const prev = rows[idx];
+      const views = [when, ...historyViews(prev)];
+      entry = Object.assign({}, prev, { id: hid, title: film.title, at: when, views });
+      rows.splice(idx, 1);
+    } else {
+      entry = { id: hid, title: film.title, at: when, views: [when] };
+    }
+    rows.unshift(entry);
+    saveHistory(rows.slice(0, 300));
+  }
+
+  function removeLatestView(id) {
+    const hid = String(filmId(id));
+    const before = history();
+    const idx = before.findIndex((row) => String(row.id) === hid);
+    if (idx < 0) return null;
+    const row = before[idx];
+    const views = historyViews(row);
+    const removedAt = views[0];
+    const restViews = views.slice(1);
+    let next;
+    if (!restViews.length) {
+      next = before.filter((r) => String(r.id) !== hid);
+    } else {
+      const updated = Object.assign({}, row, { at: restViews[0], views: restViews });
+      next = before.slice();
+      next[idx] = updated;
+    }
+    saveHistory(next);
+    return { before, removedAt, hid };
+  }
+
+  function formatSeenShort(at) {
+    const d = new Date(Number(at));
+    if (!Number.isFinite(d.getTime())) return "";
+    return `${d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}.`;
+  }
+
+  function dateInputValueFromTs(ts) {
+    const d = new Date(Number(ts));
+    if (!Number.isFinite(d.getTime())) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function todayDateInputMax() {
+    return dateInputValueFromTs(Date.now());
+  }
+
+  function tsFromDateInput(value, fallbackTs) {
+    if (!value) return NaN;
+    const parts = String(value).split("-").map((x) => Number(x));
+    if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return NaN;
+    const d = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0);
+    const ts = d.getTime();
+    if (!Number.isFinite(ts)) return NaN;
+    const fb = Number(fallbackTs);
+    if (Number.isFinite(fb) && dateInputValueFromTs(fb) === value) {
+      const orig = new Date(fb);
+      d.setHours(orig.getHours(), orig.getMinutes(), orig.getSeconds(), orig.getMilliseconds());
+      return d.getTime();
+    }
+    return ts;
+  }
+
+  function updateLatestViewDate(id, newAt) {
+    const hid = String(filmId(id));
+    const rows = history();
+    const idx = rows.findIndex((row) => String(row.id) === hid);
+    if (idx < 0) return false;
+    const row = rows[idx];
+    const views = historyViews(row);
+    if (!views.length) return false;
+    views[0] = newAt;
+    const updated = Object.assign({}, row, { at: newAt, views });
+    const next = rows.slice();
+    next[idx] = updated;
+    saveHistory(next);
+    return true;
   }
 
   function tagStarterCovers() {
@@ -1786,10 +1899,10 @@
   }
 
   const SNACK_MARK = {
-    success: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#2c261f"/><path d="M7.1 12.3 10.3 15.5 17.1 8.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-    danger: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#7a2424"/><path d="M8.2 8.2 15.8 15.8M15.8 8.2 8.2 15.8" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>`,
-    warn: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="8.15" r="1.05" fill="currentColor"/><path d="M12 11.15v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
-    info: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="8.15" r="1.05" fill="currentColor"/><path d="M12 11.15v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+    success: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="var(--blue)"/><path d="M7.1 12.3 10.3 15.5 17.1 8.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    danger: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#d64545"/><path d="M8.2 8.2 15.8 15.8M15.8 8.2 8.2 15.8" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>`,
+    warn: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#2f5f86"/><text x="12" y="16.5" text-anchor="middle" fill="#fff" font-size="13" font-weight="800" font-family="system-ui,sans-serif">i</text></svg>`,
+    info: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#2f5f86"/><text x="12" y="16.5" text-anchor="middle" fill="#fff" font-size="13" font-weight="800" font-family="system-ui,sans-serif">i</text></svg>`,
   };
 
   function snackKind(tone) {
@@ -1801,6 +1914,7 @@
 
   function hideSnack() {
     window.clearTimeout(showSnack.tid);
+    showSnack.undoFn = null;
     snackbar.hidden = true;
     snackbar.classList.remove("is-danger", "is-warn", "is-info", "is-context");
     document.body.classList.remove("snack-on");
@@ -1809,6 +1923,8 @@
   function showSnack(text, tone, extras) {
     const kind = snackKind(tone);
     const tags = extras && extras.tags ? extras.tags : [];
+    const undoFn = extras && extras.undo ? extras.undo : null;
+    const duration = (extras && extras.duration) || (undoFn ? 5000 : 2600);
     snackbar.hidden = false;
     snackbar.classList.toggle("is-danger", kind === "danger");
     snackbar.classList.toggle("is-warn", kind === "warn");
@@ -1818,21 +1934,28 @@
     const tagsHtml = tags.length
       ? `<span class="snackbar-tags">${tags.map((tag) => `<span class="snackbar-tag">${escapeHtml(tag)}</span>`).join("")}</span>`
       : "";
-    snackbar.innerHTML = `<span class="snackbar-mark" aria-hidden="true">${SNACK_MARK[kind]}</span><span class="snackbar-text">${escapeHtml(text)}</span>${tagsHtml}`;
+    const actionHtml = undoFn
+      ? `<button type="button" class="snackbar-action" data-act="snack-undo">Rückgängig</button>`
+      : "";
+    snackbar.innerHTML = `<span class="snackbar-mark" aria-hidden="true">${SNACK_MARK[kind]}</span><span class="snackbar-text">${escapeHtml(text)}</span>${tagsHtml}${actionHtml}`;
+    showSnack.undoFn = undoFn;
     window.clearTimeout(showSnack.tid);
-    showSnack.tid = window.setTimeout(hideSnack, 2600);
+    showSnack.tid = window.setTimeout(hideSnack, duration);
   }
 
   let pendingSwipeRemove = null;
 
   function closeModal() {
     pendingSwipeRemove = null;
+    state.seenDateEditId = "";
+    modalEl.classList.remove("is-bottom");
     modalEl.hidden = true;
     modalEl.innerHTML = "";
   }
 
-  function openModal(html) {
+  function openModal(html, opts) {
     modalEl.hidden = false;
+    modalEl.classList.toggle("is-bottom", !!(opts && opts.bottom));
     modalEl.innerHTML = html;
   }
 
@@ -5075,16 +5198,32 @@
     return "";
   }
 
+  function searchWatchlistTrayHtml(film, id) {
+    const ctx = state.watchSearchContext;
+    let third = "";
+    if (ctx && ctx.kind === "tags") {
+      third = `<button type="button" class="search-watchlist-ctx" data-act="search-ctx-tag" data-id="${id}"><span class="search-watchlist-ctx-icon" aria-hidden="true">${ICONS.tags}</span>Taggen</button>`;
+    } else if (ctx && ctx.kind === "rated") {
+      third = `<button type="button" class="search-watchlist-ctx" data-act="search-ctx-rate" data-id="${id}"><span class="search-watchlist-ctx-icon rate-thumb-svg" aria-hidden="true">${rateIcon("sehr-gut")}</span>Bewerten</button>`;
+    }
+    const trayClass = third ? "search-watchlist-tray has-three" : "search-watchlist-tray";
+    return `
+        <div class="${trayClass}">
+          <button type="button" class="search-watchlist-goto" data-act="watch-search-goto" data-id="${id}">In Watchlist anzeigen <span class="arrow" aria-hidden="true">→</span></button>
+          ${anschauenButtonHtml("search-watchlist-watch", `data-act="choose" data-id="${id}"`)}
+          ${third}
+        </div>`;
+  }
+
   function renderWatchlistSearchRow(film) {
     film = filmWithPoster(film) || film;
     const runtime = durationPill(film);
     const cast = filmCastLine(film);
     const id = escapeHtml(filmId(film));
-    const hid = filmId(film);
-    const article = `
-      <article class="film-row is-on-watchlist swipe-front" data-id="${id}">
+    return `
+      <article class="film-row is-on-watchlist" data-id="${id}">
+        ${posterTile(film, { lazy: true, size: POSTER_SIZE_THUMB })}
         <div class="film-row-head">
-          ${posterTile(film, { lazy: true, size: POSTER_SIZE_THUMB })}
           <div class="film-row-body">
             <div class="film-row-titleline">
               <h3 class="film-row-title">${escapeHtml(film.title)}</h3>
@@ -5093,13 +5232,9 @@
             ${cast ? `<p class="film-row-cast">${escapeHtml(cast)}</p>` : ""}
           </div>
         </div>
-        <div class="search-watchlist-tray">
-          <button type="button" class="search-watchlist-goto" data-act="watch-search-goto" data-id="${id}">In Watchlist anzeigen <span class="arrow" aria-hidden="true">→</span></button>
-          ${anschauenButtonHtml("search-watchlist-watch", `data-act="choose" data-id="${id}"`)}
-        </div>
+        ${searchWatchlistTrayHtml(film, id)}
       </article>
     `;
-    return wrapSwipeTrack(article, hid, "search");
   }
 
   function renderSearchResultRow(film) {
@@ -6650,8 +6785,8 @@
   }
 
   function listenIconRowsHtml() {
-    const films = watchlistFilms().slice(0, 4);
-    const placeholders = [0, 1, 2, 3].map((i) => {
+    const films = watchlistFilms().slice(0, 3);
+    const placeholders = [0, 1, 2].map((i) => {
       const film = films[i];
       const poster = film ? (posterUrl(film, POSTER_SIZE_THUMB) || film.poster) : "";
       const thumb = poster
@@ -6935,36 +7070,50 @@
     return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
   }
 
-  function latestSeenId() {
-    let best = null;
-    for (const row of history()) {
-      if (!best || Number(row.at) > Number(best.at)) best = row;
-    }
-    return best ? String(best.id) : "";
-  }
+  const SEEN_UNDO_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7H5v4"/><path d="M5 11a7 7 0 1 0 1.6-4.4"/></svg>`;
 
   function renderSeenCard(film, opts) {
     film = filmWithPoster(film) || film;
     const id = escapeHtml(filmId(film));
     const hid = filmId(film);
-    const fresh = !!opts.fresh;
-    const seenDate = opts.seenDate || "";
+    const row = opts.historyRow;
+    const views = historyViews(row);
+    const seenDate = formatSeenOn(row.at);
+    const multi = views.length >= 2;
+    const expanded = !!state.seenViewsExpanded[hid];
     const bubble = state.seenRateFor === hid;
+    const undoBtn = `<button type="button" class="seen-undo-open" data-act="seen-undo-view" data-id="${id}">${SEEN_UNDO_ICON}Rückgängig</button>`;
     const rateValue = opts.rateLabel
-      ? `<span class="seen-rate-value">${escapeHtml(opts.rateLabel)}</span>`
-      : `<button type="button" class="seen-rate-open" data-act="seen-rate-open" data-id="${id}" aria-expanded="${bubble ? "true" : "false"}">Bewerten</button>`;
+      ? `<span class="seen-rate-value">${escapeHtml(opts.rateLabel)}</span> ${undoBtn}`
+      : `<button type="button" class="seen-rate-open" data-act="seen-rate-open" data-id="${id}" aria-expanded="${bubble ? "true" : "false"}">Bewerten</button> ${undoBtn}`;
     const bubbleHtml = bubble
       ? `<div class="seen-rate-bubble" data-role="seen-rate-bubble" role="group" aria-label="Bewertung">${renderRates(film, true)}</div>`
       : "";
+    const datePill = `<button type="button" class="seen-date-pill" data-act="seen-date-open" data-id="${id}">Gesehen: ${escapeHtml(seenDate)} <span class="seen-date-edit" aria-hidden="true">✎</span></button>`;
+    const viewsBadge = multi
+      ? `<button type="button" class="seen-views-badge" data-act="seen-views-toggle" data-id="${id}" aria-expanded="${expanded ? "true" : "false"}">${views.length}× gesehen <span aria-hidden="true">${expanded ? "▴" : "▾"}</span></button>`
+      : "";
+    const viewsList = multi && expanded
+      ? `<ul class="seen-views-list">${views.map((v, i) => {
+        const label = formatSeenOn(v);
+        const latest = i === 0;
+        const editBtn = latest
+          ? ` <button type="button" class="seen-date-pill" data-act="seen-date-open" data-id="${id}" style="padding:1px 6px;font-size:11px">✎</button>`
+          : "";
+        const zuletzt = latest ? ` <span class="seen-views-zuletzt">(zuletzt)</span>` : "";
+        return `<li class="seen-views-item${latest ? " is-latest" : ""}">${escapeHtml(label)}${zuletzt}${editBtn}</li>`;
+      }).join("")}</ul>`
+      : "";
     return `
-      <article class="film-row seen-card${fresh ? " is-fresh" : ""}${opts.unrated ? " is-unrated" : ""}" data-seen="1" data-id="${id}">
+      <article class="film-row seen-card${opts.unrated ? " is-unrated" : ""}" data-seen="1" data-id="${id}">
         <div class="film-row-head">
-          ${posterTile(film, { lazy: true, size: fresh ? POSTER_SIZE_CARD : POSTER_SIZE_THUMB })}
+          ${posterTile(film, { lazy: true, size: POSTER_SIZE_THUMB })}
           <div class="film-row-body">
             <h3 class="film-row-title">${escapeHtml(film.title)}</h3>
             <div class="seen-stack">
-              ${fresh ? `<span class="chip is-lava seen-fresh-chip">Gerade angeschaut</span>` : ""}
-              <p class="seen-meta">Zuletzt gesehen: ${escapeHtml(seenDate)}</p>
+              ${datePill}
+              ${viewsBadge}
+              ${viewsList}
               <p class="seen-meta seen-rate-line">Bewertung: ${rateValue}</p>
               ${bubbleHtml}
             </div>
@@ -6974,10 +7123,72 @@
     `;
   }
 
+  function openSeenDateSheet(id) {
+    const hid = filmId(id);
+    const row = history().find((r) => String(r.id) === hid);
+    const film = findFilm(hid) || (row ? { id: hid, title: row.title } : null);
+    if (!row || !film) return;
+    state.seenDateEditId = hid;
+    const current = historyViews(row)[0] || row.at;
+    const maxDay = todayDateInputMax();
+    openModal(`
+      <div class="modal-card seen-date-sheet">
+        <h2>Wann gesehen?</h2>
+        <p class="hint">${escapeHtml(film.title)}</p>
+        <div class="seen-date-chips">
+          <button type="button" class="chip" data-act="seen-date-pick" data-offset="0">Heute</button>
+          <button type="button" class="chip" data-act="seen-date-pick" data-offset="1">Gestern</button>
+          <button type="button" class="chip" data-act="seen-date-pick" data-offset="2">Vorgestern</button>
+        </div>
+        <input class="seen-date-field" type="date" max="${maxDay}" data-act="seen-date-input" value="${escapeHtml(dateInputValueFromTs(current))}" aria-label="Datum">
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-act="seen-date-cancel">Abbrechen</button>
+          <button type="button" class="btn btn-primary btn-confirm" data-act="seen-date-save" data-id="${escapeHtml(hid)}">Speichern</button>
+        </div>
+      </div>
+    `, { bottom: true });
+    syncSeenDateSaveDisabled();
+  }
+
+  function syncSeenDateSaveDisabled() {
+    const input = modalEl.querySelector("[data-act=seen-date-input]");
+    const save = modalEl.querySelector("[data-act=seen-date-save]");
+    if (!input || !save) return;
+    const max = todayDateInputMax();
+    const ok = input.value && input.value <= max;
+    save.disabled = !ok;
+  }
+
+  function commitSeenDateSave(id) {
+    const hid = filmId(id);
+    const input = modalEl.querySelector("[data-act=seen-date-input]");
+    if (!input || !input.value) return;
+    const max = todayDateInputMax();
+    if (input.value > max) return;
+    const row = history().find((r) => String(r.id) === hid);
+    if (!row) return;
+    const prevAt = historyViews(row)[0] || row.at;
+    const before = history();
+    const newAt = tsFromDateInput(input.value, prevAt);
+    if (!Number.isFinite(newAt) || newAt > Date.now()) return;
+    if (!updateLatestViewDate(hid, newAt)) return;
+    closeModal();
+    if (state.justWatchedId === hid && newAt < Date.now() - 60000) {
+      state.justWatchedId = null;
+      state.pinJustWatched = false;
+    }
+    render();
+    showSnack("Datum geändert", "success", {
+      undo: () => {
+        saveHistory(before);
+        render();
+      },
+    });
+  }
+
   function renderSeenTab() {
     const all = ratings();
     let rows = history().slice().sort((a, b) => b.at - a.at);
-    const freshId = latestSeenId();
     if (state.seenOnlyUnrated) rows = rows.filter((row) => !all[String(row.id)]);
     const cards = rows.map((row) => {
       const film = findFilm(row.id) || { id: row.id, title: row.title, genre: "Film", minutes: 0, poster: "", color: "#1d4f91" };
@@ -6985,8 +7196,7 @@
       const rateLabel = unrated ? "" : (RATE_KEYS.find((r) => r.id === all[String(row.id)])?.label || "");
       return renderSeenCard(film, {
         unrated,
-        fresh: String(row.id) === freshId,
-        seenDate: formatSeenOn(row.at),
+        historyRow: row,
         rateLabel,
       });
     }).join("");
@@ -7730,9 +7940,7 @@
       return { message: "Zur Watchlist + Bewertung", tags: label ? [label] : [], context: true };
     }
     if (ctx.kind === "seen") {
-      const rows = history().filter((row) => String(row.id) !== id);
-      rows.unshift({ id, title: film.title, at: Date.now() });
-      saveHistory(rows.slice(0, 300));
+      recordFilmWatched(film);
       return { message: "Zur Watchlist + Angesehen", tags: ["Angesehen"], context: true };
     }
     return null;
@@ -7750,11 +7958,12 @@
     const hid = filmId(film);
     state.screen = "lists";
     state.listTab = "watch";
-    state.expandedFilmId = null;
+    state.expandedFilmId = hid;
     state.highlightWatchlistId = hid;
     closeWatchSheet();
     render();
     window.requestAnimationFrame(() => {
+      enrichExpandedFilm(hid);
       const list = app.querySelector("[data-role=film-list]");
       const row = list && list.querySelector(`.film-row[data-id="${CSS.escape(hid)}"]`);
       if (row) {
@@ -7802,9 +8011,7 @@
     rememberFilm(film);
     scheduleLiveDetails(film);
     const hid = filmId(film);
-    const rows = history().filter((row) => String(row.id) !== hid);
-    rows.unshift({ id: hid, title: film.title, at: Date.now() });
-    saveHistory(rows.slice(0, 300));
+    recordFilmWatched(film);
     resetSessionPicks();
     state.chosen = film;
     state.justWatchedId = hid;
@@ -7861,8 +8068,32 @@
       swapZufallFront(t.dataset.side);
       return true;
     }
-    if (act === "choose" && state.watchSheet === "zufall") {
+    if (act === "choose") {
       chooseFilm(findFilm(t.dataset.id));
+      return true;
+    }
+    if (act === "search-ctx-tag") {
+      const film = findFilm(t.dataset.id);
+      const ctx = state.watchSearchContext;
+      if (!film || !ctx || ctx.kind !== "tags") return true;
+      rememberFilm(film);
+      const map = filmTags();
+      const have = new Set(map[filmId(film)] || []);
+      (ctx.tagIds || []).forEach((tagId) => have.add(tagId));
+      map[filmId(film)] = Array.from(have);
+      saveFilmTags(map);
+      const labels = (ctx.tagIds || []).map((tagId) => customTags().find((row) => row.id === tagId)?.name).filter(Boolean);
+      showSnack("Getaggt", "success", { tags: labels, context: true });
+      return true;
+    }
+    if (act === "search-ctx-rate") {
+      const film = findFilm(t.dataset.id);
+      const ctx = state.watchSearchContext;
+      if (!film || !ctx || ctx.kind !== "rated") return true;
+      rememberFilm(film);
+      setRating(filmId(film), ctx.rating);
+      const label = ctx.label || (RATE_KEYS.find((r) => r.id === ctx.rating)?.label || "");
+      showSnack("Bewertet", "success", { tags: label ? [label] : [], context: true });
       return true;
     }
     if (act === "watch-search-open") {
@@ -8230,6 +8461,37 @@
       render();
       return;
     }
+    if (act === "seen-date-open") {
+      openSeenDateSheet(t.dataset.id);
+      return;
+    }
+    if (act === "seen-views-toggle") {
+      const id = filmId(t.dataset.id);
+      state.seenViewsExpanded[id] = !state.seenViewsExpanded[id];
+      render();
+      return;
+    }
+    if (act === "seen-undo-view") {
+      const film = findFilm(t.dataset.id);
+      const hid = filmId(t.dataset.id);
+      const result = removeLatestView(hid);
+      if (!result) return;
+      if (state.justWatchedId === hid) {
+        state.justWatchedId = null;
+        state.pinJustWatched = false;
+      }
+      if (state.expandedFilmId === hid) state.expandedFilmId = null;
+      render();
+      const label = formatSeenShort(result.removedAt);
+      const title = film ? film.title : hid;
+      showSnack(`Sichtung vom ${label} entfernt`, "success", {
+        undo: () => {
+          saveHistory(result.before);
+          render();
+        },
+      });
+      return;
+    }
     if (act === "rate") {
       setRating(t.dataset.id, t.dataset.n);
       state.seenRateFor = "";
@@ -8549,6 +8811,7 @@
     const act = t && t.dataset ? t.dataset.act : "";
     if (act === "tag-name") state.newTagName = t.value.slice(0, 10);
     if (act === "spectrum-hue" || act === "spectrum-sat") onSpectrumInput(t);
+    if (act === "seen-date-input") syncSeenDateSaveDisabled();
   });
 
   modalEl.addEventListener("click", (event) => {
@@ -8560,6 +8823,26 @@
     if (!t) return;
     if (t.dataset.act === "modal-close") {
       closeModal();
+      return;
+    }
+    if (t.dataset.act === "seen-date-cancel") {
+      closeModal();
+      return;
+    }
+    if (t.dataset.act === "seen-date-save") {
+      commitSeenDateSave(t.dataset.id);
+      return;
+    }
+    if (t.dataset.act === "seen-date-pick") {
+      const input = modalEl.querySelector("[data-act=seen-date-input]");
+      if (!input) return;
+      const offset = Number(t.dataset.offset);
+      if (!Number.isFinite(offset)) return;
+      const d = new Date();
+      d.setHours(12, 0, 0, 0);
+      d.setDate(d.getDate() - offset);
+      input.value = dateInputValueFromTs(d.getTime());
+      syncSeenDateSaveDisabled();
       return;
     }
     if (t.dataset.act === "delete-profile") {
@@ -8903,6 +9186,14 @@
     handleWatchUiClick(event);
   });
 
+  snackbar.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-act=snack-undo]");
+    if (!btn || snackbar.hidden || !showSnack.undoFn) return;
+    const fn = showSnack.undoFn;
+    hideSnack();
+    fn();
+  });
+
   watchSheetEl.addEventListener("input", (event) => {
     const t = event.target;
     if (!t || !t.dataset) return;
@@ -8931,7 +9222,7 @@
     if (event.target.closest("[data-act=watch-sheet-close]")) return true;
     if (event.target.closest("[data-role=sheet-drag]")) return false;
     if (state.watchSheet === "search" && event.target.closest("[data-act=watch-search], .sheet-search-wrap")) return false;
-    if (event.target.closest("button, a, input, [data-role=zufall-carousel], [data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open], [data-act=watch-search-goto], [data-act=watch-more], [data-role=watch-more], [data-swipe-row], [data-act=zufall-source], [data-act=zufall-more]")) return true;
+    if (event.target.closest("button, a, input, [data-role=zufall-carousel], [data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open], [data-act=watch-search-goto], [data-act=search-ctx-tag], [data-act=search-ctx-rate], [data-act=watch-more], [data-role=watch-more], [data-swipe-row], [data-act=zufall-source], [data-act=zufall-more]")) return true;
     const list = event.target.closest("[data-role=watch-sheet-list], [data-role=similar-list]");
     if (list && list.scrollTop > 2) return true;
     return false;
