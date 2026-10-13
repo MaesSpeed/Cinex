@@ -908,6 +908,56 @@
     </svg>`;
   }
 
+  function videoSwitchSvg() {
+    return `<svg class="switch-icon icon-swap" viewBox="5 7 14 10" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10h11l-2.5-2.5M17 14H6l2.5 2.5"/><path d="M18 10l-2.5 2.5M6 14l2.5-2.5"/></svg>`;
+  }
+
+  function videoCoverSvg() {
+    return `<svg class="cov" viewBox="0 0 72 52" aria-hidden="true"><defs><linearGradient id="avel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4a0d16"/><stop offset=".25" stop-color="#9c2230"/><stop offset=".5" stop-color="#5c1019"/><stop offset=".75" stop-color="#a82838"/><stop offset="1" stop-color="#4a0d16"/></linearGradient><pattern id="afolds" width="4" height="52" patternUnits="userSpaceOnUse"><rect width="4" height="52" fill="url(#avel)"/></pattern><radialGradient id="ascr" cx=".5" cy=".42" r=".7"><stop offset="0" stop-color="#2a4f78"/><stop offset=".55" stop-color="#132a44"/><stop offset="1" stop-color="#0a1524"/></radialGradient><linearGradient id="agold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6dfa4"/><stop offset=".45" stop-color="#c9a256"/><stop offset=".7" stop-color="#f3d690"/><stop offset="1" stop-color="#9c7533"/></linearGradient><radialGradient id="aplate" cx=".4" cy=".35" r=".75"><stop offset="0" stop-color="#ffffff"/><stop offset=".6" stop-color="#f3f8fc"/><stop offset="1" stop-color="#d6e7f3"/></radialGradient><radialGradient id="aglow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#f6d08a" stop-opacity=".55"/><stop offset="1" stop-color="#f6d08a" stop-opacity="0"/></radialGradient></defs><rect width="72" height="52" rx="9" fill="url(#ascr)"/><path d="M0 0h20c-3 14-6 30-5 52H9C4 52 0 48 0 43z" fill="url(#afolds)"/><path d="M72 0H52c3 14 6 30 5 52h6c5 0 9-4 9-9z" fill="url(#afolds)"/><path d="M15 30c3-1 4 1 3 3" stroke="url(#agold)" stroke-width="1.6" fill="none"/><path d="M57 30c-3-1-4 1-3 3" stroke="url(#agold)" stroke-width="1.6" fill="none"/><path d="M0 0h72v7c-4 3-8 3-12 0-4 3-8 3-12 0-4 3-8 3-12 0-4 3-8 3-12 0-4 3-8 3-12 0-4 3-8 3-12 0z" fill="url(#avel)"/><path d="M0 7c4 3 8 3 12 0 4 3 8 3 12 0 4 3 8 3 12 0 4 3 8 3 12 0 4 3 8 3 12 0 4 3 8 3 12 0" stroke="url(#agold)" stroke-width="1.1" fill="none"/><ellipse cx="36" cy="29" rx="14" ry="11" fill="url(#aglow)"/><circle cx="36" cy="29" r="10.2" fill="none" stroke="url(#agold)" stroke-width="1.3"/><circle cx="36" cy="29" r="8" fill="url(#aplate)" stroke="#fff" stroke-width=".8"/><path d="M33.44 25.16L40.4 29L33.44 32.84z" fill="#0872bc"/><rect x=".5" y=".5" width="71" height="51" rx="8.5" fill="none" stroke="url(#agold)" stroke-width="1"/></svg>`;
+  }
+
+  function detectPlatform(urlStr) {
+    if (!urlStr || typeof urlStr !== "string") return { id: "generic", label: "Web", cls: "plat-generic" };
+    try {
+      const url = new URL(urlStr.trim().startsWith("http") ? urlStr.trim() : `https://${urlStr.trim()}`);
+      const host = url.hostname.toLowerCase();
+      if (host.includes("youtube.com") || host.includes("youtu.be")) return { id: "yt", label: "YouTube", cls: "plat-yt" };
+      if (host.includes("instagram.com")) return { id: "ig", label: "Instagram", cls: "plat-ig" };
+      if (host.includes("facebook.com") || host.includes("fb.watch") || host.includes("fb.com")) return { id: "fb", label: "Facebook", cls: "plat-fb" };
+      if (host.includes("tiktok.com")) return { id: "tiktok", label: "TikTok", cls: "plat-tiktok" };
+      if (host.includes("vimeo.com")) return { id: "vimeo", label: "Vimeo", cls: "plat-vimeo" };
+      if (host.includes("twitch.tv")) return { id: "twitch", label: "Twitch", cls: "plat-twitch" };
+      if (host.includes("netflix.com")) return { id: "netflix", label: "Netflix", cls: "plat-netflix" };
+      if (host.includes("amazon.") || host.includes("primevideo.com")) return { id: "prime", label: "Prime Video", cls: "plat-prime" };
+      if (host.includes("disneyplus.com")) return { id: "disney", label: "Disney+", cls: "plat-disney" };
+      if (host.includes("ardmediathek.de")) return { id: "ard", label: "ARD Mediathek", cls: "plat-mediathek" };
+      if (host.includes("zdf.de")) return { id: "zdf", label: "ZDF Mediathek", cls: "plat-mediathek" };
+      const clean = host.replace(/^www\./, "");
+      return { id: "generic", label: clean, cls: "plat-generic" };
+    } catch {
+      return { id: "generic", label: "Web", cls: "plat-generic" };
+    }
+  }
+
+  function platformBadgeHtml(platId, labelOverride) {
+    if (platId === "yt") return `<span class="v-plat plat-yt"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23 12s0-3.6-.46-5.2a2.9 2.9 0 0 0-2-2C18.8 4.3 12 4.3 12 4.3s-6.8 0-8.54.5a2.9 2.9 0 0 0-2 2C1 8.4 1 12 1 12s0 3.6.46 5.2a2.9 2.9 0 0 0 2 2c1.74.5 8.54.5 8.54.5s6.8 0 8.54-.5a2.9 2.9 0 0 0 2-2C23 15.6 23 12 23 12zm-13 3.3V8.7L16.2 12 10 15.3z"/></svg> ${labelOverride || "YT"}</span>`;
+    if (platId === "ig") return `<span class="v-plat plat-ig"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 7.2A4.8 4.8 0 1 0 12 16.8 4.8 4.8 0 0 0 12 7.2zm0 7.9a3.1 3.1 0 1 1 0-6.2 3.1 3.1 0 0 1 0 6.2zm6.1-8.2a1.1 1.1 0 1 1-2.2 0 1.1 1.1 0 0 1 2.2 0zM12 3.5c-2.3 0-2.6 0-3.5.05-.9.04-1.5.2-2 .38a4 4 0 0 0-1.45.94 4 4 0 0 0-.94 1.45c-.18.5-.34 1.1-.38 2C3.5 9.4 3.5 9.7 3.5 12s0 2.6.05 3.5c.04.9.2 1.5.38 2a4 4 0 0 0 .94 1.45 4 4 0 0 0 1.45.94c.5.18 1.1.34 2 .38.9.05 1.2.05 3.5.05s2.6 0 3.5-.05c.9-.04 1.5-.2 2-.38a4 4 0 0 0 1.45-.94 4 4 0 0 0 .94-1.45c.18-.5.34-1.1.38-2 .05-.9.05-1.2.05-3.5s0-2.6-.05-3.5c-.04-.9-.17-1.26-.28-1.56-.15-.39-.33-.67-.62-.96-.29-.29-.57-.47-.96-.62-.3-.11-.74-.24-1.56-.28C14.6 3.5 14.3 3.5 12 3.5z"/></svg> ${labelOverride || "IG"}</span>`;
+    if (platId === "fb") return `<span class="v-plat plat-fb"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H7v3h3v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg> ${labelOverride || "FB"}</span>`;
+    if (platId === "tiktok") return `<span class="v-plat plat-tiktok">TikTok</span>`;
+    if (platId === "vimeo") return `<span class="v-plat plat-vimeo">Vimeo</span>`;
+    if (platId === "twitch") return `<span class="v-plat plat-twitch">Twitch</span>`;
+    if (platId === "netflix") return `<span class="v-plat plat-netflix">Netflix</span>`;
+    if (platId === "prime") return `<span class="v-plat plat-prime">Prime</span>`;
+    if (platId === "disney") return `<span class="v-plat plat-disney">Disney+</span>`;
+    if (platId === "ard") return `<span class="v-plat plat-mediathek">ARD</span>`;
+    if (platId === "zdf") return `<span class="v-plat plat-mediathek">ZDF</span>`;
+    return `<span class="v-plat plat-generic">${escapeHtml(labelOverride || platId || "Web")}</span>`;
+  }
+
+  function externalLinkSvg() {
+    return `<svg class="video-ext-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 5h5v5"/><path d="M10 14L19 5"/><path d="M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>`;
+  }
+
   const state = {
     screen: "login",
     authMode: "login",
@@ -938,6 +988,12 @@
       listTags: false,
       listTagsActions: false,
       listSeen: false,
+      videoWatch: false,
+      videoQueue: false,
+      videoSeen: false,
+      videoRated: false,
+      videoTags: false,
+      videoTagsActions: false,
     },
     shinePaused: false,
     currentPicks: [],
@@ -947,6 +1003,7 @@
     sessionSuggestGenres: new Set(),
     directionSeeds: [],
     seenRateFor: "",
+    seenVideoRateFor: "",
     listTab: "watch",
     search: "",
     searchHits: [],
@@ -992,6 +1049,16 @@
     tagCoverSheet: false,
     tagCoverCandidate: null,
     expandedFilmId: null,
+    listsMode: "filme",
+    expandedVideoId: null,
+    videoSearch: "",
+    videoSearchOpen: false,
+    videoFormUrl: "",
+    videoFormTitle: "",
+    videoFormDesc: "",
+    videoFormPlat: "",
+    videoFormPlatId: "",
+    videoFormCustomPlat: false,
   };
 
   const app = document.getElementById("app");
@@ -1259,6 +1326,173 @@
     return true;
   }
 
+  // Videos Core API (separate per-profile storage, not mixed with films)
+  function videoWatchlist() {
+    return loadJson(pkey("videoWatchlist"), []);
+  }
+
+  function saveVideoWatchlist(list) {
+    saveJson(pkey("videoWatchlist"), list);
+  }
+
+  function videoQueue() {
+    const rows = loadJson(pkey("videoQueue"), []);
+    if (!Array.isArray(rows)) return [];
+    if (!state.user || !state.profile) return rows;
+    const watchIds = new Set(videoWatchlist().map((v) => String(v.id)));
+    const next = rows.filter((v) => watchIds.has(String(v.id)));
+    if (next.length !== rows.length) saveVideoQueue(next);
+    return next;
+  }
+
+  function saveVideoQueue(list) {
+    saveJson(pkey("videoQueue"), list);
+  }
+
+  function videoHistory() {
+    return loadJson(pkey("videoHistory"), []);
+  }
+
+  function saveVideoHistory(list) {
+    saveJson(pkey("videoHistory"), list);
+  }
+
+  function findVideo(id) {
+    const hid = String(id || "");
+    return videoWatchlist().find((v) => String(v.id) === hid) ||
+           videoQueue().find((v) => String(v.id) === hid) ||
+           videoHistory().find((v) => String(v.id) === hid) ||
+           null;
+  }
+
+  function addVideoWatch(video) {
+    if (!video || !video.id) return false;
+    const list = videoWatchlist();
+    if (list.some((v) => String(v.id) === String(video.id))) return false;
+    list.unshift(video);
+    saveVideoWatchlist(list);
+    return true;
+  }
+
+  function addVideoQueue(video) {
+    if (!video || !video.id) return false;
+    addVideoWatch(video);
+    const list = videoQueue();
+    if (list.some((v) => String(v.id) === String(video.id))) return false;
+    list.unshift(video);
+    saveVideoQueue(list);
+    return true;
+  }
+
+  function removeVideoQueueId(id) {
+    const hid = String(id);
+    const next = videoQueue().filter((v) => String(v.id) !== hid);
+    if (next.length === videoQueue().length) return false;
+    saveVideoQueue(next);
+    return true;
+  }
+
+  function removeVideoFromWatchlist(id) {
+    const hid = String(id);
+    const before = videoWatchlist();
+    const next = before.filter((v) => String(v.id) !== hid);
+    const removed = next.length !== before.length;
+    if (removed) saveVideoWatchlist(next);
+    removeVideoQueueId(hid);
+    return removed;
+  }
+
+  function removeVideoFromHistory(id) {
+    const hid = String(id);
+    const before = videoHistory();
+    const next = before.filter((v) => String(v.id) !== hid);
+    const removed = next.length !== before.length;
+    if (removed) saveVideoHistory(next);
+    return removed;
+  }
+
+  function videoHistoryViews(row) {
+    if (!row || typeof row !== "object") return [];
+    if (Array.isArray(row.views) && row.views.length) {
+      return row.views.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => b - a);
+    }
+    const at = Number(row.at);
+    return Number.isFinite(at) && at > 0 ? [at] : [];
+  }
+
+  function recordVideoWatched(video, at) {
+    if (!video || !video.id) return;
+    const when = Number.isFinite(Number(at)) ? Number(at) : Date.now();
+    const vid = String(video.id);
+    const rows = videoHistory();
+    const idx = rows.findIndex((v) => String(v.id) === vid);
+    let entry;
+    if (idx >= 0) {
+      const prev = rows[idx];
+      const views = [when, ...videoHistoryViews(prev)];
+      entry = Object.assign({}, prev, video, { at: when, views });
+      rows.splice(idx, 1);
+    } else {
+      entry = Object.assign({}, video, { at: when, views: [when] });
+    }
+    rows.unshift(entry);
+    saveVideoHistory(rows);
+  }
+
+  function removeLatestVideoView(id) {
+    const hid = String(id);
+    const before = videoHistory();
+    const idx = before.findIndex((v) => String(v.id) === hid);
+    if (idx < 0) return null;
+    const row = before[idx];
+    const views = videoHistoryViews(row);
+    const removedAt = views[0];
+    const restViews = views.slice(1);
+    let next;
+    if (!restViews.length) {
+      next = before.filter((v) => String(v.id) !== hid);
+    } else {
+      const updated = Object.assign({}, row, { at: restViews[0], views: restViews });
+      next = before.slice();
+      next[idx] = updated;
+    }
+    saveVideoHistory(next);
+    return { before, removedAt, hid };
+  }
+
+  function allKnownVideos() {
+    const byId = new Map();
+    [...videoWatchlist(), ...videoQueue(), ...videoHistory()].forEach((v) => {
+      if (v && v.id) byId.set(String(v.id), v);
+    });
+    return Array.from(byId.values());
+  }
+
+  function countVideosWithTag(tagId) {
+    const map = filmTags();
+    let n = 0;
+    for (const v of allKnownVideos()) {
+      if ((map[String(v.id)] || []).includes(tagId)) n += 1;
+    }
+    return n;
+  }
+
+  function platLabelFromId(platId) {
+    const id = String(platId || "");
+    if (id === "yt") return "YouTube";
+    if (id === "ig") return "Instagram";
+    if (id === "fb") return "Facebook";
+    if (id === "tiktok") return "TikTok";
+    if (id === "vimeo") return "Vimeo";
+    if (id === "twitch") return "Twitch";
+    if (id === "netflix") return "Netflix";
+    if (id === "prime") return "Prime Video";
+    if (id === "disney") return "Disney+";
+    if (id === "ard") return "ARD Mediathek";
+    if (id === "zdf") return "ZDF Mediathek";
+    return id || "Web";
+  }
+
   function tagStarterCovers() {
     return TAG_STARTER_DEFS.map((def) => {
       const film = LOGIN_POSTERS.find((row) => row.id === def.id);
@@ -1332,36 +1566,60 @@
 
   function seedIfNeeded() {
     const list = users();
-    if (list.some((u) => u.login.toLowerCase() === "test")) return;
-    list.push({ id: "u-test", login: "Test", password: "1234" });
-    saveUsers(list);
-    const profiles = [
-      { id: "tester", name: "Tester", avatar: "av1", plate: "schwarz-lava" },
-      { id: "user1", name: "User No 1", avatar: "av2", plate: "schwarz-lava" },
-      { id: "bot", name: "Bot - Apptesti", avatar: "av3", plate: "schwarz-lava" },
-    ];
-    saveProfiles("u-test", profiles);
-    const covers = tagStarterCovers();
-    const tags = [
-      { id: "tag-omma", name: "Omma", color: "#ef6c00", plate: "hell", cover: covers[0] },
-      { id: "tag-kumpel", name: "Kumpel", color: "#0066B3", plate: "hell", cover: covers[1] || covers[0] },
-      { id: "tag-relax", name: "entspannen", color: "#2e7d32", plate: "hell", cover: covers[2] || covers[0] },
-    ];
-    const prefix = "wdq.p.u-test.tester.";
-    saveJson(`${prefix}tags`, tags);
-    saveJson(`${prefix}watchlist`, FILMS.map((film, index) => ({
-      id: film.id,
-      at: Date.now() - ((FILMS.length - index) * 1000),
-    })));
-    saveJson(`${prefix}filmTags`, { t862: ["tag-omma"] });
-    saveJson(`${prefix}history`, [
-      { id: "t693134", title: "Dune: Part Two", at: Date.now() - 8000 },
-      { id: "t361743", title: "Top Gun: Maverick", at: Date.now() - 6000 },
-      { id: "t550", title: "Fight Club", at: Date.now() - 4000 },
-      { id: "t680", title: "Pulp Fiction", at: Date.now() - 2000 },
-    ]);
-    saveJson("wdq.p.u-test.user1.tags", tags);
-    saveJson("wdq.p.u-test.bot.tags", tags);
+    const hasTest = list.some((u) => u.login.toLowerCase() === "test");
+    if (!hasTest) {
+      list.push({ id: "u-test", login: "Test", password: "1234" });
+      saveUsers(list);
+      const profiles = [
+        { id: "tester", name: "Tester", avatar: "av1", plate: "schwarz-lava" },
+        { id: "user1", name: "User No 1", avatar: "av2", plate: "schwarz-lava" },
+        { id: "bot", name: "Bot - Apptesti", avatar: "av3", plate: "schwarz-lava" },
+      ];
+      saveProfiles("u-test", profiles);
+      const covers = tagStarterCovers();
+      const tags = [
+        { id: "tag-omma", name: "Omma", color: "#ef6c00", plate: "hell", cover: covers[0] },
+        { id: "tag-kumpel", name: "Kumpel", color: "#0066B3", plate: "hell", cover: covers[1] || covers[0] },
+        { id: "tag-relax", name: "entspannen", color: "#2e7d32", plate: "hell", cover: covers[2] || covers[0] },
+      ];
+      const prefix = "wdq.p.u-test.tester.";
+      saveJson(`${prefix}tags`, tags);
+      saveJson(`${prefix}watchlist`, FILMS.map((film, index) => ({
+        id: film.id,
+        at: Date.now() - ((FILMS.length - index) * 1000),
+      })));
+      saveJson(`${prefix}filmTags`, { t862: ["tag-omma"] });
+      saveJson(`${prefix}history`, [
+        { id: "t693134", title: "Dune: Part Two", at: Date.now() - 8000 },
+        { id: "t361743", title: "Top Gun: Maverick", at: Date.now() - 6000 },
+        { id: "t550", title: "Fight Club", at: Date.now() - 4000 },
+        { id: "t680", title: "Pulp Fiction", at: Date.now() - 2000 },
+      ]);
+      saveJson("wdq.p.u-test.user1.tags", tags);
+      saveJson("wdq.p.u-test.bot.tags", tags);
+    }
+    const vPrefix = "wdq.p.u-test.tester.";
+    if (!localStorage.getItem(`${vPrefix}videoWatchlist`)) {
+      saveJson(`${vPrefix}videoWatchlist`, [
+        { id: "v-seed-1", title: "Trailer: Dune Part Three", desc: "Offizieller Teaser – Sandstorm & Harkonnen", plat: "yt", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", at: Date.now() - 50000 },
+        { id: "v-seed-2", title: "Behind the Scenes: Interstellar", desc: "Nolan erklärt die Docking-Szene", plat: "yt", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", at: Date.now() - 40000 },
+        { id: "v-seed-3", title: "Reel: Filmabend Setup", desc: "Beamer, Snacks, Reihenfolge – 45 Sek.", plat: "ig", url: "https://www.instagram.com/reel/example", at: Date.now() - 30000 },
+        { id: "v-seed-4", title: "Clip: Dark Knight Bankheist", desc: "Eröffnungsszene – kommentiert", plat: "fb", url: "https://www.facebook.com/watch/?v=example", at: Date.now() - 20000 },
+        { id: "v-seed-5", title: "Top 10 Sci-Fi 2026", desc: "Countdown – was lohnt sich?", plat: "yt", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", at: Date.now() - 10000 },
+        { id: "v-seed-6", title: "Story: Watchlist Tipps", desc: "Kurze Ideen für den nächsten Abend", plat: "ig", url: "https://www.instagram.com/reel/example2", at: Date.now() - 8000 },
+        { id: "v-seed-7", title: "Panel: Film vs. Serie", desc: "Live-Mitschnitt aus der Gruppe", plat: "fb", url: "https://www.facebook.com/watch/?v=example2", at: Date.now() - 6000 },
+      ]);
+      saveJson(`${vPrefix}videoQueue`, [
+        { id: "v-seed-5", title: "Top 10 Sci-Fi 2026", desc: "Countdown – was lohnt sich?", plat: "yt", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", at: Date.now() - 10000 },
+        { id: "v-seed-6", title: "Story: Watchlist Tipps", desc: "Kurze Ideen für den nächsten Abend", plat: "ig", url: "https://www.instagram.com/reel/example2", at: Date.now() - 8000 },
+        { id: "v-seed-7", title: "Panel: Film vs. Serie", desc: "Live-Mitschnitt aus der Gruppe", plat: "fb", url: "https://www.facebook.com/watch/?v=example2", at: Date.now() - 6000 },
+      ]);
+      saveJson(`${vPrefix}videoHistory`, [
+        { id: "v-seed-h1", title: "Recap: Endgame", desc: "Plot-Punkte in 8 Minuten", plat: "yt", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", at: new Date(2026, 8, 28, 20, 15).getTime() },
+        { id: "v-seed-h2", title: "Reel: Ranking der Woche", desc: "Unsere Top 3 – kurz & knapp", plat: "ig", url: "https://www.instagram.com/reel/example3", at: new Date(2026, 8, 25, 19, 30).getTime() },
+        { id: "v-seed-h3", title: "Clip: LotR Extended", desc: "Fan-Edit Highlights", plat: "fb", url: "https://www.facebook.com/watch/?v=example3", at: new Date(2026, 8, 20, 21, 0).getTime() },
+      ]);
+    }
   }
 
   function restoreSession() {
@@ -4722,7 +4980,8 @@
   }
 
   function renderLists() {
-    const badge = unratedCount();
+    const isVideos = state.listsMode === "videos";
+    const badge = isVideos ? 0 : unratedCount();
     const tabs = [
       ["watch", "Watchlist"],
       ["queue", "Demnächst"],
@@ -4734,15 +4993,36 @@
         ${label}${id === "seen" && badge ? `<span class="badge">${badge}</span>` : ""}
       </button>
     `).join("");
+
+    const switchHtml = `
+      <div class="title-row-switch">
+        <h2 class="screen-title home-title">${isVideos ? "Videos" : "Filme"}</h2>
+        <button class="video-switch" type="button" data-act="toggle-lists-mode" aria-label="${isVideos ? "Zu Filmen wechseln" : "Zu Videos wechseln"}" aria-pressed="${isVideos ? "true" : "false"}">
+          ${videoSwitchSvg()}<span>${isVideos ? "Filme" : "Videos"}</span>
+        </button>
+      </div>
+    `;
+
+    let bodyHtml = "";
+    if (isVideos) {
+      if (state.listTab === "watch") bodyHtml = renderVideoWatchTab();
+      else if (state.listTab === "queue") bodyHtml = renderVideoQueueTab();
+      else if (state.listTab === "rated") bodyHtml = renderVideoRatedTab();
+      else if (state.listTab === "tags") bodyHtml = renderVideoTagsTab();
+      else if (state.listTab === "seen") bodyHtml = renderVideoSeenTab();
+    } else {
+      if (state.listTab === "watch") bodyHtml = renderWatchTab();
+      else if (state.listTab === "queue") bodyHtml = renderQueueTab();
+      else if (state.listTab === "rated") bodyHtml = renderRatedTab();
+      else if (state.listTab === "tags") bodyHtml = renderTagsTab();
+      else if (state.listTab === "seen") bodyHtml = renderSeenTab();
+    }
+
     return `
       <div class="lists-screen">
-        <h2 class="screen-title home-title">Meine Filmlisten</h2>
+        ${switchHtml}
         <div class="tabs">${tabs}</div>
-        ${state.listTab === "watch" ? renderWatchTab() : ""}
-        ${state.listTab === "queue" ? renderQueueTab() : ""}
-        ${state.listTab === "rated" ? renderRatedTab() : ""}
-        ${state.listTab === "tags" ? renderTagsTab() : ""}
-        ${state.listTab === "seen" ? renderSeenTab() : ""}
+        ${bodyHtml}
       </div>
     `;
   }
@@ -4755,6 +5035,31 @@
       attrs: `data-id="${escapeHtml(filmId(film))}" data-tag="${escapeHtml(t.id)}"`,
       pressed: have.includes(t.id),
     })).join("");
+  }
+
+  function renderVideoTagChips(video) {
+    const vid = String(video.id);
+    const have = tagsFor(vid);
+    return customTags().map((t) => tagChipHtml(t, {
+      size: "mini",
+      act: "film-tag",
+      attrs: `data-id="${escapeHtml(vid)}" data-tag="${escapeHtml(t.id)}"`,
+      pressed: have.includes(t.id),
+    })).join("");
+  }
+
+  function renderVideoRates(video) {
+    const vid = String(video.id);
+    const mine = ratings()[vid];
+    return `
+      <div class="rates">
+        ${RATE_KEYS.map((r) => `
+          <button type="button" class="rate${mine === r.id ? " sel" : ""}" data-act="rate" data-id="${escapeHtml(vid)}" data-n="${r.id}" title="${r.label}" aria-label="${r.label}">
+            ${rateIcon(r.id)}
+          </button>
+        `).join("")}
+      </div>
+    `;
   }
 
   function searchStatusText() {
@@ -5284,6 +5589,10 @@
 
   function refreshWatchList() {
     if (state.screen !== "lists" || (state.listTab !== "watch" && state.listTab !== "queue")) return;
+    if (state.listsMode === "videos") {
+      render();
+      return;
+    }
     const list = app.querySelector("[data-role=film-list]");
     if (!list) return;
     const scrollTop = list.scrollTop;
@@ -5439,7 +5748,127 @@
     if (!state.catalog.length) loadCatalog();
   }
 
+  function openVideoAddSheet() {
+    closeFilmMenus();
+    state.watchSheet = "video-add";
+    state.videoFormUrl = "";
+    state.videoFormTitle = "";
+    state.videoFormDesc = "";
+    state.videoFormPlat = "";
+    state.videoFormPlatId = "";
+    state.videoFormCustomPlat = false;
+    paintWatchSheet();
+  }
+
+  function renderVideoAddSheetHtml() {
+    const platId = state.videoFormPlatId || (state.videoFormUrl ? detectPlatform(state.videoFormUrl).id : "");
+    const platOpt = state.videoFormPlat || (platId && platId !== "generic" ? platLabelFromId(platId) : "");
+    return `
+      <div class="sheet-panel is-video-add" data-role="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="video-add-title">
+        <div class="sheet-head" data-role="sheet-drag">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <h2 class="sheet-title" id="video-add-title">Video hinzufügen</h2>
+          <button type="button" class="sheet-close" data-act="watch-sheet-close" aria-label="Schließen">${ICONS.close}</button>
+        </div>
+        <form class="video-add-form" data-role="video-add-form" onsubmit="return false;">
+          <div class="video-field">
+            <label for="video-url">URL</label>
+            <input id="video-url" type="url" placeholder="https://..." value="${escapeHtml(state.videoFormUrl)}" required autocomplete="off" autofocus>
+          </div>
+          <div class="video-field">
+            <label for="video-title">Titel</label>
+            <input id="video-title" type="text" placeholder="Titel des Videos" value="${escapeHtml(state.videoFormTitle)}">
+          </div>
+          <div class="video-field">
+            <label for="video-desc">Beschreibung</label>
+            <textarea id="video-desc" placeholder="Kurzbeschreibung oder Notiz">${escapeHtml(state.videoFormDesc)}</textarea>
+          </div>
+          <div class="video-field">
+            <label for="video-plat">Plattform <span class="hint-opt">(optional)</span></label>
+            <input id="video-plat" type="text" placeholder="Wird automatisch ermittelt" value="${escapeHtml(state.videoFormPlat)}">
+            <div class="video-plat-picker" role="group" aria-label="Plattform">
+              <button class="video-plat-chip" type="button" data-act="video-pick-plat" data-plat="yt" aria-pressed="${platId === "yt" ? "true" : "false"}">
+                <span class="ico yt"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.6-.46-5.2a2.9 2.9 0 0 0-2-2C18.8 4.3 12 4.3 12 4.3s-6.8 0-8.54.5a2.9 2.9 0 0 0-2 2C1 8.4 1 12 1 12s0 3.6.46 5.2a2.9 2.9 0 0 0 2 2c1.74.5 8.54.5 8.54.5s6.8 0 8.54-.5a2.9 2.9 0 0 0 2-2C23 15.6 23 12 23 12zm-13 3.3V8.7L16.2 12 10 15.3z"/></svg></span>
+                YouTube
+              </button>
+              <button class="video-plat-chip" type="button" data-act="video-pick-plat" data-plat="ig" aria-pressed="${platId === "ig" ? "true" : "false"}">
+                <span class="ico ig"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 7.2A4.8 4.8 0 1 0 12 16.8 4.8 4.8 0 0 0 12 7.2zm0 7.9a3.1 3.1 0 1 1 0-6.2 3.1 3.1 0 0 1 0 6.2zm6.1-8.2a1.1 1.1 0 1 1-2.2 0 1.1 1.1 0 0 1 2.2 0zM12 3.5c-2.3 0-2.6 0-3.5.05-.9.04-1.5.2-2 .38a4 4 0 0 0-1.45.94 4 4 0 0 0-.94 1.45c-.18.5-.34 1.1-.38 2C3.5 9.4 3.5 9.7 3.5 12s0 2.6.05 3.5c.04.9.2 1.5.38 2a4 4 0 0 0 .94 1.45 4 4 0 0 0 1.45.94c.5.18 1.1.34 2 .38.9.05 1.2.05 3.5.05s2.6 0 3.5-.05c.9-.04 1.5-.2 2-.38a4 4 0 0 0 1.45-.94 4 4 0 0 0 .94-1.45c.18-.5.34-1.1.38-2 .05-.9.05-1.2.05-3.5s0-2.6-.05-3.5c-.04-.9-.17-1.26-.28-1.56-.15-.39-.33-.67-.62-.96-.29-.29-.57-.47-.96-.62-.3-.11-.74-.24-1.56-.28C14.6 3.5 14.3 3.5 12 3.5z"/></svg></span>
+                Instagram
+              </button>
+              <button class="video-plat-chip" type="button" data-act="video-pick-plat" data-plat="fb" aria-pressed="${platId === "fb" ? "true" : "false"}">
+                <span class="ico fb"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H7v3h3v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></span>
+                Facebook
+              </button>
+            </div>
+          </div>
+          <div class="video-sheet-actions">
+            <button class="btn btn-ghost" type="button" data-act="watch-sheet-close">Abbrechen</button>
+            <button class="btn btn-primary" type="button" data-act="video-save">Speichern</button>
+          </div>
+        </form>
+      </div>
+    `;
+  }
+
+  function saveVideoFromForm() {
+    const urlInput = watchSheetEl && watchSheetEl.querySelector("#video-url");
+    const titleInput = watchSheetEl && watchSheetEl.querySelector("#video-title");
+    const descInput = watchSheetEl && watchSheetEl.querySelector("#video-desc");
+    const platInput = watchSheetEl && watchSheetEl.querySelector("#video-plat");
+    const url = (urlInput ? urlInput.value : state.videoFormUrl || "").trim();
+    if (!url) {
+      if (urlInput) {
+        urlInput.focus();
+        if (typeof urlInput.reportValidity === "function") urlInput.reportValidity();
+      }
+      return;
+    }
+    const detected = detectPlatform(url);
+    const customPlat = (platInput ? platInput.value : state.videoFormPlat || "").trim();
+    let platId = state.videoFormPlatId || detected.id;
+    if (customPlat) {
+      const lower = customPlat.toLowerCase();
+      if (lower.includes("youtube") || lower.includes("youtu.be")) platId = "yt";
+      else if (lower.includes("instagram")) platId = "ig";
+      else if (lower.includes("facebook") || lower.includes("fb.")) platId = "fb";
+      else if (lower.includes("tiktok")) platId = "tiktok";
+      else if (lower.includes("vimeo")) platId = "vimeo";
+      else if (lower.includes("twitch")) platId = "twitch";
+      else if (lower.includes("netflix")) platId = "netflix";
+      else if (lower.includes("prime")) platId = "prime";
+      else if (lower.includes("disney")) platId = "disney";
+      else if (lower.includes("ard")) platId = "ard";
+      else if (lower.includes("zdf")) platId = "zdf";
+      else platId = "generic";
+    }
+    let title = (titleInput ? titleInput.value : state.videoFormTitle || "").trim();
+    if (!title) {
+      title = `${customPlat || platLabelFromId(platId) || detected.label}-Video`;
+    }
+    const desc = (descInput ? descInput.value : state.videoFormDesc || "").trim();
+
+    const newVideo = {
+      id: "v-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+      title,
+      desc,
+      url,
+      plat: platId,
+      customPlat: customPlat || detected.label,
+      at: Date.now(),
+    };
+
+    if (state.listTab === "queue") {
+      addVideoQueue(newVideo);
+    } else {
+      addVideoWatch(newVideo);
+    }
+    closeWatchSheet();
+    render();
+    showSnack(`${newVideo.title} hinzugefügt`);
+  }
+
   function renderWatchSheetHtml() {
+    if (state.watchSheet === "video-add") return renderVideoAddSheetHtml();
     if (state.watchSheet === "similar") return renderSimilarSheetHtml();
     if (state.watchSheet === "zufall") return renderZufallSheetHtml();
     const searching = state.watchSheet === "search";
@@ -5516,6 +5945,15 @@
     if (state.watchSheet === "zufall") {
       mountZufallCarousel();
       paintChipOverflow();
+      return;
+    }
+    if (state.watchSheet === "video-add") {
+      const input = watchSheetEl.querySelector("#video-url");
+      if (input) {
+        input.focus({ preventScroll: true });
+        const len = input.value.length;
+        try { input.setSelectionRange(len, len); } catch { /* ignore */ }
+      }
       return;
     }
     if (state.watchSheet === "similar") {
@@ -6818,8 +7256,9 @@
 
   function maybeWatchlistSwipeHint() {
     if (watchSwipeHintSeen()) return;
-    if (state.screen !== "lists" || state.listTab !== "watch") return;
+    if (state.screen !== "lists" || state.listTab !== "watch" || state.listsMode === "videos") return;
     const list = app.querySelector("[data-role=film-list]");
+    if (!list || list.classList.contains("video-mode")) return;
     if (!list || !list.querySelector(".swipe-track")) return;
     const track = list.querySelector(".swipe-track");
     if (!track || track.classList.contains("is-swipe-hint")) return;
@@ -7211,6 +7650,341 @@
       </div>
       <section class="film-list" data-role="film-list">${cards || `<p class="hint">Noch keine gesehenen Filme.</p>`}</section>
     `;
+  }
+
+  // Videos rendering
+  function renderVideoRow(video, opts) {
+    if (!video) return "";
+    const id = escapeHtml(String(video.id));
+    const hid = String(video.id);
+    const open = state.expandedVideoId === hid;
+    const isSeen = !!opts.gesehen;
+    const dateStr = isSeen && video.at ? formatSeenOn(video.at) : "";
+    const detected = detectPlatform(video.url);
+    const platId = video.plat || detected.id;
+    const badgeLabel = platId === "generic" ? (video.customPlat || detected.label) : "";
+    const badgeHtml = platformBadgeHtml(platId, badgeLabel);
+
+    const head = `
+      <div class="film-row-head v-card-head" data-act="video-expand" data-id="${id}" aria-expanded="${open}">
+        <div class="v-default-thumb kv">
+          ${videoCoverSvg()}
+        </div>
+        <div class="v-meta">
+          <p class="v-title">${escapeHtml(video.title)}</p>
+          ${video.desc ? `<p class="v-desc">${escapeHtml(video.desc)}</p>` : ""}
+          <div class="v-foot">
+            ${badgeHtml}
+            ${dateStr ? `<span class="v-date">${escapeHtml(dateStr)}</span>` : ""}
+            <button class="btn btn-primary v-anschauen" type="button" data-act="video-confirm" data-id="${id}" aria-label="Anschauen">
+              <span class="btn-play" aria-hidden="true">${enamelPlayIcon()}</span>Anschauen
+            </button>
+          </div>
+        </div>
+        <button class="film-row-chevron" type="button" data-act="video-expand" data-id="${id}" aria-expanded="${open}" aria-label="${open ? "Zuklappen" : "Aufklappen"}">
+          ${open ? ICONS.chevronUp : ICONS.chevron}
+        </button>
+      </div>
+    `;
+
+    const tags = renderVideoTagChips(video);
+    const expand = open ? `
+      <div class="film-row-expand">
+        <p class="film-expand-plot">${escapeHtml(video.desc || "Video aufrufen und in der Liste als Angesehen markieren.")}</p>
+        <div class="video-expand-actions">
+          <button class="btn btn-primary" type="button" data-act="video-confirm" data-id="${id}">
+            <span class="btn-play" aria-hidden="true">${enamelPlayIcon()}</span>Anschauen
+          </button>
+          <button class="btn btn-ghost video-ext-btn" type="button" data-act="video-open-direct" data-id="${id}">
+            ${externalLinkSvg()} Öffnet ${escapeHtml(detected.label)} extern
+          </button>
+          <button class="btn btn-ghost" type="button" data-act="video-remove" data-id="${id}">Von Liste</button>
+        </div>
+        <p class="film-expand-in-label">Tags</p>
+        <div class="film-expand-tags">${tags || `<span class="hint">Noch keine eigenen Tags</span>`}</div>
+        <p class="film-expand-in-label">Bewertung</p>
+        <div class="film-expand-rates">${renderVideoRates(video)}</div>
+        <div class="film-expand-collapse">
+          <button type="button" class="film-row-fold" data-act="video-expand" data-id="${id}" aria-label="Zuklappen">${ICONS.chevronUp} Zuklappen</button>
+        </div>
+      </div>
+    ` : "";
+
+    const article = `
+      <article class="film-row video-card${opts.swipeMode ? " swipe-front" : ""}${open ? " is-open" : ""}" data-id="${id}">
+        ${head}
+        ${expand}
+      </article>
+    `;
+
+    if (!opts.swipeMode) return article;
+    return wrapSwipeTrack(article, hid, opts.swipeMode);
+  }
+
+  function filterVideosBySearch(videos) {
+    const q = foldSearch(state.videoSearch);
+    if (!q) return videos;
+    return videos.filter((v) => {
+      const t = foldSearch(v.title);
+      const d = foldSearch(v.desc);
+      const u = foldSearch(v.url);
+      const p = foldSearch(v.plat);
+      return t.includes(q) || d.includes(q) || u.includes(q) || p.includes(q);
+    });
+  }
+
+  function renderVideoSearchBar() {
+    if (!state.videoSearchOpen) return "";
+    return `
+      <div class="video-search-bar">
+        <span class="video-search-glass" aria-hidden="true">${ICONS.search}</span>
+        <input type="text" data-act="video-search-input" placeholder="Videos filtern…" value="${escapeHtml(state.videoSearch)}" autocomplete="off" autofocus>
+        ${state.videoSearch ? `<button class="video-search-clear" type="button" data-act="video-search-clear" aria-label="Filter leeren">×</button>` : ""}
+      </div>
+    `;
+  }
+
+  function renderVideoWatchTab() {
+    let videos = videoWatchlist();
+    if (state.videoSearchOpen && state.videoSearch) {
+      videos = filterVideosBySearch(videos);
+    }
+    const empty = videoWatchlist().length < 1;
+    const rows = videos.map((v) => renderVideoRow(v, { swipeMode: "watch" })).join("");
+
+    const chips = `
+      <button type="button" class="watch-add-chip" data-act="video-add-open">
+        <span class="watch-add-plus">${ICONS.plus}</span>
+        Video hinzufügen
+      </button>
+      <button type="button" class="watch-add-chip watch-search-chip" data-act="video-search-toggle" aria-pressed="${state.videoSearchOpen ? "true" : "false"}">
+        <span class="watch-search-glass" aria-hidden="true">${ICONS.search}</span>
+        Suchen
+      </button>
+      <button type="button" class="watch-add-chip watch-zufall-chip" data-act="video-zufall"${empty ? " disabled" : ""} title="${empty ? "Mind. 1 Video" : "Zufallswahl"}" aria-disabled="${empty ? "true" : "false"}">
+        <span class="watch-zufall-stack" data-role="zufall-chip-icon">${zufallChipTiles()}</span>
+        Zufall
+      </button>
+    `;
+
+    return `
+      <div class="list-toolbar">
+        ${renderListChipRow("videoWatch", chips)}
+        ${renderVideoSearchBar()}
+      </div>
+      <section class="film-list video-mode" data-role="film-list">${rows || `<p class="hint">Noch keine Videos auf der Watchlist.</p>`}</section>
+    `;
+  }
+
+  function renderVideoQueueTab() {
+    let videos = videoQueue();
+    if (state.videoSearchOpen && state.videoSearch) {
+      videos = filterVideosBySearch(videos);
+    }
+    const empty = videoQueue().length < 1;
+    const rows = videos.map((v) => renderVideoRow(v, { swipeMode: "queue" })).join("");
+
+    const chips = `
+      <button type="button" class="watch-add-chip" data-act="video-add-open">
+        <span class="watch-add-plus">${ICONS.plus}</span>
+        Video hinzufügen
+      </button>
+      <button type="button" class="watch-add-chip watch-search-chip" data-act="video-search-toggle" aria-pressed="${state.videoSearchOpen ? "true" : "false"}">
+        <span class="watch-search-glass" aria-hidden="true">${ICONS.search}</span>
+        Suchen
+      </button>
+      <button type="button" class="watch-add-chip watch-zufall-chip" data-act="video-zufall"${empty ? " disabled" : ""} title="${empty ? "Mind. 1 Video" : "Zufallswahl"}" aria-disabled="${empty ? "true" : "false"}">
+        <span class="watch-zufall-stack" data-role="zufall-chip-icon">${zufallChipTiles()}</span>
+        Zufall
+      </button>
+    `;
+
+    return `
+      <div class="list-toolbar">
+        ${renderListChipRow("videoQueue", chips)}
+        ${renderVideoSearchBar()}
+      </div>
+      <section class="film-list video-mode" data-role="film-list">${rows || `<p class="hint">Noch keine Videos unter Demnächst.</p>`}</section>
+    `;
+  }
+
+  function renderVideoSeenCard(video, opts) {
+    const id = escapeHtml(String(video.id));
+    const hid = String(video.id);
+    const views = videoHistoryViews(video);
+    const seenDate = formatSeenOn(video.at);
+    const bubble = state.seenVideoRateFor === hid;
+    const all = ratings();
+    const unrated = !all[hid];
+    const rateLabel = unrated ? "" : (RATE_KEYS.find((r) => r.id === all[hid])?.label || "");
+    const undoBtn = `<button type="button" class="seen-undo-open" data-act="video-seen-undo" data-id="${id}">${SEEN_UNDO_ICON}Rückgängig</button>`;
+    const rateValue = rateLabel
+      ? `<span class="seen-rate-value">${escapeHtml(rateLabel)}</span> ${undoBtn}`
+      : `<button type="button" class="seen-rate-open" data-act="video-seen-rate-open" data-id="${id}" aria-expanded="${bubble ? "true" : "false"}">Bewerten</button> ${undoBtn}`;
+    const bubbleHtml = bubble
+      ? `<div class="seen-rate-bubble" data-role="seen-rate-bubble" role="group" aria-label="Bewertung">${renderVideoRates(video)}</div>`
+      : "";
+    const detected = detectPlatform(video.url);
+    const platId = video.plat || detected.id;
+    const badgeLabel = platId === "generic" ? (video.customPlat || detected.label) : "";
+    const badgeHtml = platformBadgeHtml(platId, badgeLabel);
+    return `
+      <article class="film-row video-card seen-card video-seen-card${unrated ? " is-unrated" : ""}" data-seen="1" data-id="${id}">
+        <div class="film-row-head v-card-head">
+          <div class="v-default-thumb kv">${videoCoverSvg()}</div>
+          <div class="v-meta">
+            <p class="v-title">${escapeHtml(video.title)}</p>
+            ${video.desc ? `<p class="v-desc">${escapeHtml(video.desc)}</p>` : ""}
+            <div class="seen-stack">
+              <p class="seen-meta">Angesehen: ${escapeHtml(seenDate)}${views.length >= 2 ? ` · ${views.length}×` : ""}</p>
+              <div class="v-foot">${badgeHtml}</div>
+              <p class="seen-meta seen-rate-line">Bewertung: ${rateValue}</p>
+              ${bubbleHtml}
+            </div>
+          </div>
+          <button class="btn btn-primary v-anschauen" type="button" data-act="video-confirm" data-id="${id}" aria-label="Anschauen">
+            <span class="btn-play" aria-hidden="true">${enamelPlayIcon()}</span>Anschauen
+          </button>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderVideoRatedTab() {
+    const all = ratings();
+    const chips = RATE_KEYS.map((r) => `
+      <button type="button" class="watch-add-chip rated-filter-chip" data-act="rated-filter" data-id="${r.id}" aria-pressed="${state.ratedFilter === r.id}">${r.label}</button>
+    `).join("");
+    const want = state.ratedFilter || "sehr-gut";
+    let videos = allKnownVideos().filter((v) => all[String(v.id)] === want);
+    if (state.videoSearchOpen && state.videoSearch) videos = filterVideosBySearch(videos);
+    const rows = videos.map((v) => renderVideoRow(v, {})).join("");
+    const toolbarChips = `
+      <button type="button" class="watch-add-chip watch-search-chip" data-act="video-search-toggle" aria-pressed="${state.videoSearchOpen ? "true" : "false"}">
+        <span class="watch-search-glass" aria-hidden="true">${ICONS.search}</span>
+        Suchen
+      </button>
+      ${chips}
+    `;
+    return `
+      <div class="list-toolbar">
+        ${renderListChipRow("videoRated", toolbarChips)}
+        ${renderVideoSearchBar()}
+      </div>
+      <section class="film-list video-mode" data-role="film-list">${rows || `<p class="hint">Keine Videos mit dieser Bewertung.</p>`}</section>
+    `;
+  }
+
+  function renderVideoTagsTab() {
+    const tags = customTags();
+    const chips = tags.map((t) => tagChipHtml(t, {
+      size: "mini",
+      act: "tag-filter",
+      attrs: `data-id="${escapeHtml(t.id)}"`,
+      pressed: state.tagFilter.includes(t.id),
+      count: countVideosWithTag(t.id),
+    })).join("");
+    const selected = state.tagFilter;
+    const map = filmTags();
+    let videos = selected.length
+      ? allKnownVideos().filter((v) => {
+        const have = map[String(v.id)] || [];
+        return selected.every((tagId) => have.includes(tagId));
+      })
+      : [];
+    if (state.videoSearchOpen && state.videoSearch && videos.length) {
+      videos = filterVideosBySearch(videos);
+    }
+    const rows = videos.map((v) => renderVideoRow(v, {})).join("");
+    let listBody = "";
+    if (!selected.length) {
+      listBody = `<p class="tags-filter-empty">Bitte mindestens einen Tag auswählen</p>`;
+    } else if (!rows) {
+      listBody = `<p class="tags-filter-empty">Für diese Tagkombination ist kein Video vorhanden</p>`;
+    } else {
+      listBody = rows;
+    }
+    const actionChips = `
+      <button type="button" class="watch-add-chip watch-search-chip" data-act="video-search-toggle" aria-pressed="${state.videoSearchOpen ? "true" : "false"}">
+        <span class="watch-search-glass" aria-hidden="true">${ICONS.search}</span>
+        Suchen
+      </button>
+      <button type="button" class="watch-add-chip tags-manage-btn" data-act="tags">Tags verwalten</button>
+    `;
+    return `
+      <div class="list-toolbar is-tags">
+        ${renderListChipRow("videoTagsActions", actionChips)}
+        ${renderListChipRow("videoTags", chips || `<span class="hint filter-empty">Noch keine eigenen Tags</span>`)}
+        ${renderVideoSearchBar()}
+      </div>
+      <section class="film-list video-mode" data-role="film-list">${listBody}</section>
+    `;
+  }
+
+  function renderVideoSeenTab() {
+    let videos = videoHistory().slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+    const all = ratings();
+    if (state.seenOnlyUnrated) videos = videos.filter((v) => !all[String(v.id)]);
+    if (state.videoSearchOpen && state.videoSearch) {
+      videos = filterVideosBySearch(videos);
+    }
+    const rows = videos.map((v) => renderVideoSeenCard(v, {})).join("");
+
+    const chips = `
+      <button type="button" class="watch-add-chip watch-search-chip" data-act="video-search-toggle" aria-pressed="${state.videoSearchOpen ? "true" : "false"}">
+        <span class="watch-search-glass" aria-hidden="true">${ICONS.search}</span>
+        Suchen
+      </button>
+      <button type="button" class="watch-add-chip rated-filter-chip" data-act="video-seen-unrated" aria-pressed="${state.seenOnlyUnrated}">nur unbewertet</button>
+      <button type="button" class="watch-add-chip rated-filter-chip" data-act="video-seen-all" aria-pressed="${!state.seenOnlyUnrated}">alle</button>
+    `;
+
+    return `
+      <div class="list-toolbar">
+        ${renderListChipRow("videoSeen", chips)}
+        ${renderVideoSearchBar()}
+      </div>
+      <section class="film-list video-mode" data-role="film-list">${rows || `<p class="hint">Noch keine angesehenen Videos.</p>`}</section>
+    `;
+  }
+
+  function openVideoConfirmDialog(videoId) {
+    const video = findVideo(videoId);
+    if (!video) return;
+    const html = `
+      <div class="scrim" style="position:fixed;inset:0;z-index:999;background:rgba(12,24,40,.42);display:flex;align-items:center;justify-content:center;padding:22px;">
+        <div class="confirm" role="dialog" aria-modal="true">
+          <h2 class="confirm-title">Soll „${escapeHtml(video.title)}“ aufgerufen werden?</h2>
+          <p class="confirm-copy">Das Video wird außerhalb von Cinex geöffnet.</p>
+          <div class="confirm-actions">
+            <button class="confirm-cancel" type="button" data-act="video-confirm-cancel">Abbrechen</button>
+            <button class="confirm-open" type="button" data-act="video-confirm-open" data-id="${escapeHtml(String(video.id))}">
+              <span class="btn-play" aria-hidden="true">${enamelPlayIcon()}</span>
+              <span>Öffnen</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    openModal(html);
+  }
+
+  function launchVideo(video) {
+    if (!video) return;
+    recordVideoWatched(video);
+    removeVideoFromWatchlist(video.id);
+    closeModal();
+    if (video.url) {
+      try {
+        window.open(video.url, "_blank", "noopener,noreferrer");
+      } catch { /* ignore */ }
+    }
+    state.screen = "lists";
+    state.listTab = "seen";
+    state.listsMode = "videos";
+    render();
+    burstConfetti();
+    showSnack("Video geöffnet & als Angesehen markiert");
   }
 
   function coverFromFilm(film) {
@@ -7668,7 +8442,9 @@
       } else restoreSameTabListScroll(keptListScroll);
       bindFilmListScroll();
       observeListPostersSoon(app);
-      if (state.listTab === "watch") window.requestAnimationFrame(() => maybeWatchlistSwipeHint());
+      if (state.listTab === "watch" && state.listsMode !== "videos") {
+        window.requestAnimationFrame(() => maybeWatchlistSwipeHint());
+      }
       const shown = app.querySelectorAll(".film-row");
       const films = [...shown].map((row) => findFilm(row.dataset.id)).filter(Boolean);
       if (state.listTab !== "seen") enrichListCast(films);
@@ -8144,18 +8920,40 @@
       render();
       return true;
     }
+    if (act === "video-add-open") {
+      openVideoAddSheet();
+      return true;
+    }
+    if (act === "video-save") {
+      saveVideoFromForm();
+      return true;
+    }
+    if (act === "video-pick-plat") {
+      const platId = t.dataset.plat || "";
+      state.videoFormPlatId = platId;
+      state.videoFormPlat = platLabelFromId(platId);
+      state.videoFormCustomPlat = true;
+      const platInput = watchSheetEl.querySelector("#video-plat");
+      if (platInput) platInput.value = state.videoFormPlat;
+      watchSheetEl.querySelectorAll(".video-plat-chip").forEach((chip) => {
+        chip.setAttribute("aria-pressed", chip.dataset.plat === platId ? "true" : "false");
+      });
+      return true;
+    }
     return false;
   }
 
   app.addEventListener("click", async (event) => {
     if (handleWatchUiClick(event)) return;
-    const inSeenBubble = event.target.closest(".seen-rate-bubble, [data-act=seen-rate-open]");
+    const inSeenBubble = event.target.closest(".seen-rate-bubble, [data-act=seen-rate-open], [data-act=video-seen-rate-open]");
     const seenBubbleWas = state.seenRateFor;
+    const seenVideoBubbleWas = state.seenVideoRateFor;
     if (state.seenRateFor && !inSeenBubble) state.seenRateFor = "";
+    if (state.seenVideoRateFor && !inSeenBubble) state.seenVideoRateFor = "";
     const t = event.target.closest("[data-act]");
     if (!t) {
       closeFilmMenus();
-      if (seenBubbleWas && !inSeenBubble) render();
+      if ((seenBubbleWas || seenVideoBubbleWas) && !inSeenBubble) render();
       return;
     }
     const act = t.dataset.act;
@@ -8254,6 +9052,12 @@
           listTags: false,
           listTagsActions: false,
           listSeen: false,
+          videoWatch: false,
+          videoQueue: false,
+          videoSeen: false,
+          videoRated: false,
+          videoTags: false,
+          videoTagsActions: false,
         };
       }
       render();
@@ -8495,7 +9299,10 @@
     if (act === "rate") {
       setRating(t.dataset.id, t.dataset.n);
       state.seenRateFor = "";
+      state.seenVideoRateFor = "";
+      const ratedVideo = findVideo(t.dataset.id);
       render();
+      if (ratedVideo) showSnack(`${ratedVideo.title} bewertet`);
       return;
     }
     if (act === "richtung") {
@@ -8596,8 +9403,122 @@
       dismissWatchSwipeHint();
       state.listTab = t.dataset.id;
       state.expandedFilmId = null;
+      state.expandedVideoId = null;
       state.seenRateFor = "";
+      state.seenVideoRateFor = "";
       render();
+      return;
+    }
+    if (act === "toggle-lists-mode") {
+      state.listsMode = state.listsMode === "videos" ? "filme" : "videos";
+      state.expandedFilmId = null;
+      state.expandedVideoId = null;
+      state.seenRateFor = "";
+      state.seenVideoRateFor = "";
+      state.videoSearchOpen = false;
+      state.videoSearch = "";
+      render();
+      return;
+    }
+    if (act === "video-add-open") {
+      openVideoAddSheet();
+      return;
+    }
+    if (act === "video-save") {
+      saveVideoFromForm();
+      return;
+    }
+    if (act === "video-pick-plat") {
+      const platId = t.dataset.plat || "";
+      state.videoFormPlatId = platId;
+      state.videoFormPlat = platLabelFromId(platId);
+      state.videoFormCustomPlat = true;
+      const platInput = watchSheetEl.querySelector("#video-plat");
+      if (platInput) platInput.value = state.videoFormPlat;
+      watchSheetEl.querySelectorAll(".video-plat-chip").forEach((chip) => {
+        chip.setAttribute("aria-pressed", chip.dataset.plat === platId ? "true" : "false");
+      });
+      return;
+    }
+    if (act === "video-expand") {
+      const hid = String(t.dataset.id || "");
+      state.expandedVideoId = state.expandedVideoId === hid ? null : hid;
+      render();
+      return;
+    }
+    if (act === "video-confirm") {
+      openVideoConfirmDialog(t.dataset.id);
+      return;
+    }
+    if (act === "video-open-direct") {
+      const video = findVideo(t.dataset.id);
+      if (!video || !video.url) return;
+      try {
+        window.open(video.url, "_blank", "noopener,noreferrer");
+      } catch { /* ignore */ }
+      return;
+    }
+    if (act === "video-remove") {
+      const video = findVideo(t.dataset.id);
+      if (!video) return;
+      if (state.listTab === "seen") removeVideoFromHistory(video.id);
+      else removeVideoFromWatchlist(video.id);
+      if (state.expandedVideoId === String(video.id)) state.expandedVideoId = null;
+      render();
+      showSnack(`${video.title} entfernt`, "danger");
+      return;
+    }
+    if (act === "video-search-toggle") {
+      state.videoSearchOpen = !state.videoSearchOpen;
+      if (!state.videoSearchOpen) state.videoSearch = "";
+      render();
+      return;
+    }
+    if (act === "video-search-clear") {
+      state.videoSearch = "";
+      render();
+      return;
+    }
+    if (act === "video-zufall") {
+      const pool = state.listTab === "queue" ? videoQueue() : videoWatchlist();
+      if (!pool.length) return;
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      state.expandedVideoId = String(pick.id);
+      render();
+      showSnack(`Zufall: ${pick.title}`);
+      return;
+    }
+    if (act === "video-seen-unrated") {
+      state.seenOnlyUnrated = true;
+      render();
+      return;
+    }
+    if (act === "video-seen-all") {
+      state.seenOnlyUnrated = false;
+      render();
+      return;
+    }
+    if (act === "video-seen-rate-open") {
+      const hid = String(t.dataset.id || "");
+      state.seenVideoRateFor = state.seenVideoRateFor === hid ? "" : hid;
+      render();
+      return;
+    }
+    if (act === "video-seen-undo") {
+      const video = findVideo(t.dataset.id);
+      const hid = String(t.dataset.id || "");
+      const result = removeLatestVideoView(hid);
+      if (!result) return;
+      state.seenVideoRateFor = "";
+      render();
+      const label = formatSeenShort(result.removedAt);
+      const title = video ? video.title : hid;
+      showSnack(`Sichtung vom ${label} entfernt`, "success", {
+        undo: () => {
+          saveVideoHistory(result.before);
+          render();
+        },
+      });
       return;
     }
     if (act === "search-clear") {
@@ -8825,6 +9746,14 @@
       closeModal();
       return;
     }
+    if (t.dataset.act === "video-confirm-cancel") {
+      closeModal();
+      return;
+    }
+    if (t.dataset.act === "video-confirm-open") {
+      launchVideo(findVideo(t.dataset.id));
+      return;
+    }
     if (t.dataset.act === "seen-date-cancel") {
       closeModal();
       return;
@@ -8889,10 +9818,19 @@
       return;
     }
     if (t.dataset.act === "swipe-remove") {
-      const film = findFilm(t.dataset.id);
       const mode = pendingSwipeRemove && pendingSwipeRemove.mode;
+      const pendingId = pendingSwipeRemove && pendingSwipeRemove.id;
       pendingSwipeRemove = null;
       closeModal();
+      const film = findFilm(t.dataset.id || pendingId);
+      const video = !film ? findVideo(t.dataset.id || pendingId) : null;
+      if (video) {
+        if (mode === "queue") removeVideoQueueId(video.id);
+        else removeVideoFromWatchlist(video.id);
+        render();
+        showSnack(`${video.title} von Liste entfernt`, "danger");
+        return;
+      }
       if (!film) return;
       if (mode === "queue") {
         removeQueueId(filmId(film));
@@ -8988,8 +9926,30 @@
   function commitSwipe(row, dir) {
     const mode = row.dataset.swipeMode;
     const film = findFilm(row.dataset.id);
-    if (!film || !mode) {
+    const video = !film ? findVideo(row.dataset.id) : null;
+    if ((!film && !video) || !mode) {
       resetSwipeRow(row);
+      return;
+    }
+    if (video) {
+      resetSwipeRow(row);
+      if (dir === "right" && mode === "watch") {
+        if (!addVideoQueue(video)) showSnack("Bereits in Demnächst enthalten", "info");
+        else showSnack(`${video.title} → Demnächst`);
+        render();
+        return;
+      }
+      if (dir === "left" && (mode === "watch" || mode === "queue")) {
+        pendingSwipeRemove = { id: String(video.id), mode, kind: "video" };
+        openConfirm({
+          title: "Wirklich aus Liste entfernen?",
+          confirmLabel: "Entfernen",
+          confirmAct: "swipe-remove",
+          id: String(video.id),
+          danger: true,
+          center: true,
+        });
+      }
       return;
     }
     if (mode === "suggest" && dir === "left") {
@@ -9046,7 +10006,7 @@
     dismissWatchSwipeHint();
     const row = event.target.closest("[data-swipe-row]");
     if (!row || !row.dataset.swipeMode) return;
-    if (event.target.closest("[data-act=film-menu], .film-menu-pop, [data-act=watch-toggle], .film-row-expand, [data-act=rate], [data-act=film-tag], [data-act=choose], .suggest-inline-watch")) return;
+    if (event.target.closest("[data-act=film-menu], .film-menu-pop, [data-act=watch-toggle], .film-row-expand, [data-act=rate], [data-act=film-tag], [data-act=choose], .suggest-inline-watch, [data-act=video-confirm], [data-act=video-expand], .v-anschauen, .video-expand-actions, .seen-rate-bubble, [data-act=video-seen-rate-open], [data-act=video-seen-undo]")) return;
     if (event.target.closest(".film-row.is-open")) return;
     if (swipeDrag) return;
     swipeDrag = {
@@ -9196,7 +10156,47 @@
 
   watchSheetEl.addEventListener("input", (event) => {
     const t = event.target;
-    if (!t || !t.dataset) return;
+    if (!t) return;
+    if (t.id === "video-url") {
+      state.videoFormUrl = t.value;
+      const detected = detectPlatform(t.value);
+      if (!state.videoFormCustomPlat) {
+        state.videoFormPlatId = detected.id !== "generic" ? detected.id : "";
+        state.videoFormPlat = state.videoFormPlatId ? platLabelFromId(state.videoFormPlatId) : "";
+        const platInput = watchSheetEl.querySelector("#video-plat");
+        if (platInput) platInput.value = state.videoFormPlat;
+        watchSheetEl.querySelectorAll(".video-plat-chip").forEach((chip) => {
+          const p = chip.dataset.plat || "";
+          chip.setAttribute("aria-pressed", p === state.videoFormPlatId ? "true" : "false");
+        });
+      }
+    }
+    if (t.id === "video-title") {
+      state.videoFormTitle = t.value;
+    }
+    if (t.id === "video-desc") {
+      state.videoFormDesc = t.value;
+    }
+    if (t.id === "video-plat") {
+      state.videoFormPlat = t.value;
+      state.videoFormCustomPlat = !!t.value.trim();
+      const lower = t.value.trim().toLowerCase();
+      if (!lower) state.videoFormPlatId = "";
+      else if (lower.includes("youtube")) state.videoFormPlatId = "yt";
+      else if (lower.includes("instagram")) state.videoFormPlatId = "ig";
+      else if (lower.includes("facebook")) state.videoFormPlatId = "fb";
+      else state.videoFormPlatId = "generic";
+      watchSheetEl.querySelectorAll(".video-plat-chip").forEach((chip) => {
+        const p = chip.dataset.plat || "";
+        chip.setAttribute("aria-pressed", p === state.videoFormPlatId ? "true" : "false");
+      });
+    }
+    if (t.dataset && t.dataset.act === "video-search-input") {
+      state.videoSearch = t.value;
+      render();
+      return;
+    }
+    if (!t.dataset) return;
     if (t.dataset.act === "watch-search") {
       state.watchSearch = t.value;
       scheduleTitleSearch(t.value);
