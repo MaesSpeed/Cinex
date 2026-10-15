@@ -1063,6 +1063,9 @@
     videoFormPlat: "",
     videoFormPlatId: "",
     videoFormCustomPlat: false,
+    settingsBusy: false,
+    settingsError: "",
+    settingsReturnScreen: "lists",
   };
 
   const app = document.getElementById("app");
@@ -1233,6 +1236,163 @@
     paintLoginError();
     showSnack(`Sicherung gespeichert: cinex-backup-${safe}-${stamp}.json`);
     return true;
+  }
+
+  function formatSyncWhen(ts) {
+    if (!ts) return "";
+    try {
+      return new Date(ts).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
+    } catch {
+      return "";
+    }
+  }
+
+  function downloadAccountBackup(user, reason) {
+    if (!user) return false;
+    const backup = collectAccountBackup(user);
+    if (!backup) return false;
+    const stamp = new Date().toISOString().slice(0, 10);
+    const safe = String(user.login).replace(/[^\w.-]+/g, "_");
+    downloadJsonFile(`cinex-backup-${safe}-${stamp}.json`, backup);
+    try {
+      saveJson(`wdq.backup.${stamp}.${user.id}`, { at: Date.now(), login: user.login, reason: reason || "manual" });
+    } catch { /* ignore quota */ }
+    return true;
+  }
+
+  function cloudAccountLinked() {
+    return Boolean(state.user && state.user.cloud && loadCloudSession() && loadCloudSession().token);
+  }
+
+  function openSettingsScreen() {
+    if (!state.user) return;
+    closeAccountMenu();
+    state.settingsReturnScreen = state.screen;
+    state.settingsError = "";
+    state.screen = "settings";
+    render();
+  }
+
+  function renderSettings() {
+    const user = state.user;
+    if (!user) return "";
+    const linked = cloudAccountLinked();
+    const meta = loadSyncMeta(user.id);
+    const when = formatSyncWhen(meta.lastPullAt);
+    const status = linked
+      ? `Cloud-Sync aktiv${when ? ` · Zuletzt ${when}` : ""}`
+      : "nur auf diesem Gerät";
+    const syncBtn = !linked && cloudSyncAvailable()
+      ? `<button type="button" class="btn btn-primary settings-btn" data-act="settings-enable-sync" ${state.settingsBusy ? "disabled" : ""}>${state.settingsBusy ? "Wird eingerichtet …" : "Synchronisierung einschalten"}</button>`
+      : "";
+    const err = state.settingsError
+      ? `<p class="error settings-error">${escapeHtml(state.settingsError)}</p>`
+      : "";
+    return `
+      <h2 class="screen-title home-title settings-title">Einstellungen</h2>
+      <section class="stack settings-stack">
+        <article class="card settings-konto">
+          <h3 class="settings-konto-title">Konto: ${escapeHtml(user.login)}</h3>
+          <p class="settings-konto-status">${escapeHtml(status)}</p>
+        </article>
+        ${err}
+        <button type="button" class="btn btn-primary settings-btn" data-act="settings-backup" ${state.settingsBusy ? "disabled" : ""}>Daten sichern</button>
+        ${syncBtn}
+      </section>
+    `;
+  }
+
+  function openEnableSyncPasswordSheet() {
+    if (!state.user || state.settingsBusy || !cloudSyncAvailable()) return;
+    downloadAccountBackup(state.user, "pre-cloud-enable");
+    showSnack("Sicherungsdatei wird heruntergeladen …");
+    openConfirm({
+      title: "Cloud-Synchronisierung",
+      text: "Gib dein Kontopasswort ein. Deine Daten auf diesem Gerät bleiben erhalten und werden online gesichert.",
+      extra: `<label class="field"><span>Passwort</span><input data-act="settings-sync-pass" type="password" autocomplete="current-password"></label>`,
+      confirmLabel: "Synchronisierung starten",
+      confirmAct: "settings-sync-confirm",
+      bottom: true,
+    });
+  }
+
+  function paintSettingsSyncModalError(message) {
+    const hint = modalEl.querySelector(".hint");
+    if (hint && message) hint.textContent = message;
+  }
+
+  async function confirmEnableCloudSync() {
+    const user = state.user;
+    if (!user || state.settingsBusy || !cloudSyncAvailable()) return;
+    const input = modalEl.querySelector("[data-act=settings-sync-pass]");
+    const password = input ? input.value : "";
+    if (!password) {
+      paintSettingsSyncModalError("Bitte Passwort eingeben.");
+      return;
+    }
+    const login = String(user.login || "").trim();
+    if (login.length < 3 || login.length > 32) {
+      paintSettingsSyncModalError("Benutzername: 3–32 Zeichen.");
+      return;
+    }
+    state.settingsBusy = true;
+    state.settingsError = "";
+    render();
+    let linkedMsg = "";
+    try {
+      let token = null;
+      const reg = await syncApi("/register", { method: "POST", body: { name: login, password } });
+      if (reg.ok && reg.data && reg.data.token) {
+        token = reg.data.token;
+      } else if (reg.status === 409) {
+        const log = await syncApi("/login", { method: "POST", body: { name: login, password } });
+        if (!log.ok || !log.data || !log.data.token) {
+          if (log.status === 401) paintSettingsSyncModalError("Login oder Passwort stimmt nicht.");
+          else if (log.status === 429) paintSettingsSyncModalError("Zu viele Versuche. Bitte kurz warten.");
+          else paintSettingsSyncModalError((log.data && (log.data.error || log.data.message)) || "Cloud-Anmeldung fehlgeschlagen.");
+          return;
+        }
+        token = log.data.token;
+        linkedMsg = "Konto verknüpft";
+      } else if (reg.status === 401) {
+        paintSettingsSyncModalError("Login oder Passwort stimmt nicht.");
+        return;
+      } else if (reg.status === 429) {
+        paintSettingsSyncModalError("Zu viele Versuche. Bitte kurz warten.");
+        return;
+      } else {
+        paintSettingsSyncModalError((reg.data && (reg.data.error || reg.data.message)) || "Cloud-Anmeldung fehlgeschlagen.");
+        return;
+      }
+      const list = users();
+      const idx = list.findIndex((u) => u.id === user.id);
+      if (idx < 0) throw new Error("Lokales Konto nicht gefunden.");
+      const updated = { ...list[idx], login, cloud: true };
+      delete updated.password;
+      list[idx] = updated;
+      saveUsers(list);
+      state.user = updated;
+      saveCloudSession({
+        token,
+        name: login,
+        userId: user.id,
+        at: Date.now(),
+      });
+      closeModal();
+      bindCloudLifecycle();
+      setCloudStatus("syncing");
+      await syncAccount(updated, { forceUpload: true });
+      setCloudStatus("ok");
+      if (linkedMsg) showSnack(linkedMsg);
+      else showSnack("Cloud-Synchronisierung aktiv");
+    } catch (err) {
+      const msg = err && err.message ? err.message : "Keine Verbindung zur Cloud.";
+      state.settingsError = msg;
+      closeModal();
+    } finally {
+      state.settingsBusy = false;
+      render();
+    }
   }
 
   function importAccountBackupObject(obj) {
@@ -1485,7 +1645,7 @@
           saveJson(prefix + "ratingsSync", value);
         } else if (Array.isArray(value)) {
           saveJson(prefix + suf, value.filter((row) => !(row && row.deleted)));
-        } else if (value && typeof value === "object" && value.deleted) {
+        } else if (value == null || (typeof value === "object" && value.deleted)) {
           localStorage.removeItem(prefix + suf);
         } else {
           saveJson(prefix + suf, value);
@@ -1565,10 +1725,6 @@
       out[k] = mergeArrayById(a[k], b[k], k === "tags" ? "tags" : "list");
     });
     out.ratings = mergeRatings(a.ratings, b.ratings);
-    out.filmTags = mergeObjectsLww(
-      a.filmTags && typeof a.filmTags === "object" ? stampItem(Object.assign({ id: "filmTags" }, a.filmTags)) : null,
-      b.filmTags && typeof b.filmTags === "object" ? stampItem(Object.assign({ id: "filmTags" }, b.filmTags)) : null
-    );
     // filmTags is a map id->tagIds[]; merge keys LWW per film id
     if ((a.filmTags && typeof a.filmTags === "object") || (b.filmTags && typeof b.filmTags === "object")) {
       const fa = a.filmTags || {};
@@ -1597,8 +1753,10 @@
       const tb = b.tagCovers || {};
       return Object.assign({}, ta, tb);
     })();
-    out.favorite = mergeObjectsLww(a.favorite, b.favorite);
-    out.watchSwipeHint = mergeObjectsLww(a.watchSwipeHint, b.watchSwipeHint);
+    const favoriteMerged = mergeObjectsLww(a.favorite, b.favorite);
+    if (favoriteMerged != null) out.favorite = favoriteMerged;
+    const hintMerged = mergeObjectsLww(a.watchSwipeHint, b.watchSwipeHint);
+    if (hintMerged != null) out.watchSwipeHint = hintMerged;
     out._tombstones = mergeArrayById(a._tombstones, b._tombstones, "list");
     return out;
   }
@@ -2395,7 +2553,8 @@
   }
 
   function filmTags() {
-    return loadJson(pkey("filmTags"), {});
+    const map = loadJson(pkey("filmTags"), {});
+    return map && typeof map === "object" && !Array.isArray(map) ? map : {};
   }
 
   function saveFilmTags(map) {
@@ -2907,7 +3066,6 @@
             <button type="button" class="acct-menu-item" role="menuitem" data-act="account-settings">
               <span class="acct-menu-ico" aria-hidden="true">${ICONS.gear}</span>
               <span>Einstellungen</span>
-              <span class="acct-soon">bald</span>
             </button>
             <button type="button" class="acct-menu-item is-danger" role="menuitem" data-act="account-logout">
               <span class="acct-menu-ico" aria-hidden="true">${ICONS.logout}</span>
@@ -4276,16 +4434,16 @@
   function updateHeader() {
     const menuWasOpen = !!(headerActions.querySelector(".acct-menu") && !headerActions.querySelector(".acct-menu").hidden);
     const items = [];
-    if (["tags", "done", "profile-add", "tag-edit"].includes(state.screen)) {
+    if (["tags", "done", "profile-add", "tag-edit", "settings"].includes(state.screen)) {
       items.push(`<button type="button" class="icon-btn" data-act="back" aria-label="Zurück" title="Zurück">${ICONS.back}</button>`);
     }
     if (state.screen === "tag-edit") {
       items.push(`<button type="button" class="tag-save-head" data-act="tag-edit-save">Speichern</button>`);
     }
-    if ((state.screen === "discover" || state.screen === "lists") && state.profile) {
+    if ((state.screen === "discover" || state.screen === "lists" || state.screen === "settings") && state.profile) {
       const badge = cloudStatusHtml();
       if (badge) items.push(`<span data-role="cloud-status" class="cloud-status-slot">${badge}</span>`);
-      items.push(accountMenuHtml());
+      if (state.screen !== "settings") items.push(accountMenuHtml());
     }
     if (state.screen === "profiles") {
       items.push(`<button type="button" class="icon-btn" data-act="logout" aria-label="Ausloggen" title="Ausloggen">${ICONS.logout}</button>`);
@@ -9328,6 +9486,7 @@
     else if (state.screen === "tags") app.innerHTML = renderTagsManage();
     else if (state.screen === "tag-edit") app.innerHTML = renderTagEdit();
     else if (state.screen === "done") app.innerHTML = renderDone();
+    else if (state.screen === "settings") app.innerHTML = renderSettings();
     if (state.migrateDialog) {
       const host = app;
       if (host && !host.querySelector("[data-role=migrate-dialog]")) {
@@ -9355,7 +9514,10 @@
       resetTagEditor();
       state.screen = "tags";
     } else if (state.screen === "profile-add") state.screen = "profiles";
-    else if (state.screen === "lists" || state.screen === "tags" || state.screen === "done") {
+    else if (state.screen === "settings") {
+      state.screen = state.settingsReturnScreen || "lists";
+      state.settingsError = "";
+    } else if (state.screen === "lists" || state.screen === "tags" || state.screen === "done") {
       if (state.screen === "tags") state.tagEditId = null;
       state.screen = "discover";
       state.discoverView = "hub";
@@ -9944,8 +10106,27 @@
       resetSessionPicks();
       openWatchlistHome();
       persistSession();
-      render();
+      try {
+        render();
+      } catch (err) {
+        console.error(err);
+        showSnack("Fehler beim Öffnen", "warn");
+      }
       loadCatalog();
+      return;
+    }
+    if (act === "settings-backup") {
+      const user = state.user;
+      if (!user || state.settingsBusy) return;
+      if (downloadAccountBackup(user, "settings")) {
+        const stamp = new Date().toISOString().slice(0, 10);
+        const safe = String(user.login).replace(/[^\w.-]+/g, "_");
+        showSnack(`Sicherung gespeichert: cinex-backup-${safe}-${stamp}.json`);
+      }
+      return;
+    }
+    if (act === "settings-enable-sync") {
+      openEnableSyncPasswordSheet();
       return;
     }
     if (act === "add-profile") {
@@ -10676,8 +10857,7 @@
     if (t.dataset.act === "switch" || t.dataset.act === "account-switch") switchToProfiles();
     if (t.dataset.act === "account-menu") toggleAccountMenu();
     if (t.dataset.act === "account-settings") {
-      closeAccountMenu();
-      showSnack("bald");
+      openSettingsScreen();
     }
     if (t.dataset.act === "account-logout" || t.dataset.act === "logout") {
       closeAccountMenu();
@@ -10730,6 +10910,10 @@
       d.setDate(d.getDate() - offset);
       input.value = dateInputValueFromTs(d.getTime());
       syncSeenDateSaveDisabled();
+      return;
+    }
+    if (t.dataset.act === "settings-sync-confirm") {
+      confirmEnableCloudSync();
       return;
     }
     if (t.dataset.act === "delete-profile") {

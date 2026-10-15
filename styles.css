@@ -6549,3 +6549,35 @@ button.tag-chip {
   cursor: pointer;
 }
 .migrate-later:disabled { opacity: 0.5; }
+
+.settings-title {
+  color: #00205B;
+}
+
+.settings-konto {
+  padding: 16px 14px;
+  border-color: rgba(0, 32, 91, 0.14);
+}
+
+.settings-konto-title {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 750;
+  color: #00205B;
+}
+
+.settings-konto-status {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #3a4a5a;
+  line-height: 1.35;
+}
+
+.settings-stack .settings-btn.btn-primary {
+  background: #00205B;
+  border-color: #001a47;
+}
+
+.settings-error {
+  margin: 0;
+}
