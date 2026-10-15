@@ -6439,3 +6439,53 @@ button.tag-chip {
 .film-row.video-seen-card .v-foot { margin-top: 0; }
 .film-row.video-seen-card .seen-rate-line { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; white-space: nowrap; }
 .film-row.video-seen-card > .film-row-head > .v-anschauen { grid-column: 1 / -1; grid-row: 2; justify-self: center; margin: 0; min-width: 140px; }
+
+
+/* Cloud migrate dialog (Sync Schritt 3) */
+.migrate-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(10, 18, 28, 0.55);
+  backdrop-filter: blur(4px);
+}
+.migrate-card {
+  width: min(420px, 100%);
+  background: #f7f4ef;
+  color: #1a2a3a;
+  border-radius: 18px;
+  padding: 22px 20px 18px;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.28);
+  text-align: center;
+}
+.migrate-icon { font-size: 28px; margin-bottom: 8px; }
+.migrate-card h2 {
+  margin: 0 0 10px;
+  font-size: 1.15rem;
+  line-height: 1.35;
+  font-weight: 700;
+}
+.migrate-copy {
+  margin: 0 0 18px;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: #3a4a5a;
+}
+.migrate-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.migrate-actions .btn { width: 100%; }
+.migrate-later {
+  background: transparent;
+  border: none;
+  color: #4a5a6a;
+  font-size: 0.95rem;
+  padding: 8px;
+  cursor: pointer;
+}
+.migrate-later:disabled { opacity: 0.5; }
