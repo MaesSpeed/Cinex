@@ -513,21 +513,49 @@
     });
   }
 
-  const LIST_HYDRATE_CONCURRENCY = 3;
-  const LIST_HYDRATE_BATCH_MS = 160;
+  const LIST_HYDRATE_CONCURRENCY = 4;
+  const LIST_HYDRATE_BATCH_MS = 80;
+  const LIST_HYDRATE_MAX_FAILURES = 3;
   const listHydrateQueued = new Set();
   const listHydrateInflight = new Map();
+  const listHydrateFailCount = new Map();
+  const listHydrateRetryAfter = new Map();
   let listHydrateQueue = [];
   let listHydrateActive = 0;
-  let listHydrateTimer = 0;
+  let listHydrateKickTimer = 0;
+  let listHydratePersistTimer = 0;
+  let listHydrateRenderFrame = 0;
+  let listHydratePersistBatch = [];
 
   function tmdbFromListId(id) {
     const n = Number(String(id).replace(/^t/i, ""));
     return Number.isFinite(n) && n > 0 ? n : 0;
   }
 
-  function pendingListFilm(id) {
+  function canonicalListFilmId(id) {
     const sid = String(id);
+    const tmdb = tmdbFromListId(sid);
+    if (tmdb) return `t${tmdb}`;
+    return sid;
+  }
+
+  function isListFilmPlaceholder(film) {
+    if (!film) return true;
+    const title = String(film.title || "").trim();
+    if (!title || title === "Lädt…") return true;
+    const tmdb = Number(film.tmdb);
+    return !Number.isFinite(tmdb) || tmdb <= 0;
+  }
+
+  function filmListResolved(id) {
+    const sid = canonicalListFilmId(id);
+    const film = findFilm(sid) || findFilm(id);
+    if (!film || isListFilmPlaceholder(film)) return null;
+    return film;
+  }
+
+  function pendingListFilm(id) {
+    const sid = canonicalListFilmId(id);
     const tmdb = tmdbFromListId(sid);
     return normalizeFilm({
       id: sid,
@@ -540,56 +568,128 @@
     });
   }
 
-  function onListFilmHydrated(stored) {
+  function scheduleListHydrateRender() {
+    if (listHydrateRenderFrame) return;
+    listHydrateRenderFrame = window.requestAnimationFrame(() => {
+      listHydrateRenderFrame = 0;
+      if (state.watchSheet) paintWatchSheetList();
+      if (state.screen === "lists") {
+        if (state.listTab === "seen") render();
+        else refreshWatchList();
+      } else if (state.screen === "done") render();
+    });
+  }
+
+  function flushListHydratePersist() {
+    listHydratePersistTimer = 0;
+    if (!listHydratePersistBatch.length) return;
+    const batch = listHydratePersistBatch;
+    listHydratePersistBatch = [];
+    persistKnownFilms(batch);
+    scheduleDebouncedSync();
+    batch.forEach((stored) => patchFilmRowMeta(stored));
+    scheduleListHydrateRender();
+  }
+
+  function enqueueListHydrateResult(stored) {
     if (!stored) return;
-    patchFilmRowMeta(stored);
-    if (state.watchSheet) paintWatchSheetList();
-    if (state.screen === "lists") {
-      if (state.listTab === "seen") render();
-      else refreshWatchList();
-    } else if (state.screen === "done") render();
+    listHydratePersistBatch.push(stored);
+    window.clearTimeout(listHydratePersistTimer);
+    listHydratePersistTimer = window.setTimeout(flushListHydratePersist, LIST_HYDRATE_BATCH_MS);
+  }
+
+  function noteListHydrateFailure(sid) {
+    const fails = (listHydrateFailCount.get(sid) || 0) + 1;
+    listHydrateFailCount.set(sid, fails);
+    if (fails >= LIST_HYDRATE_MAX_FAILURES) return;
+    const backoff = Math.min(30000, 750 * Math.pow(2, fails - 1));
+    listHydrateRetryAfter.set(sid, Date.now() + backoff);
+    listHydrateQueued.delete(sid);
+    window.setTimeout(() => queueFilmHydration(sid), backoff);
+  }
+
+  function shouldSkipListHydrate(sid) {
+    if (filmListResolved(sid)) return true;
+    if (listHydrateInflight.has(sid)) return true;
+    const retryAt = listHydrateRetryAfter.get(sid) || 0;
+    if (retryAt > Date.now()) return true;
+    if ((listHydrateFailCount.get(sid) || 0) >= LIST_HYDRATE_MAX_FAILURES) return true;
+    return false;
   }
 
   function pumpListFilmHydration() {
     while (listHydrateActive < LIST_HYDRATE_CONCURRENCY && listHydrateQueue.length) {
-      const sid = listHydrateQueue.shift();
-      if (!sid || listHydrateInflight.has(sid)) continue;
+      const sid = listHydrateQueue[0];
+      if (!sid) {
+        listHydrateQueue.shift();
+        continue;
+      }
+      if (shouldSkipListHydrate(sid)) {
+        if (filmListResolved(sid)) {
+          listHydrateQueue.shift();
+          listHydrateQueued.delete(sid);
+          continue;
+        }
+        if ((listHydrateFailCount.get(sid) || 0) >= LIST_HYDRATE_MAX_FAILURES) {
+          listHydrateQueue.shift();
+          listHydrateQueued.delete(sid);
+          continue;
+        }
+        break;
+      }
+      listHydrateQueue.shift();
       const tmdb = tmdbFromListId(sid);
       if (!tmdb || !remoteSearchAvailable()) continue;
-      if (findFilm(sid)) continue;
       listHydrateActive += 1;
       const promise = proxyFetch(`/movie/${tmdb}`, { append_to_response: "credits" }).then((data) => {
         const next = filmFromMovieDetail(data);
-        if (!next) return null;
-        liveDetailTried.add(sid);
-        return rememberFilm(next);
-      }).catch(() => null).finally(() => {
+        if (!next) {
+          noteListHydrateFailure(sid);
+          return null;
+        }
+        listHydrateFailCount.delete(sid);
+        listHydrateRetryAfter.delete(sid);
+        liveDetailTried.add(filmId(next));
+        const stored = rememberFilm(next, { persist: false });
+        if (stored) enqueueListHydrateResult(stored);
+        return stored;
+      }).catch(() => {
+        noteListHydrateFailure(sid);
+        return null;
+      }).finally(() => {
         listHydrateInflight.delete(sid);
+        listHydrateQueued.delete(sid);
         listHydrateActive -= 1;
         pumpListFilmHydration();
       });
       listHydrateInflight.set(sid, promise);
-      promise.then((stored) => onListFilmHydrated(stored));
     }
   }
 
+  function kickListFilmHydration() {
+    window.clearTimeout(listHydrateKickTimer);
+    listHydrateKickTimer = window.setTimeout(() => {
+      listHydrateKickTimer = 0;
+      pumpListFilmHydration();
+    }, 16);
+  }
+
   function queueFilmHydration(id) {
-    const sid = String(id);
+    const sid = canonicalListFilmId(id);
     if (!sid || !remoteSearchAvailable()) return;
-    if (findFilm(sid)) return;
+    if (filmListResolved(sid)) return;
     if (!tmdbFromListId(sid)) return;
     if (listHydrateQueued.has(sid) || listHydrateInflight.has(sid)) return;
+    if ((listHydrateFailCount.get(sid) || 0) >= LIST_HYDRATE_MAX_FAILURES) return;
+    const retryAt = listHydrateRetryAfter.get(sid) || 0;
+    if (retryAt > Date.now()) return;
     listHydrateQueued.add(sid);
     listHydrateQueue.push(sid);
-    window.clearTimeout(listHydrateTimer);
-    listHydrateTimer = window.setTimeout(() => {
-      listHydrateTimer = 0;
-      pumpListFilmHydration();
-    }, LIST_HYDRATE_BATCH_MS);
+    kickListFilmHydration();
   }
 
   function listFilmOrPlaceholder(id) {
-    const film = findFilm(id);
+    const film = filmListResolved(id);
     if (film) return filmWithPoster(film);
     queueFilmHydration(id);
     return filmWithPoster(pendingListFilm(id));
@@ -607,7 +707,7 @@
   function hydrateMissingListFilms() {
     if (!state.profile || !remoteSearchAvailable()) return;
     collectListFilmIds().forEach((id) => {
-      if (!findFilm(id)) queueFilmHydration(id);
+      if (!filmListResolved(id)) queueFilmHydration(id);
     });
   }
 
@@ -1383,6 +1483,9 @@
     const syncBtn = !linked && cloudSyncAvailable()
       ? `<button type="button" class="btn btn-primary settings-btn" data-act="settings-enable-sync" ${state.settingsBusy ? "disabled" : ""}>${state.settingsBusy ? "Wird eingerichtet …" : "Synchronisierung einschalten"}</button>`
       : "";
+    const syncNowBtn = linked
+      ? `<button type="button" class="btn btn-primary settings-btn" data-act="settings-sync-now" ${state.settingsBusy ? "disabled" : ""}>${state.settingsBusy ? "Synchronisiere …" : "Jetzt synchronisieren"}</button>`
+      : "";
     const err = state.settingsError
       ? `<p class="error settings-error">${escapeHtml(state.settingsError)}</p>`
       : "";
@@ -1395,6 +1498,7 @@
         </article>
         ${err}
         <button type="button" class="btn btn-primary settings-btn" data-act="settings-backup" ${state.settingsBusy ? "disabled" : ""}>Daten sichern</button>
+        ${syncNowBtn}
         ${syncBtn}
       </section>
     `;
@@ -1546,6 +1650,8 @@
 
   // --- Cloud Sync Schritt 3: collect / merge / tombstones / migration ---
   const SYNC_TOMBSTONE_MAX_MS = 90 * 24 * 3600 * 1000;
+  const SYNC_PUSH_DEBOUNCE_MS = 60 * 1000;
+  const SYNC_PULL_INTERVAL_MS = 5 * 60 * 1000;
   const SYNC_PROFILE_SUFFIXES = [
     "watchlist", "queue", "history", "ratings", "tags", "filmTags", "tagCovers",
     "favorite", "known", "videoWatchlist", "videoQueue", "videoHistory", "watchSwipeHint",
@@ -1745,6 +1851,7 @@
           saveJson(prefix + "ratingsSync", value);
         } else if (suf === "known") {
           saveJson(prefix + suf, normalizeKnownMap(value));
+          invalidateKnownFilmsCache();
         } else if (Array.isArray(value)) {
           saveJson(prefix + suf, value.filter((row) => !(row && row.deleted)));
         } else if (value == null || (typeof value === "object" && value.deleted)) {
@@ -2099,19 +2206,21 @@
   function scheduleDebouncedSync() {
     if (!state.user || !loadCloudSession()) return;
     markPendingSync(state.user.id, true);
-    if (state._syncInFlight) state._syncDirtyDuringFlight = true;
+    if (state._syncInFlight) {
+      state._syncDirtyDuringFlight = true;
+      return;
+    }
     if (!isNetworkOnline()) {
       setCloudStatus("offline");
       return;
     }
-    if (state.cloudStatus !== "syncing") setCloudStatus("syncing");
-    if (state._syncTimer) clearTimeout(state._syncTimer);
+    if (state._syncTimer) return;
     state._syncTimer = setTimeout(() => {
       state._syncTimer = null;
       syncAccount(state.user, { reason: "change" }).catch((err) => {
         console.warn("cloud sync", err);
       });
-    }, 2000);
+    }, SYNC_PUSH_DEBOUNCE_MS);
   }
 
   async function flushPendingSync(reason = "flush") {
@@ -2128,12 +2237,23 @@
     }
   }
 
+  function startCloudPullInterval() {
+    if (state._syncPullInterval) return;
+    state._syncPullInterval = window.setInterval(() => {
+      if (!cloudSessionActive() || document.visibilityState !== "visible") return;
+      if (!isNetworkOnline() || state._syncInFlight) return;
+      syncAccount(state.user, { reason: "periodic" }).catch((err) => {
+        console.warn("cloud periodic sync", err);
+      });
+    }, SYNC_PULL_INTERVAL_MS);
+  }
+
   function bindCloudLifecycle() {
     if (state._cloudLifeBound) return;
     state._cloudLifeBound = true;
+    startCloudPullInterval();
     window.addEventListener("online", () => {
       if (!cloudSessionActive()) return;
-      setCloudStatus("syncing");
       flushPendingSync("online");
     });
     window.addEventListener("offline", () => {
@@ -2142,13 +2262,36 @@
       setCloudStatus("offline");
     });
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState !== "visible") return;
       if (!cloudSessionActive()) return;
-      flushPendingSync("visible");
+      if (document.visibilityState === "hidden") {
+        if (state._syncTimer) {
+          clearTimeout(state._syncTimer);
+          state._syncTimer = null;
+        }
+        flushPendingSync("hidden");
+        return;
+      }
+      if (!state._syncInFlight && !state._syncTimer) {
+        syncAccount(state.user, { reason: "visible" }).catch((err) => {
+          console.warn("cloud visible sync", err);
+        });
+      }
+    });
+    window.addEventListener("pagehide", () => {
+      if (!cloudSessionActive()) return;
+      if (state._syncTimer) {
+        clearTimeout(state._syncTimer);
+        state._syncTimer = null;
+      }
+      flushPendingSync("pagehide");
     });
     window.addEventListener("pageshow", () => {
       if (!cloudSessionActive()) return;
-      flushPendingSync("pageshow");
+      if (!state._syncInFlight && !state._syncTimer) {
+        syncAccount(state.user, { reason: "pageshow" }).catch((err) => {
+          console.warn("cloud pageshow sync", err);
+        });
+      }
     });
   }
 
@@ -2799,6 +2942,7 @@
     state.user = user;
     const profile = profilesOf(user.id).find((p) => p.id === session.profileId) || null;
     state.profile = profile;
+    invalidateKnownFilmsCache();
     state.discoverView = "hub";
     if (profile) openWatchlistHome();
     else state.screen = "profiles";
@@ -2834,11 +2978,30 @@
     return pkey("known");
   }
 
+  let knownFilmsCache = null;
+  let knownFilmsCacheKey = null;
+
+  function invalidateKnownFilmsCache() {
+    knownFilmsCache = null;
+    knownFilmsCacheKey = null;
+  }
+
   function loadKnownFilms() {
     const key = knownKey();
     if (!key) return {};
+    if (knownFilmsCache && knownFilmsCacheKey === key) return knownFilmsCache;
     const raw = loadJson(key, {});
-    return normalizeKnownMap(raw);
+    knownFilmsCache = normalizeKnownMap(raw);
+    knownFilmsCacheKey = key;
+    return knownFilmsCache;
+  }
+
+  function writeKnownFilmsMap(all) {
+    const key = knownKey();
+    if (!key || !all) return;
+    knownFilmsCache = all;
+    knownFilmsCacheKey = key;
+    saveJson(key, all);
   }
 
   function pickRuntime(next, prev) {
@@ -2877,26 +3040,24 @@
     }
     const stored = state.catalog.find((row) => filmId(row) === filmId(n)) || n;
     const persist = !options || options.persist !== false;
-    const key = knownKey();
-    if (persist && key) {
+    if (persist && knownKey()) {
       const all = loadKnownFilms();
-      all[filmId(stored)] = stored;
-      saveJson(key, all);
+      all[canonicalListFilmId(filmId(stored))] = stored;
+      writeKnownFilmsMap(all);
     }
     return stored;
   }
 
   function persistKnownFilms(films) {
-    const key = knownKey();
-    if (!key || !films || !films.length) return;
+    if (!knownKey() || !films || !films.length) return;
     const all = loadKnownFilms();
     let changed = false;
     for (const film of films) {
       if (!film || !film.id) continue;
-      all[filmId(film)] = film;
+      all[canonicalListFilmId(filmId(film))] = film;
       changed = true;
     }
-    if (changed) saveJson(key, all);
+    if (changed) writeKnownFilmsMap(all);
   }
 
   function mergeKnownIntoCatalog() {
@@ -2918,7 +3079,8 @@
       if (hit) return hit;
     }
     const known = loadKnownFilms();
-    const raw = known[sid] || known[`t${num}`] || known[String(num)];
+    const canon = canonicalListFilmId(sid);
+    const raw = known[canon] || known[sid] || known[`t${num}`] || known[String(num)];
     return raw ? normalizeFilm(raw) : null;
   }
 
@@ -2975,6 +3137,7 @@
     const pending = (films || []).filter((film) => {
       const id = filmId(film);
       if (!id || castFetchTried.has(id)) return false;
+      if (isListFilmPlaceholder(film)) return false;
       if (filmCastNames(film).length) {
         castFetchTried.add(id);
         return false;
@@ -6799,6 +6962,9 @@
   }
 
   function refreshWatchList() {
+    if (typeof window !== "undefined" && window.__CINEX_TEST_COUNTERS__) {
+      window.__CINEX_TEST_COUNTERS__.refreshWatchList = (window.__CINEX_TEST_COUNTERS__.refreshWatchList || 0) + 1;
+    }
     if (state.screen !== "lists" || (state.listTab !== "watch" && state.listTab !== "queue")) return;
     if (state.listsMode === "videos") {
       render();
@@ -7802,12 +7968,22 @@
 
   function filmWithPoster(film) {
     if (!film) return null;
-    if (film.poster) return film;
+    let poster = film.poster || "";
+    if (!poster && film.poster_path) {
+      poster = tmdbPoster(film.poster_path);
+    }
     const id = filmId(film);
     const loginHit = LOGIN_POSTERS.find((row) => filmId(row) === id);
-    if (loginHit && loginHit.poster) return Object.assign({}, film, { poster: loginHit.poster });
+    if (!poster && loginHit && loginHit.poster) poster = loginHit.poster;
     const known = findFilm(id);
-    if (known && known.poster) return Object.assign({}, film, { poster: known.poster });
+    if (!poster && known) {
+      if (known.poster) poster = known.poster;
+      else if (known.poster_path) poster = tmdbPoster(known.poster_path);
+    }
+    if (poster && poster !== film.poster) {
+      return Object.assign({}, film, { poster });
+    }
+    if (film.poster) return film;
     return film;
   }
 
@@ -10279,6 +10455,7 @@
       const profile = profilesOf(state.user.id).find((p) => p.id === t.dataset.id);
       if (!profile) return;
       state.profile = profile;
+      invalidateKnownFilmsCache();
       resetSessionPicks();
       openWatchlistHome();
       persistSession();
@@ -10303,6 +10480,27 @@
     }
     if (act === "settings-enable-sync") {
       openEnableSyncPasswordSheet();
+      return;
+    }
+    if (act === "settings-sync-now") {
+      const user = state.user;
+      if (!user || state.settingsBusy || !cloudAccountLinked()) return;
+      state.settingsBusy = true;
+      render();
+      if (state._syncTimer) {
+        clearTimeout(state._syncTimer);
+        state._syncTimer = null;
+      }
+      syncAccount(user, { reason: "manual" })
+        .then((res) => {
+          if (res && res.ok) showSnack("Synchronisierung abgeschlossen.");
+          else showSnack("Synchronisierung fehlgeschlagen.", "warn");
+        })
+        .catch(() => showSnack("Synchronisierung fehlgeschlagen.", "warn"))
+        .finally(() => {
+          state.settingsBusy = false;
+          render();
+        });
       return;
     }
     if (act === "add-profile") {
@@ -11732,10 +11930,27 @@
       normalizeKnownMap,
       watchlistFilms,
       listFilmsFromRows,
+      listFilmOrPlaceholder,
+      filmListResolved,
       findFilm,
       rememberFilm,
+      persistKnownFilms,
       loadKnownFilms,
+      queueFilmHydration,
+      hydrateMissingListFilms,
+      canonicalListFilmId,
       searchProxyBase,
+      getListHydrateStats() {
+        return {
+          queued: listHydrateQueue.length,
+          inflight: listHydrateInflight.size,
+          persistBatch: listHydratePersistBatch.length,
+          active: listHydrateActive,
+        };
+      },
+      getSyncPushDebounceMs() {
+        return SYNC_PUSH_DEBOUNCE_MS;
+      },
     };
   }
 })();
