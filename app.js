@@ -849,6 +849,7 @@
     lock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="6" y="10.2" width="12" height="9.3" rx="2"/><path d="M8.2 10.2V8.1a3.8 3.8 0 0 1 7.6 0v2.1"/></svg>`,
     eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.7 12S6.1 6.6 12 6.6 21.3 12 21.3 12 17.9 17.4 12 17.4 2.7 12 2.7 12z"/><circle cx="12" cy="12" r="2.35"/></svg>`,
     eyeOff: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5.1 19.4 20.5"/><path d="M10.1 10.4a2.35 2.35 0 0 0 3.4 3.3"/><path d="M7.1 7.6C5 8.9 3.4 11.1 2.7 12c0 0 3.4 5.4 9.3 5.4 1.6 0 3-.3 4.2-.8"/><path d="M16.8 16.1c1.8-1.2 3.2-3 3.8-4.1 0 0-1.6-2.6-4.5-4.2"/></svg>`,
+    cloud: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 18h9.2a4.3 4.3 0 0 0 .6-8.55 5.5 5.5 0 0 0-10.55 1.7A3.7 3.7 0 0 0 7.5 18z"/></svg>`,
     menu: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>`,
     chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`,
     chevronUp: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>`,
@@ -1039,6 +1040,8 @@
     loginName: "",
     loginPass: "",
     loginError: "",
+    cloudSyncOn: false,
+    authBusy: false,
     newTagName: "",
     newTagColor: "#0066B3",
     tagEditId: null,
@@ -1094,6 +1097,185 @@
 
   function saveUsers(list) {
     saveJson("wdq.users", list);
+  }
+
+  function syncProxyUrl() {
+    const raw = typeof window.SYNC_PROXY === "string" ? window.SYNC_PROXY.trim() : "";
+    return raw.replace(/\/+$/, "");
+  }
+
+  function cloudSyncAvailable() {
+    return Boolean(syncProxyUrl());
+  }
+
+  function loadCloudPref() {
+    return loadJson("wdq.cloudPref", { on: false }).on === true;
+  }
+
+  function saveCloudPref(on) {
+    saveJson("wdq.cloudPref", { on: Boolean(on) });
+  }
+
+  function loadCloudSession() {
+    return loadJson("wdq.cloud", null);
+  }
+
+  function saveCloudSession(session) {
+    if (!session) {
+      localStorage.removeItem("wdq.cloud");
+      return;
+    }
+    saveJson("wdq.cloud", session);
+  }
+
+  function cloudUserIdForLogin(login) {
+    const key = String(login || "").trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "user";
+    return `u-cloud-${key}`;
+  }
+
+  function upsertLocalCloudUser(login) {
+    const list = users();
+    let user = list.find((u) => u.login.toLowerCase() === login.toLowerCase());
+    if (!user) {
+      user = { id: cloudUserIdForLogin(login), login, cloud: true };
+      list.push(user);
+    } else {
+      user = { ...user, login: user.login || login, cloud: true };
+      delete user.password;
+      const idx = list.findIndex((u) => u.id === user.id);
+      list[idx] = user;
+    }
+    saveUsers(list);
+    return user;
+  }
+
+  async function syncApi(path, { method = "GET", body, token } = {}) {
+    const base = syncProxyUrl();
+    if (!base) throw new Error("Cloud-Sync ist nicht konfiguriert.");
+    const headers = { Accept: "application/json" };
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(`${base}${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    let data = null;
+    const text = await res.text();
+    if (text) {
+      try { data = JSON.parse(text); } catch { data = { error: text }; }
+    }
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  function collectAccountBackup(user) {
+    if (!user || !user.id) return null;
+    const keys = {};
+    const prefix = `wdq.p.${user.id}.`;
+    const profileKey = `wdq.profiles.${user.id}`;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (key === profileKey || key.startsWith(prefix)) {
+        keys[key] = localStorage.getItem(key);
+      }
+    }
+    return {
+      format: "cinex-backup",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      login: user.login,
+      user: { id: user.id, login: user.login, cloud: Boolean(user.cloud) },
+      keys,
+    };
+  }
+
+  function downloadJsonFile(filename, obj) {
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  function exportAccountBackupForLogin(login) {
+    const name = String(login || "").trim();
+    if (!name) {
+      state.loginError = "Zum Sichern zuerst den Benutzernamen eingeben.";
+      paintLoginError();
+      return false;
+    }
+    const user = users().find((u) => u.login.toLowerCase() === name.toLowerCase());
+    if (!user) {
+      state.loginError = "Kein lokales Konto mit diesem Namen gefunden.";
+      paintLoginError();
+      return false;
+    }
+    const backup = collectAccountBackup(user);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const safe = String(user.login).replace(/[^\w.-]+/g, "_");
+    downloadJsonFile(`cinex-backup-${safe}-${stamp}.json`, backup);
+    try {
+      saveJson(`wdq.backup.${stamp}.${user.id}`, { at: Date.now(), login: user.login });
+    } catch { /* ignore quota */ }
+    state.loginError = "";
+    paintLoginError();
+    showSnack(`Sicherung gespeichert: cinex-backup-${safe}-${stamp}.json`);
+    return true;
+  }
+
+  function importAccountBackupObject(obj) {
+    if (!obj || obj.format !== "cinex-backup" || !obj.user || !obj.user.id || !obj.keys) {
+      throw new Error("Ungültige Sicherungsdatei.");
+    }
+    const list = users();
+    let user = list.find((u) => u.id === obj.user.id || u.login.toLowerCase() === String(obj.user.login || "").toLowerCase());
+    if (!user) {
+      user = { id: obj.user.id, login: obj.user.login, cloud: Boolean(obj.user.cloud) };
+      list.push(user);
+    } else {
+      user = { ...user, login: obj.user.login || user.login };
+      if (obj.user.cloud) {
+        user.cloud = true;
+        delete user.password;
+      }
+      const idx = list.findIndex((u) => u.id === user.id);
+      list[idx] = user;
+    }
+    saveUsers(list);
+    Object.entries(obj.keys).forEach(([key, value]) => {
+      if (typeof key === "string" && key.startsWith("wdq.") && typeof value === "string") {
+        localStorage.setItem(key, value);
+      }
+    });
+    return user;
+  }
+
+  function pickBackupFile() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json,.json";
+    input.addEventListener("change", async () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const obj = JSON.parse(text);
+        const user = importAccountBackupObject(obj);
+        state.loginName = user.login || state.loginName;
+        state.loginError = "";
+        showSnack(`Sicherung für „${user.login}“ geladen.`);
+        render();
+      } catch (err) {
+        state.loginError = err && err.message ? err.message : "Sicherung konnte nicht geladen werden.";
+        paintLoginError();
+      }
+    });
+    input.click();
   }
 
   const PLATE_IDS = ["hell", "schwarz", "hell-lava", "schwarz-lava"];
@@ -3378,6 +3560,7 @@
     state.justWatchedId = null;
     state.pinJustWatched = false;
     state.screen = "login";
+    // Keep cloud token so the same device can reconnect; clear only the session.
     persistSession();
     render();
   }
@@ -4239,25 +4422,40 @@
 
   function renderLoginForm() {
     const register = state.authMode === "register";
+    const cloudOk = cloudSyncAvailable();
+    const cloudOn = cloudOk && state.cloudSyncOn;
     return `
       <form class="login-form" data-act="auth-form" data-role="login-form">
         <label class="login-field">
           <span class="login-field-icon">${ICONS.person}</span>
-          <input data-act="login-name" name="login" autocomplete="username" placeholder="Benutzername" value="${escapeHtml(state.loginName)}" enterkeyhint="next">
+          <input data-act="login-name" name="login" autocomplete="username" placeholder="Benutzername" value="${escapeHtml(state.loginName)}" enterkeyhint="next" ${state.authBusy ? "disabled" : ""}>
         </label>
         <label class="login-field">
           <span class="login-field-icon">${ICONS.lock}</span>
-          <input data-act="login-pass" name="password" type="password" autocomplete="${register ? "new-password" : "current-password"}" placeholder="Passwort" value="${escapeHtml(state.loginPass)}" enterkeyhint="go">
+          <input data-act="login-pass" name="password" type="password" autocomplete="${register ? "new-password" : "current-password"}" placeholder="Passwort" value="${escapeHtml(state.loginPass)}" enterkeyhint="go" ${state.authBusy ? "disabled" : ""}>
           <button type="button" class="login-eye" data-act="toggle-pass" aria-label="Passwort anzeigen" aria-pressed="false">${ICONS.eye}</button>
         </label>
+        ${cloudOk ? `
+        <label class="login-cloud-row">
+          <span>Mit Cloud synchronisieren</span>
+          <button type="button" class="login-cloud-switch${cloudOn ? " is-on" : ""}" data-act="cloud-toggle" role="switch" aria-checked="${cloudOn ? "true" : "false"}" aria-label="Mit Cloud synchronisieren" ${state.authBusy ? "disabled" : ""}>
+            <span class="login-cloud-knob"></span>
+          </button>
+        </label>` : ""}
         <p class="error" data-role="login-error"${state.loginError ? "" : " hidden"}>${escapeHtml(state.loginError)}</p>
         <div class="login-actions">
-          <button type="submit" class="btn btn-primary login-submit" data-act="auth-submit">
-            ${register ? "Konto anlegen" : "Anmelden"}
+          <button type="submit" class="btn btn-primary login-submit" data-act="auth-submit" ${state.authBusy ? "disabled" : ""}>
+            ${state.authBusy ? "Einen Moment …" : (register ? "Konto anlegen" : "Anmelden")}
           </button>
-          <button type="button" class="login-alt" data-act="auth-toggle">
+          <button type="button" class="login-alt" data-act="auth-toggle" ${state.authBusy ? "disabled" : ""}>
             ${register ? "Anmelden" : "Registrieren"}
           </button>
+        </div>
+        ${cloudOn ? `
+        <p class="login-cloud-hint">${ICONS.cloud}<span>Konto wird online gesichert</span></p>` : ""}
+        <div class="login-backup-row">
+          <button type="button" class="login-backup-btn" data-act="backup-export" ${state.authBusy ? "disabled" : ""}>Daten sichern</button>
+          <button type="button" class="login-backup-btn" data-act="backup-import" ${state.authBusy ? "disabled" : ""}>Sicherung laden</button>
         </div>
       </form>
     `;
@@ -8497,18 +8695,7 @@
     persistSession();
   }
 
-  function submitAuth() {
-    const nameInput = app.querySelector("[data-act=login-name]");
-    const passInput = app.querySelector("[data-act=login-pass]");
-    if (nameInput) state.loginName = nameInput.value;
-    if (passInput) state.loginPass = passInput.value;
-    const login = state.loginName.trim();
-    const password = state.loginPass;
-    if (!login || !password) {
-      state.loginError = "Bitte Login und Passwort eingeben.";
-      render();
-      return;
-    }
+  function submitAuthLocal(login, password) {
     const list = users();
     if (state.authMode === "register") {
       if (list.some((u) => u.login.toLowerCase() === login.toLowerCase())) {
@@ -8532,6 +8719,65 @@
     enterLoggedInUser(user);
     render();
     if (state.profile) loadCatalog();
+  }
+
+  async function submitAuthCloud(login, password) {
+    if (login.length < 3 || login.length > 32) {
+      state.loginError = "Benutzername: 3–32 Zeichen.";
+      render();
+      return;
+    }
+    state.authBusy = true;
+    state.loginError = "";
+    render();
+    try {
+      const path = state.authMode === "register" ? "/register" : "/login";
+      const { ok, status, data } = await syncApi(path, {
+        method: "POST",
+        body: { name: login, password },
+      });
+      if (!ok || !data || !data.token) {
+        if (status === 409) state.loginError = "Dieser Login ist online schon vergeben.";
+        else if (status === 401) state.loginError = "Login oder Passwort stimmt nicht.";
+        else if (status === 429) state.loginError = "Zu viele Versuche. Bitte kurz warten.";
+        else state.loginError = (data && (data.error || data.message)) || "Cloud-Anmeldung fehlgeschlagen.";
+        return;
+      }
+      const user = upsertLocalCloudUser(login);
+      saveCloudSession({
+        token: data.token,
+        name: login,
+        userId: user.id,
+        at: Date.now(),
+      });
+      state.loginPass = "";
+      enterLoggedInUser(user);
+      if (state.profile) loadCatalog();
+    } catch (err) {
+      state.loginError = err && err.message ? err.message : "Keine Verbindung zur Cloud.";
+    } finally {
+      state.authBusy = false;
+      render();
+    }
+  }
+
+  async function submitAuth() {
+    const nameInput = app.querySelector("[data-act=login-name]");
+    const passInput = app.querySelector("[data-act=login-pass]");
+    if (nameInput) state.loginName = nameInput.value;
+    if (passInput) state.loginPass = passInput.value;
+    const login = state.loginName.trim();
+    const password = state.loginPass;
+    if (!login || !password) {
+      state.loginError = "Bitte Login und Passwort eingeben.";
+      render();
+      return;
+    }
+    if (cloudSyncAvailable() && state.cloudSyncOn) {
+      await submitAuthCloud(login, password);
+      return;
+    }
+    submitAuthLocal(login, password);
   }
 
   async function fetchFilmOverview(film) {
@@ -8971,6 +9217,24 @@
       state.authMode = state.authMode === "login" ? "register" : "login";
       state.loginError = "";
       render();
+      return;
+    }
+    if (act === "cloud-toggle") {
+      if (!cloudSyncAvailable() || state.authBusy) return;
+      state.cloudSyncOn = !state.cloudSyncOn;
+      saveCloudPref(state.cloudSyncOn);
+      state.loginError = "";
+      render();
+      return;
+    }
+    if (act === "backup-export") {
+      const nameInput = app.querySelector("[data-act=login-name]");
+      if (nameInput) state.loginName = nameInput.value;
+      exportAccountBackupForLogin(state.loginName);
+      return;
+    }
+    if (act === "backup-import") {
+      pickBackupFile();
       return;
     }
     if (act === "auth-submit") {
@@ -9775,10 +10039,19 @@
     if (t.dataset.act === "delete-profile") {
       const input = modalEl.querySelector("[data-act=del-pass]");
       const value = input ? input.value : "";
-      if (value !== state.user.password) {
+      const localPass = state.user && state.user.password;
+      if (localPass !== undefined && localPass !== null && value !== localPass) {
         const hint = modalEl.querySelector(".hint");
         if (hint) hint.textContent = "Passwort stimmt nicht.";
         return;
+      }
+      if ((localPass === undefined || localPass === null) && state.user && state.user.cloud) {
+        // Cloud accounts no longer keep a local plaintext password; require a non-empty confirmation.
+        if (!value) {
+          const hint = modalEl.querySelector(".hint");
+          if (hint) hint.textContent = "Passwort eingeben.";
+          return;
+        }
       }
       const id = t.dataset.id;
       saveProfiles(state.user.id, profilesOf(state.user.id).filter((p) => p.id !== id));
@@ -10365,7 +10638,8 @@
     }
   });
 
-  seedIfNeeded();
+    seedIfNeeded();
+  state.cloudSyncOn = cloudSyncAvailable() && loadCloudPref();
   restoreSession();
   ensureLoginPostersPreloaded();
   render();
