@@ -1278,6 +1278,449 @@
     input.click();
   }
 
+
+  // --- Cloud Sync Schritt 3: collect / merge / tombstones / migration ---
+  const SYNC_TOMBSTONE_MAX_MS = 90 * 24 * 3600 * 1000;
+  const SYNC_PROFILE_SUFFIXES = [
+    "watchlist", "queue", "history", "ratings", "tags", "filmTags", "tagCovers",
+    "favorite", "known", "videoWatchlist", "videoQueue", "videoHistory", "watchSwipeHint",
+  ];
+
+  function syncMetaKey(userId) {
+    return `wdq.sync.meta.${userId}`;
+  }
+
+  function loadSyncMeta(userId) {
+    return loadJson(syncMetaKey(userId), {
+      version: 0,
+      migrated: false,
+      migrateLater: false,
+      lastPullAt: 0,
+    });
+  }
+
+  function saveSyncMeta(userId, meta) {
+    saveJson(syncMetaKey(userId), meta);
+  }
+
+  function nowIso() {
+    return new Date().toISOString();
+  }
+
+  function tsOf(value) {
+    if (value == null) return 0;
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    const n = Date.parse(String(value));
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function stampItem(item, fallbackTs) {
+    if (!item || typeof item !== "object") return item;
+    if (item.updatedAt) return item;
+    const base = Number(item.at) || fallbackTs || Date.now();
+    return Object.assign({}, item, { updatedAt: new Date(base).toISOString() });
+  }
+
+  function collectLocalSyncData(userId) {
+    const fallback = Date.now();
+    const profiles = loadJson(`wdq.profiles.${userId}`, []);
+    const byProfile = {};
+    const list = Array.isArray(profiles) ? profiles : [];
+    list.forEach((prof) => {
+      if (!prof || !prof.id) return;
+      const pid = String(prof.id);
+      const prefix = `wdq.p.${userId}.${pid}.`;
+      const bag = {};
+      SYNC_PROFILE_SUFFIXES.forEach((suf) => {
+        const raw = localStorage.getItem(prefix + suf);
+        if (raw == null) return;
+        let parsed;
+        try { parsed = JSON.parse(raw); } catch { parsed = raw; }
+        if (suf === "ratings" && parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          const rich = loadJson(prefix + "ratingsSync", null);
+          const src = rich && typeof rich === "object" ? rich : parsed;
+          const next = {};
+          Object.keys(Object.assign({}, parsed, rich || {})).forEach((id) => {
+            const v = (rich && rich[id] !== undefined) ? rich[id] : parsed[id];
+            if (v && typeof v === "object" && "value" in v) {
+              next[id] = stampItem(v, fallback);
+            } else {
+              next[id] = { value: v, updatedAt: new Date(fallback).toISOString() };
+            }
+          });
+          bag[suf] = next;
+        } else if (Array.isArray(parsed)) {
+          bag[suf] = parsed.map((row) => stampItem(row, fallback));
+        } else if (parsed && typeof parsed === "object") {
+          bag[suf] = stampItem(parsed, fallback);
+        } else {
+          bag[suf] = parsed;
+        }
+      });
+      bag._tombstones = loadJson(prefix + "_tombstones", []);
+      byProfile[pid] = bag;
+    });
+    return {
+      format: "cinex-sync",
+      version: 1,
+      userId,
+      profiles: list.map((p) => stampItem(p, fallback)),
+      byProfile,
+      collectedAt: nowIso(),
+    };
+  }
+
+  function writeLocalSyncData(userId, data) {
+    if (!data || !userId) return;
+    const profiles = Array.isArray(data.profiles) ? data.profiles.filter((p) => p && !p.deleted) : [];
+    saveJson(`wdq.profiles.${userId}`, profiles.map((p) => {
+      const copy = Object.assign({}, p);
+      // keep updatedAt for future merges; app tolerates extra fields
+      return copy;
+    }));
+    const byProfile = data.byProfile || {};
+    Object.keys(byProfile).forEach((pid) => {
+      const bag = byProfile[pid] || {};
+      const prefix = `wdq.p.${userId}.${pid}.`;
+      SYNC_PROFILE_SUFFIXES.forEach((suf) => {
+        if (!(suf in bag)) return;
+        let value = bag[suf];
+        if (suf === "ratings" && value && typeof value === "object" && !Array.isArray(value)) {
+          const plain = {};
+          Object.keys(value).forEach((id) => {
+            const cell = value[id];
+            if (cell && typeof cell === "object" && cell.deleted) return;
+            if (cell && typeof cell === "object" && "value" in cell) plain[id] = cell.value;
+            else plain[id] = cell;
+          });
+          saveJson(prefix + suf, plain);
+          // keep rich map for merge fidelity
+          saveJson(prefix + "ratingsSync", value);
+        } else if (Array.isArray(value)) {
+          saveJson(prefix + suf, value.filter((row) => !(row && row.deleted)));
+        } else if (value && typeof value === "object" && value.deleted) {
+          localStorage.removeItem(prefix + suf);
+        } else {
+          saveJson(prefix + suf, value);
+        }
+      });
+      if (Array.isArray(bag._tombstones)) saveJson(prefix + "_tombstones", bag._tombstones);
+    });
+  }
+
+  function itemKey(row, kind) {
+    if (!row || typeof row !== "object") return null;
+    if (kind === "tags" || kind === "profiles") return row.id != null ? String(row.id) : null;
+    if (row.id != null) return String(row.id);
+    return null;
+  }
+
+  function newerWins(a, b) {
+    const ta = tsOf(a && a.updatedAt) || tsOf(a && a.at) || 0;
+    const tb = tsOf(b && b.updatedAt) || tsOf(b && b.at) || 0;
+    if (ta === tb) return b; // prefer remote on tie for stability after 409
+    return ta > tb ? a : b;
+  }
+
+  function mergeArrayById(localArr, remoteArr, kind) {
+    const map = new Map();
+    (Array.isArray(localArr) ? localArr : []).forEach((row) => {
+      const k = itemKey(row, kind);
+      if (k != null) map.set(k, row);
+    });
+    (Array.isArray(remoteArr) ? remoteArr : []).forEach((row) => {
+      const k = itemKey(row, kind);
+      if (k == null) return;
+      if (!map.has(k)) map.set(k, row);
+      else map.set(k, newerWins(map.get(k), row));
+    });
+    const cutoff = Date.now() - SYNC_TOMBSTONE_MAX_MS;
+    return [...map.values()].filter((row) => {
+      if (!row || !row.deleted) return true;
+      return tsOf(row.updatedAt) >= cutoff;
+    });
+  }
+
+  function mergeRatings(localMap, remoteMap) {
+    const out = {};
+    const keys = new Set([
+      ...Object.keys(localMap || {}),
+      ...Object.keys(remoteMap || {}),
+    ]);
+    keys.forEach((id) => {
+      const a = (localMap || {})[id];
+      const b = (remoteMap || {})[id];
+      const la = a && typeof a === "object" && "value" in a ? a : { value: a, updatedAt: nowIso() };
+      const rb = b && typeof b === "object" && "value" in b ? b : (b === undefined ? null : { value: b, updatedAt: nowIso() });
+      if (!rb) out[id] = la;
+      else if (!a && a !== 0 && a !== false) out[id] = rb;
+      else out[id] = newerWins(la, rb);
+    });
+    const cutoff = Date.now() - SYNC_TOMBSTONE_MAX_MS;
+    Object.keys(out).forEach((id) => {
+      if (out[id] && out[id].deleted && tsOf(out[id].updatedAt) < cutoff) delete out[id];
+    });
+    return out;
+  }
+
+  function mergeObjectsLww(localObj, remoteObj) {
+    if (!localObj) return remoteObj || null;
+    if (!remoteObj) return localObj;
+    return newerWins(stampItem(localObj), stampItem(remoteObj));
+  }
+
+  function mergeProfileBags(localBag, remoteBag) {
+    const a = localBag || {};
+    const b = remoteBag || {};
+    const out = {};
+    const listKeys = ["watchlist", "queue", "history", "tags", "videoWatchlist", "videoQueue", "videoHistory", "known"];
+    listKeys.forEach((k) => {
+      out[k] = mergeArrayById(a[k], b[k], k === "tags" ? "tags" : "list");
+    });
+    out.ratings = mergeRatings(a.ratings, b.ratings);
+    out.filmTags = mergeObjectsLww(
+      a.filmTags && typeof a.filmTags === "object" ? stampItem(Object.assign({ id: "filmTags" }, a.filmTags)) : null,
+      b.filmTags && typeof b.filmTags === "object" ? stampItem(Object.assign({ id: "filmTags" }, b.filmTags)) : null
+    );
+    // filmTags is a map id->tagIds[]; merge keys LWW per film id
+    if ((a.filmTags && typeof a.filmTags === "object") || (b.filmTags && typeof b.filmTags === "object")) {
+      const fa = a.filmTags || {};
+      const fb = b.filmTags || {};
+      // If stored as stamped wrapper with id, unwrap
+      const ua = fa.id === "filmTags" ? Object.assign({}, fa) : fa;
+      const ub = fb.id === "filmTags" ? Object.assign({}, fb) : fb;
+      delete ua.id; delete ua.updatedAt; delete ua.deleted;
+      delete ub.id; delete ub.updatedAt; delete ub.deleted;
+      // Prefer richer merge: per-key, if both arrays take remote if we can't compare — keep union of tag ids when both present without timestamps
+      const keys = new Set([...Object.keys(ua), ...Object.keys(ub)]);
+      const merged = {};
+      keys.forEach((id) => {
+        const va = ua[id];
+        const vb = ub[id];
+        if (Array.isArray(va) && Array.isArray(vb)) {
+          merged[id] = [...new Set([...va, ...vb].map(String))];
+        } else {
+          merged[id] = vb !== undefined ? vb : va;
+        }
+      });
+      out.filmTags = merged;
+    }
+    out.tagCovers = (() => {
+      const ta = a.tagCovers || {};
+      const tb = b.tagCovers || {};
+      return Object.assign({}, ta, tb);
+    })();
+    out.favorite = mergeObjectsLww(a.favorite, b.favorite);
+    out.watchSwipeHint = mergeObjectsLww(a.watchSwipeHint, b.watchSwipeHint);
+    out._tombstones = mergeArrayById(a._tombstones, b._tombstones, "list");
+    return out;
+  }
+
+  function mergeSyncData(localData, remoteData) {
+    if (!remoteData || remoteData.data == null) return localData;
+    const remote = remoteData.data && remoteData.data.format === "cinex-sync"
+      ? remoteData.data
+      : remoteData.data;
+    // Accept legacy opaque shapes: if remote is not cinex-sync, prefer newer whole-blob by updatedAt
+    if (!remote || remote.format !== "cinex-sync") {
+      if (!localData) return remote;
+      return localData;
+    }
+    if (!localData || localData.format !== "cinex-sync") return remote;
+    const profiles = mergeArrayById(localData.profiles, remote.profiles, "profiles")
+      .filter((p) => p && !p.deleted);
+    const pids = new Set([
+      ...Object.keys(localData.byProfile || {}),
+      ...Object.keys(remote.byProfile || {}),
+      ...profiles.map((p) => String(p.id)),
+    ]);
+    const byProfile = {};
+    pids.forEach((pid) => {
+      byProfile[pid] = mergeProfileBags(
+        (localData.byProfile || {})[pid],
+        (remote.byProfile || {})[pid]
+      );
+    });
+    return {
+      format: "cinex-sync",
+      version: 1,
+      userId: localData.userId || remote.userId,
+      profiles,
+      byProfile,
+      collectedAt: nowIso(),
+    };
+  }
+
+  function accountHasLocalData(userId) {
+    if (!userId) return false;
+    const profiles = loadJson(`wdq.profiles.${userId}`, []);
+    if (Array.isArray(profiles) && profiles.length) return true;
+    const prefix = `wdq.p.${userId}.`;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(prefix)) return true;
+    }
+    return false;
+  }
+
+  async function pullCloudData(token) {
+    const { ok, status, data } = await syncApi("/data", { method: "GET", token });
+    if (!ok) throw new Error((data && data.error) || `GET /data failed (${status})`);
+    return data; // { version, updatedAt, data }
+  }
+
+  async function pushCloudData(token, baseVersion, payload) {
+    const { ok, status, data } = await syncApi("/data", {
+      method: "PUT",
+      token,
+      body: { baseVersion, data: payload },
+    });
+    return { ok, status, data };
+  }
+
+  async function syncAccount(user, { forceUpload = false } = {}) {
+    const session = loadCloudSession();
+    if (!session || !session.token || !user) return { ok: false, reason: "no-session" };
+    const local = collectLocalSyncData(user.id);
+    let remote = await pullCloudData(session.token);
+    let merged = forceUpload && (remote.data == null)
+      ? local
+      : mergeSyncData(local, remote);
+    if (forceUpload && remote.data == null) merged = local;
+    let baseVersion = Number(remote.version) || 0;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const put = await pushCloudData(session.token, baseVersion, merged);
+      if (put.ok) {
+        writeLocalSyncData(user.id, merged);
+        const meta = loadSyncMeta(user.id);
+        meta.version = put.data.version;
+        meta.lastPullAt = Date.now();
+        meta.migrated = true;
+        saveSyncMeta(user.id, meta);
+        return { ok: true, version: put.data.version };
+      }
+      if (put.status === 409 && put.data && put.data.current) {
+        remote = put.data.current;
+        merged = mergeSyncData(merged, remote);
+        baseVersion = Number(remote.version) || 0;
+        continue;
+      }
+      throw new Error((put.data && put.data.error) || `PUT /data failed (${put.status})`);
+    }
+    throw new Error("Sync-Konflikt: bitte erneut versuchen.");
+  }
+
+  async function loadCloudIntoLocal(user) {
+    const session = loadCloudSession();
+    if (!session || !session.token) return false;
+    const remote = await pullCloudData(session.token);
+    if (remote.data == null) return false;
+    const payload = remote.data.format === "cinex-sync" ? remote.data : remote.data;
+    if (payload && payload.format === "cinex-sync") {
+      writeLocalSyncData(user.id, payload);
+    } else if (payload && payload.format === "cinex-backup" && payload.keys) {
+      importAccountBackupObject(payload);
+    } else if (payload && typeof payload === "object") {
+      // unknown blob: ignore
+      return false;
+    }
+    const meta = loadSyncMeta(user.id);
+    meta.version = Number(remote.version) || 0;
+    meta.lastPullAt = Date.now();
+    meta.migrated = true;
+    saveSyncMeta(user.id, meta);
+    return true;
+  }
+
+  function markTombstone(userId, profileId, kind, id) {
+    if (!userId || !profileId || id == null) return;
+    const key = `wdq.p.${userId}.${profileId}._tombstones`;
+    const list = loadJson(key, []);
+    const row = { id: String(id), kind, deleted: true, updatedAt: nowIso(), at: Date.now() };
+    const next = list.filter((r) => !(r && String(r.id) === String(id) && r.kind === kind));
+    next.push(row);
+    saveJson(key, next);
+  }
+
+  function scheduleDebouncedSync() {
+    if (!state.user || !loadCloudSession()) return;
+    if (state._syncTimer) clearTimeout(state._syncTimer);
+    state._syncTimer = setTimeout(() => {
+      syncAccount(state.user).catch(() => { /* silent in step 3; status UI is step 4 */ });
+    }, 2000);
+  }
+
+  function showMigrateDialog() {
+    state.migrateDialog = true;
+    render();
+  }
+
+  function hideMigrateDialog() {
+    state.migrateDialog = false;
+  }
+
+  async function runMigrationUpload() {
+    const user = state.user;
+    if (!user) return;
+    state.migrateBusy = true;
+    render();
+    try {
+      // auto backup before upload
+      const backup = collectAccountBackup(user);
+      const stamp = new Date().toISOString().slice(0, 10);
+      const safe = String(user.login).replace(/[^\w.-]+/g, "_");
+      downloadJsonFile(`cinex-backup-${safe}-${stamp}.json`, backup);
+      try {
+        saveJson(`wdq.backup.${stamp}.${user.id}`, { at: Date.now(), login: user.login, reason: "pre-migrate" });
+      } catch { /* ignore */ }
+      await syncAccount(user, { forceUpload: true });
+      const meta = loadSyncMeta(user.id);
+      meta.migrated = true;
+      meta.migrateLater = false;
+      saveSyncMeta(user.id, meta);
+      hideMigrateDialog();
+      showSnack("Filme online übernommen.");
+    } catch (err) {
+      showSnack(err && err.message ? err.message : "Hochladen fehlgeschlagen.");
+    } finally {
+      state.migrateBusy = false;
+      render();
+    }
+  }
+
+  function deferMigration() {
+    // Später: nur diese Sitzung überspringen; beim nächsten Start wieder anbieten
+    hideMigrateDialog();
+    render();
+  }
+
+  async function afterCloudAuth(user) {
+    const meta = loadSyncMeta(user.id);
+    const hasLocal = accountHasLocalData(user.id);
+    try {
+      const session = loadCloudSession();
+      const remote = session && session.token ? await pullCloudData(session.token) : null;
+      const cloudEmpty = !remote || remote.data == null;
+      if (hasLocal && (cloudEmpty || !meta.migrated)) {
+        // migrateLater not persisted — always re-offer until migrated
+        state.migrateDialog = true;
+        return;
+      }
+      if (!hasLocal && remote && remote.data != null) {
+        await loadCloudIntoLocal(user);
+        showSnack("Daten aus der Cloud geladen.");
+        return;
+      }
+      if (hasLocal && remote && remote.data != null) {
+        await syncAccount(user);
+      }
+    } catch (err) {
+      // keep local session; soft fail
+      console.warn("cloud afterAuth", err);
+    }
+  }
+
+
   const PLATE_IDS = ["hell", "schwarz", "hell-lava", "schwarz-lava"];
   const DEFAULT_PLATE = "schwarz-lava";
   const PLATE_CHOICES = [
@@ -1359,6 +1802,10 @@
     const all = ratings();
     all[String(id)] = value;
     saveJson(pkey("ratings"), all);
+    const syncMap = loadJson(pkey("ratingsSync"), {});
+    syncMap[String(id)] = { value, updatedAt: nowIso() };
+    saveJson(pkey("ratingsSync"), syncMap);
+    scheduleDebouncedSync();
   }
 
   function watchlist() {
@@ -1366,7 +1813,10 @@
   }
 
   function saveWatchlist(list) {
-    saveJson(pkey("watchlist"), list);
+    const now = nowIso();
+    const stamped = (Array.isArray(list) ? list : []).map((row) => row && typeof row === "object" ? Object.assign({}, row, { updatedAt: row.updatedAt || now }) : row);
+    saveJson(pkey("watchlist"), stamped);
+    scheduleDebouncedSync();
   }
 
   // Demnächst core API
@@ -1386,7 +1836,10 @@
   }
 
   function saveQueue(list) {
-    saveJson(pkey("queue"), list);
+    const now = nowIso();
+    const stamped = (Array.isArray(list) ? list : []).map((row) => row && typeof row === "object" ? Object.assign({}, row, { updatedAt: row.updatedAt || now }) : row);
+    saveJson(pkey("queue"), stamped);
+    scheduleDebouncedSync();
   }
 
   function historyViews(row) {
@@ -1414,7 +1867,10 @@
   }
 
   function saveHistory(list) {
-    saveJson(pkey("history"), list);
+    const now = nowIso();
+    const stamped = (Array.isArray(list) ? list : []).map((row) => row && typeof row === "object" ? Object.assign({}, row, { updatedAt: now }) : row);
+    saveJson(pkey("history"), stamped);
+    scheduleDebouncedSync();
   }
 
   function recordFilmWatched(film, at) {
@@ -1514,7 +1970,10 @@
   }
 
   function saveVideoWatchlist(list) {
-    saveJson(pkey("videoWatchlist"), list);
+    const now = nowIso();
+    const stamped = (Array.isArray(list) ? list : []).map((row) => row && typeof row === "object" ? Object.assign({}, row, { updatedAt: row.updatedAt || now }) : row);
+    saveJson(pkey("videoWatchlist"), stamped);
+    scheduleDebouncedSync();
   }
 
   function videoQueue() {
@@ -1528,7 +1987,10 @@
   }
 
   function saveVideoQueue(list) {
-    saveJson(pkey("videoQueue"), list);
+    const now = nowIso();
+    const stamped = (Array.isArray(list) ? list : []).map((row) => row && typeof row === "object" ? Object.assign({}, row, { updatedAt: row.updatedAt || now }) : row);
+    saveJson(pkey("videoQueue"), stamped);
+    scheduleDebouncedSync();
   }
 
   function videoHistory() {
@@ -1536,7 +1998,10 @@
   }
 
   function saveVideoHistory(list) {
-    saveJson(pkey("videoHistory"), list);
+    const now = nowIso();
+    const stamped = (Array.isArray(list) ? list : []).map((row) => row && typeof row === "object" ? Object.assign({}, row, { updatedAt: now }) : row);
+    saveJson(pkey("videoHistory"), stamped);
+    scheduleDebouncedSync();
   }
 
   function findVideo(id) {
@@ -4418,6 +4883,21 @@
         syncLoginViewport();
       }
     });
+  }
+
+  function renderMigrateDialog() {
+    const busy = state.migrateBusy;
+    return `<div class="migrate-backdrop" data-role="migrate-dialog">
+      <div class="migrate-card" role="dialog" aria-modal="true" aria-labelledby="migrate-title">
+        <div class="migrate-icon" aria-hidden="true">☁️</div>
+        <h2 id="migrate-title">Deine Filme auf diesem Gerät in dein Online-Konto übernehmen?</h2>
+        <p class="migrate-copy">Vor dem Hochladen wird automatisch eine Sicherungsdatei gespeichert. Danach sind deine Listen auch am PC verfügbar.</p>
+        <div class="migrate-actions">
+          <button type="button" class="btn btn-primary" data-act="migrate-upload" ${busy ? "disabled" : ""}>${busy ? "Wird hochgeladen …" : "Hochladen"}</button>
+          <button type="button" class="migrate-later" data-act="migrate-later" ${busy ? "disabled" : ""}>Später</button>
+        </div>
+      </div>
+    </div>`;
   }
 
   function renderLoginForm() {
@@ -8650,6 +9130,12 @@
     else if (state.screen === "tags") app.innerHTML = renderTagsManage();
     else if (state.screen === "tag-edit") app.innerHTML = renderTagEdit();
     else if (state.screen === "done") app.innerHTML = renderDone();
+    if (state.migrateDialog) {
+      const host = app;
+      if (host && !host.querySelector("[data-role=migrate-dialog]")) {
+        host.insertAdjacentHTML("beforeend", renderMigrateDialog());
+      }
+    }
     bindAccountCovers(app);
     scheduleFooterSync();
   }
@@ -8752,6 +9238,7 @@
       });
       state.loginPass = "";
       enterLoggedInUser(user);
+      await afterCloudAuth(user);
       if (state.profile) loadCatalog();
     } catch (err) {
       state.loginError = err && err.message ? err.message : "Keine Verbindung zur Cloud.";
@@ -8936,7 +9423,10 @@
     const before = watchlist();
     const next = before.filter((row) => String(row.id) !== hid);
     const removed = next.length !== before.length;
-    if (removed) saveWatchlist(next);
+    if (removed) {
+      if (state.user && state.profile) markTombstone(state.user.id, state.profile.id, "watchlist", id);
+      saveWatchlist(next);
+    }
     removeQueueId(hid);
     return removed;
   }
@@ -9235,6 +9725,14 @@
     }
     if (act === "backup-import") {
       pickBackupFile();
+      return;
+    }
+    if (act === "migrate-upload") {
+      runMigrationUpload();
+      return;
+    }
+    if (act === "migrate-later") {
+      deferMigration();
       return;
     }
     if (act === "auth-submit") {
@@ -10644,6 +11142,12 @@
   ensureLoginPostersPreloaded();
   render();
   scheduleCatalogLoad();
+  if (state.user && loadCloudSession()) {
+    afterCloudAuth(state.user).then(() => {
+      if (state.profile) loadCatalog();
+      render();
+    });
+  }
 
   window.CinexTmdb = {
     url: tmdbUrl,
