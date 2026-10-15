@@ -513,6 +513,104 @@
     });
   }
 
+  const LIST_HYDRATE_CONCURRENCY = 3;
+  const LIST_HYDRATE_BATCH_MS = 160;
+  const listHydrateQueued = new Set();
+  const listHydrateInflight = new Map();
+  let listHydrateQueue = [];
+  let listHydrateActive = 0;
+  let listHydrateTimer = 0;
+
+  function tmdbFromListId(id) {
+    const n = Number(String(id).replace(/^t/i, ""));
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+
+  function pendingListFilm(id) {
+    const sid = String(id);
+    const tmdb = tmdbFromListId(sid);
+    return normalizeFilm({
+      id: sid,
+      tmdb: tmdb || sid,
+      title: "Lädt…",
+      genre: "Film",
+      minutes: 0,
+      poster: "",
+      color: "#1d4f91",
+    });
+  }
+
+  function onListFilmHydrated(stored) {
+    if (!stored) return;
+    patchFilmRowMeta(stored);
+    if (state.watchSheet) paintWatchSheetList();
+    if (state.screen === "lists") {
+      if (state.listTab === "seen") render();
+      else refreshWatchList();
+    } else if (state.screen === "done") render();
+  }
+
+  function pumpListFilmHydration() {
+    while (listHydrateActive < LIST_HYDRATE_CONCURRENCY && listHydrateQueue.length) {
+      const sid = listHydrateQueue.shift();
+      if (!sid || listHydrateInflight.has(sid)) continue;
+      const tmdb = tmdbFromListId(sid);
+      if (!tmdb || !remoteSearchAvailable()) continue;
+      if (findFilm(sid)) continue;
+      listHydrateActive += 1;
+      const promise = proxyFetch(`/movie/${tmdb}`, { append_to_response: "credits" }).then((data) => {
+        const next = filmFromMovieDetail(data);
+        if (!next) return null;
+        liveDetailTried.add(sid);
+        return rememberFilm(next);
+      }).catch(() => null).finally(() => {
+        listHydrateInflight.delete(sid);
+        listHydrateActive -= 1;
+        pumpListFilmHydration();
+      });
+      listHydrateInflight.set(sid, promise);
+      promise.then((stored) => onListFilmHydrated(stored));
+    }
+  }
+
+  function queueFilmHydration(id) {
+    const sid = String(id);
+    if (!sid || !remoteSearchAvailable()) return;
+    if (findFilm(sid)) return;
+    if (!tmdbFromListId(sid)) return;
+    if (listHydrateQueued.has(sid) || listHydrateInflight.has(sid)) return;
+    listHydrateQueued.add(sid);
+    listHydrateQueue.push(sid);
+    window.clearTimeout(listHydrateTimer);
+    listHydrateTimer = window.setTimeout(() => {
+      listHydrateTimer = 0;
+      pumpListFilmHydration();
+    }, LIST_HYDRATE_BATCH_MS);
+  }
+
+  function listFilmOrPlaceholder(id) {
+    const film = findFilm(id);
+    if (film) return filmWithPoster(film);
+    queueFilmHydration(id);
+    return filmWithPoster(pendingListFilm(id));
+  }
+
+  function collectListFilmIds() {
+    const ids = new Set();
+    watchlist().forEach((row) => { if (row && row.id != null) ids.add(String(row.id)); });
+    queue().forEach((row) => { if (row && row.id != null) ids.add(String(row.id)); });
+    history().forEach((row) => { if (row && row.id != null) ids.add(String(row.id)); });
+    Object.keys(ratings()).forEach((id) => ids.add(String(id)));
+    return ids;
+  }
+
+  function hydrateMissingListFilms() {
+    if (!state.profile || !remoteSearchAvailable()) return;
+    collectListFilmIds().forEach((id) => {
+      if (!findFilm(id)) queueFilmHydration(id);
+    });
+  }
+
   function beginSearchEnrichCycle() {
     window.clearTimeout(searchEnrichTimer);
     searchEnrichToken += 1;
@@ -1596,6 +1694,8 @@
             }
           });
           bag[suf] = next;
+        } else if (suf === "known") {
+          bag[suf] = normalizeKnownMap(parsed);
         } else if (Array.isArray(parsed)) {
           bag[suf] = parsed.map((row) => stampItem(row, fallback));
         } else if (parsed && typeof parsed === "object") {
@@ -1643,6 +1743,8 @@
           saveJson(prefix + suf, plain);
           // keep rich map for merge fidelity
           saveJson(prefix + "ratingsSync", value);
+        } else if (suf === "known") {
+          saveJson(prefix + suf, normalizeKnownMap(value));
         } else if (Array.isArray(value)) {
           saveJson(prefix + suf, value.filter((row) => !(row && row.deleted)));
         } else if (value == null || (typeof value === "object" && value.deleted)) {
@@ -1716,14 +1818,80 @@
     return newerWins(stampItem(localObj), stampItem(remoteObj));
   }
 
+  const KNOWN_SYNC_META_KEYS = new Set(["updatedAt", "deleted", "id", "at"]);
+
+  function normalizeKnownMap(raw) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+    const out = {};
+    Object.entries(raw).forEach(([key, val]) => {
+      if (KNOWN_SYNC_META_KEYS.has(key)) return;
+      if (!val || typeof val !== "object" || Array.isArray(val)) return;
+      const n = normalizeFilm(val);
+      if (!n.id) return;
+      out[filmId(n)] = n;
+    });
+    return out;
+  }
+
+  function knownEntryTs(film) {
+    if (!film || typeof film !== "object") return 0;
+    return tsOf(film.updatedAt) || tsOf(film.syncedAt) || 0;
+  }
+
+  function knownEntryRichness(film) {
+    if (!film || typeof film !== "object") return 0;
+    let score = 0;
+    const title = String(film.title || "").trim();
+    if (title && title !== "Lädt…") score += 10;
+    if (film.poster) score += 8;
+    if (Number(film.minutes || film.runtime) > 0) score += 4;
+    score += Math.min(filmCastNames(film).length, 4) * 2;
+    if (String(film.overview || "").trim()) score += 2;
+    if (Array.isArray(film.genres) && film.genres.length) score += 1;
+    return score;
+  }
+
+  function pickRicherKnownEntry(a, b) {
+    if (!a) return b;
+    if (!b) return a;
+    const ta = knownEntryTs(a);
+    const tb = knownEntryTs(b);
+    if (ta && tb && ta !== tb) return ta > tb ? a : b;
+    if (ta && !tb) return a;
+    if (tb && !ta) return b;
+    const ra = knownEntryRichness(a);
+    const rb = knownEntryRichness(b);
+    if (rb !== ra) return rb > ra ? b : a;
+    return b;
+  }
+
+  function mergeKnownMaps(localRaw, remoteRaw) {
+    const local = normalizeKnownMap(localRaw);
+    const remote = normalizeKnownMap(remoteRaw);
+    const out = Object.assign({}, local);
+    Object.entries(remote).forEach(([id, remoteFilm]) => {
+      if (!out[id]) out[id] = remoteFilm;
+      else out[id] = pickRicherKnownEntry(out[id], remoteFilm);
+    });
+    const localCount = Object.keys(local).length;
+    if (Object.keys(out).length < localCount) {
+      Object.entries(local).forEach(([id, film]) => {
+        if (!out[id]) out[id] = film;
+        else out[id] = pickRicherKnownEntry(film, out[id]);
+      });
+    }
+    return out;
+  }
+
   function mergeProfileBags(localBag, remoteBag) {
     const a = localBag || {};
     const b = remoteBag || {};
     const out = {};
-    const listKeys = ["watchlist", "queue", "history", "tags", "videoWatchlist", "videoQueue", "videoHistory", "known"];
+    const listKeys = ["watchlist", "queue", "history", "tags", "videoWatchlist", "videoQueue", "videoHistory"];
     listKeys.forEach((k) => {
       out[k] = mergeArrayById(a[k], b[k], k === "tags" ? "tags" : "list");
     });
+    out.known = mergeKnownMaps(a.known, b.known);
     out.ratings = mergeRatings(a.ratings, b.ratings);
     // filmTags is a map id->tagIds[]; merge keys LWW per film id
     if ((a.filmTags && typeof a.filmTags === "object") || (b.filmTags && typeof b.filmTags === "object")) {
@@ -2670,7 +2838,7 @@
     const key = knownKey();
     if (!key) return {};
     const raw = loadJson(key, {});
-    return raw && typeof raw === "object" ? raw : {};
+    return normalizeKnownMap(raw);
   }
 
   function pickRuntime(next, prev) {
@@ -2752,6 +2920,12 @@
     const known = loadKnownFilms();
     const raw = known[sid] || known[`t${num}`] || known[String(num)];
     return raw ? normalizeFilm(raw) : null;
+  }
+
+  function listFilmsFromRows(rows) {
+    return (Array.isArray(rows) ? rows : [])
+      .map((row) => (row && row.id != null ? listFilmOrPlaceholder(row.id) : null))
+      .filter(Boolean);
   }
 
   function fmtDuration(min) {
@@ -3938,6 +4112,7 @@
         state.catalogLive = false;
       }
       mergeKnownIntoCatalog();
+      hydrateMissingListFilms();
       rebuildGenres();
       renderGenrePicks();
       reapplyActorFilmographies();
@@ -5796,24 +5971,26 @@
   }
 
   function watchlistFilms() {
-    return watchlist()
-      .map((row) => filmWithPoster(findFilm(row.id)))
-      .filter(Boolean);
+    return listFilmsFromRows(watchlist());
   }
 
   function queueFilms() {
-    return queue()
-      .map((row) => filmWithPoster(findFilm(row.id)))
-      .filter(Boolean);
+    return listFilmsFromRows(queue());
   }
 
   function ratedSourceFilms() {
     const all = ratings();
     const want = state.ratedFilter || "sehr-gut";
-    return state.catalog
-      .filter((film) => all[filmId(film)] === want)
-      .map(filmWithPoster)
-      .filter(Boolean);
+    const out = [];
+    const seen = new Set();
+    Object.entries(all).forEach(([id, value]) => {
+      if (value !== want) return;
+      const sid = String(id);
+      if (seen.has(sid)) return;
+      seen.add(sid);
+      out.push(listFilmOrPlaceholder(sid));
+    });
+    return out.filter(Boolean);
   }
 
   function tagSourceFilms(tagId) {
@@ -5821,7 +5998,7 @@
     const out = [];
     for (const [id, ids] of Object.entries(map)) {
       if (!(ids || []).includes(tagId)) continue;
-      const film = filmWithPoster(findFilm(id));
+      const film = listFilmOrPlaceholder(id);
       if (film) out.push(film);
     }
     return out;
@@ -8483,11 +8660,10 @@
   }
 
   function renderRatedTab() {
-    const all = ratings();
     const chips = RATE_KEYS.map((r) => `
       <button type="button" class="watch-add-chip rated-filter-chip" data-act="rated-filter" data-id="${r.id}" aria-pressed="${state.ratedFilter === r.id}">${r.label}</button>
     `).join("");
-    const films = state.catalog.filter((f) => all[filmId(f)] === state.ratedFilter);
+    const films = ratedSourceFilms();
     const rows = films.map((film) => renderListRow(film, { rates: true })).join("");
     const toolbarChips = `${renderListSearchChip()}${chips}`;
     return `
@@ -8664,7 +8840,7 @@
     let rows = history().slice().sort((a, b) => b.at - a.at);
     if (state.seenOnlyUnrated) rows = rows.filter((row) => !all[String(row.id)]);
     const cards = rows.map((row) => {
-      const film = findFilm(row.id) || { id: row.id, title: row.title, genre: "Film", minutes: 0, poster: "", color: "#1d4f91" };
+      const film = listFilmOrPlaceholder(row.id);
       const unrated = !all[String(row.id)];
       const rateLabel = unrated ? "" : (RATE_KEYS.find((r) => r.id === all[String(row.id)])?.label || "");
       return renderSeenCard(film, {
@@ -11547,4 +11723,19 @@
     titleSearchThin: localTitleSearchIsThin,
     actorSearchThin: localActorSearchIsThin,
   };
+
+  const cinexTestExpose = typeof location !== "undefined" && /(?:\?|&)cinex_test=1/.test(location.search);
+  if (cinexTestExpose) {
+    window.__CINEX_TEST__ = {
+      mergeProfileBags,
+      mergeKnownMaps,
+      normalizeKnownMap,
+      watchlistFilms,
+      listFilmsFromRows,
+      findFilm,
+      rememberFilm,
+      loadKnownFilms,
+      searchProxyBase,
+    };
+  }
 })();
