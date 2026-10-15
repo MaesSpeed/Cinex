@@ -4470,6 +4470,91 @@ body.on-login #app {
 
 .login-screen .error { margin-top: 8px; }
 
+.login-cloud-row {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fff;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.login-cloud-switch {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: #c5d0da;
+  cursor: pointer;
+  flex: 0 0 auto;
+  padding: 0;
+  transition: background 0.18s ease;
+}
+
+.login-cloud-switch.is-on { background: #0066B3; }
+
+.login-cloud-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(16, 32, 48, 0.25);
+  transition: transform 0.18s ease;
+}
+
+.login-cloud-switch.is-on .login-cloud-knob { transform: translateX(20px); }
+
+.login-cloud-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0 0;
+  color: #6f8eab;
+  font-size: 0.88rem;
+}
+
+.login-cloud-hint svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.login-backup-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 14px;
+}
+
+.login-backup-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: #8a97a4;
+  font-size: 0.86rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.login-backup-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+
 @media (min-width: 640px) {
   .login-carousel {
     --login-scale: 1.62;

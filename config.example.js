@@ -5,3 +5,6 @@ window.TMDB_KEY = "";
 window.SEARCH_PROXY = "";
 // Example: "https://cinex-search.iammrspeed.workers.dev"
 // Local wrangler dev: "http://127.0.0.1:8787"
+// Cloud sync (register/login/token). Empty disables the cloud toggle.
+window.SYNC_PROXY = "";
+// Example: "https://cinex-sync.iammrspeed.workers.dev"
