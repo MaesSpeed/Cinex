@@ -151,6 +151,66 @@ img { max-width: 100%; display: block; }
   flex: 0 0 auto;
 }
 
+.cloud-status-slot {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.cloud-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 14px;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  max-width: 46vw;
+}
+
+.cloud-status-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.cloud-status-icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.cloud-status-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cloud-status--ok {
+  background: #e7f5ea;
+  color: #2e7d32;
+}
+
+.cloud-status--syncing {
+  background: #e3f0fa;
+  color: #0066B3;
+}
+
+.cloud-status--offline {
+  background: #fdf1e3;
+  color: #b25e00;
+}
+
+@media (max-width: 360px) {
+  .cloud-status {
+    padding: 5px 8px;
+    font-size: 0.7rem;
+  }
+}
+
+
 .icon-btn {
   width: 36px;
   height: 36px;

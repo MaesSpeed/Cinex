@@ -1041,6 +1041,7 @@
     loginPass: "",
     loginError: "",
     cloudSyncOn: false,
+    cloudStatus: "hidden", // hidden | ok | syncing | offline
     authBusy: false,
     newTagName: "",
     newTagColor: "#0066B3",
@@ -1155,11 +1156,17 @@
     const headers = { Accept: "application/json" };
     if (body !== undefined) headers["Content-Type"] = "application/json";
     if (token) headers.Authorization = `Bearer ${token}`;
-    const res = await fetch(`${base}${path}`, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    let res;
+    try {
+      res = await fetch(`${base}${path}`, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    } catch (err) {
+      const msg = err && err.message ? err.message : "Failed to fetch";
+      throw new Error(msg);
+    }
     let data = null;
     const text = await res.text();
     if (text) {
@@ -1301,6 +1308,86 @@
 
   function saveSyncMeta(userId, meta) {
     saveJson(syncMetaKey(userId), meta);
+  }
+
+  function syncPendingKey(userId) {
+    return `wdq.sync.pending.${userId}`;
+  }
+
+  function hasPendingSync(userId) {
+    if (!userId) return false;
+    return loadJson(syncPendingKey(userId), { pending: false }).pending === true;
+  }
+
+  function markPendingSync(userId, pending) {
+    if (!userId) return;
+    if (pending) saveJson(syncPendingKey(userId), { pending: true, at: Date.now() });
+    else {
+      try { localStorage.removeItem(syncPendingKey(userId)); } catch { /* ignore */ }
+    }
+  }
+
+  function cloudSessionActive() {
+    return Boolean(state.user && loadCloudSession() && loadCloudSession().token);
+  }
+
+  function isNetworkOnline() {
+    return typeof navigator === "undefined" || navigator.onLine !== false;
+  }
+
+  function cloudStatusLabel(status) {
+    if (status === "syncing") return "Synchronisiere …";
+    if (status === "offline") return "Offline";
+    if (status === "ok") return "Gesichert";
+    return "";
+  }
+
+  function cloudStatusTitle(status) {
+    if (status === "syncing") return "Synchronisiere …";
+    if (status === "offline") return "Offline – wird später hochgeladen";
+    if (status === "ok") return "Gesichert – alles online";
+    return "";
+  }
+
+  function setCloudStatus(status) {
+    const next = status || "hidden";
+    if (state.cloudStatus === next) {
+      paintCloudStatusBadge();
+      return;
+    }
+    state.cloudStatus = next;
+    paintCloudStatusBadge();
+  }
+
+  function cloudStatusHtml() {
+    if (!cloudSessionActive()) return "";
+    const status = state.cloudStatus;
+    if (!status || status === "hidden") return "";
+    const label = cloudStatusLabel(status);
+    const title = cloudStatusTitle(status);
+    return `<span class="cloud-status cloud-status--${status}" title="${title}" aria-live="polite" role="status"><span class="cloud-status-icon" aria-hidden="true">${ICONS.cloud}</span><span class="cloud-status-label">${label}</span></span>`;
+  }
+
+  function paintCloudStatusBadge() {
+    if (!headerActions) return;
+    let el = headerActions.querySelector("[data-role=cloud-status]");
+    const html = cloudStatusHtml();
+    if (!html) {
+      if (el) el.remove();
+      return;
+    }
+    const wrap = `<span data-role="cloud-status" class="cloud-status-slot">${html}</span>`;
+    if (el) {
+      el.outerHTML = wrap;
+      return;
+    }
+    // Insert before account menu / logout / back cluster: prefer before .acct-slot
+    const acct = headerActions.querySelector(".acct-slot");
+    if (acct) {
+      acct.insertAdjacentHTML("beforebegin", wrap);
+      return;
+    }
+    headerActions.insertAdjacentHTML("afterbegin", wrap);
   }
 
   function nowIso() {
@@ -1578,36 +1665,77 @@
     return { ok, status, data };
   }
 
-  async function syncAccount(user, { forceUpload = false } = {}) {
+  async function syncAccount(user, { forceUpload = false, reason = "manual" } = {}) {
     const session = loadCloudSession();
     if (!session || !session.token || !user) return { ok: false, reason: "no-session" };
-    const local = collectLocalSyncData(user.id);
-    let remote = await pullCloudData(session.token);
-    let merged = forceUpload && (remote.data == null)
-      ? local
-      : mergeSyncData(local, remote);
-    if (forceUpload && remote.data == null) merged = local;
-    let baseVersion = Number(remote.version) || 0;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const put = await pushCloudData(session.token, baseVersion, merged);
-      if (put.ok) {
-        writeLocalSyncData(user.id, merged);
-        const meta = loadSyncMeta(user.id);
-        meta.version = put.data.version;
-        meta.lastPullAt = Date.now();
-        meta.migrated = true;
-        saveSyncMeta(user.id, meta);
-        return { ok: true, version: put.data.version };
-      }
-      if (put.status === 409 && put.data && put.data.current) {
-        remote = put.data.current;
-        merged = mergeSyncData(merged, remote);
-        baseVersion = Number(remote.version) || 0;
-        continue;
-      }
-      throw new Error((put.data && put.data.error) || `PUT /data failed (${put.status})`);
+    if (!isNetworkOnline()) {
+      markPendingSync(user.id, true);
+      setCloudStatus("offline");
+      return { ok: false, reason: "offline" };
     }
-    throw new Error("Sync-Konflikt: bitte erneut versuchen.");
+    if (state._syncInFlight) {
+      state._syncDirtyDuringFlight = true;
+      markPendingSync(user.id, true);
+      return { ok: false, reason: "busy" };
+    }
+    state._syncInFlight = true;
+    state._syncDirtyDuringFlight = false;
+    setCloudStatus("syncing");
+    try {
+      const local = collectLocalSyncData(user.id);
+      let remote = await pullCloudData(session.token);
+      let merged = forceUpload && (remote.data == null)
+        ? local
+        : mergeSyncData(local, remote);
+      if (forceUpload && remote.data == null) merged = local;
+      let baseVersion = Number(remote.version) || 0;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const put = await pushCloudData(session.token, baseVersion, merged);
+        if (put.ok) {
+          writeLocalSyncData(user.id, merged);
+          const meta = loadSyncMeta(user.id);
+          meta.version = put.data.version;
+          meta.lastPullAt = Date.now();
+          meta.migrated = true;
+          saveSyncMeta(user.id, meta);
+          const moreSoon = Boolean(state._syncTimer) || state._syncDirtyDuringFlight;
+          if (moreSoon) {
+            markPendingSync(user.id, true);
+            setCloudStatus("syncing");
+          } else {
+            markPendingSync(user.id, false);
+            setCloudStatus("ok");
+          }
+          return { ok: true, version: put.data.version, reason };
+        }
+        if (put.status === 409 && put.data && put.data.current) {
+          remote = put.data.current;
+          merged = mergeSyncData(merged, remote);
+          baseVersion = Number(remote.version) || 0;
+          continue;
+        }
+        throw new Error((put.data && put.data.error) || `PUT /data failed (${put.status})`);
+      }
+      throw new Error("Sync-Konflikt: bitte erneut versuchen.");
+    } catch (err) {
+      const msg = String(err && err.message || err || "");
+      const offlineish = !isNetworkOnline()
+        || /Failed to fetch|NetworkError|Load failed|network/i.test(msg);
+      markPendingSync(user.id, true);
+      if (offlineish) {
+        setCloudStatus("offline");
+        return { ok: false, reason: "offline", error: msg };
+      }
+      setCloudStatus("offline");
+      throw err;
+    } finally {
+      const dirty = state._syncDirtyDuringFlight;
+      state._syncInFlight = false;
+      state._syncDirtyDuringFlight = false;
+      if (dirty && user && isNetworkOnline() && !state._syncTimer) {
+        scheduleDebouncedSync();
+      }
+    }
   }
 
   async function loadCloudIntoLocal(user) {
@@ -1644,10 +1772,58 @@
 
   function scheduleDebouncedSync() {
     if (!state.user || !loadCloudSession()) return;
+    markPendingSync(state.user.id, true);
+    if (state._syncInFlight) state._syncDirtyDuringFlight = true;
+    if (!isNetworkOnline()) {
+      setCloudStatus("offline");
+      return;
+    }
+    if (state.cloudStatus !== "syncing") setCloudStatus("syncing");
     if (state._syncTimer) clearTimeout(state._syncTimer);
     state._syncTimer = setTimeout(() => {
-      syncAccount(state.user).catch(() => { /* silent in step 3; status UI is step 4 */ });
+      state._syncTimer = null;
+      syncAccount(state.user, { reason: "change" }).catch((err) => {
+        console.warn("cloud sync", err);
+      });
     }, 2000);
+  }
+
+  async function flushPendingSync(reason = "flush") {
+    if (!state.user || !loadCloudSession()) return;
+    if (!isNetworkOnline()) {
+      setCloudStatus("offline");
+      return;
+    }
+    if (!hasPendingSync(state.user.id) && state.cloudStatus === "ok") return;
+    try {
+      await syncAccount(state.user, { reason });
+    } catch (err) {
+      console.warn("cloud flush", err);
+    }
+  }
+
+  function bindCloudLifecycle() {
+    if (state._cloudLifeBound) return;
+    state._cloudLifeBound = true;
+    window.addEventListener("online", () => {
+      if (!cloudSessionActive()) return;
+      setCloudStatus("syncing");
+      flushPendingSync("online");
+    });
+    window.addEventListener("offline", () => {
+      if (!cloudSessionActive()) return;
+      markPendingSync(state.user.id, true);
+      setCloudStatus("offline");
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible") return;
+      if (!cloudSessionActive()) return;
+      flushPendingSync("visible");
+    });
+    window.addEventListener("pageshow", () => {
+      if (!cloudSessionActive()) return;
+      flushPendingSync("pageshow");
+    });
   }
 
   function showMigrateDialog() {
@@ -1697,6 +1873,15 @@
   async function afterCloudAuth(user) {
     const meta = loadSyncMeta(user.id);
     const hasLocal = accountHasLocalData(user.id);
+    bindCloudLifecycle();
+    if (!isNetworkOnline()) {
+      markPendingSync(user.id, true);
+      setCloudStatus("offline");
+    } else if (hasPendingSync(user.id)) {
+      setCloudStatus("syncing");
+    } else {
+      setCloudStatus("syncing");
+    }
     try {
       const session = loadCloudSession();
       const remote = session && session.token ? await pullCloudData(session.token) : null;
@@ -1704,19 +1889,29 @@
       if (hasLocal && (cloudEmpty || !meta.migrated)) {
         // migrateLater not persisted — always re-offer until migrated
         state.migrateDialog = true;
+        setCloudStatus(hasPendingSync(user.id) || !isNetworkOnline() ? "offline" : "ok");
         return;
       }
       if (!hasLocal && remote && remote.data != null) {
         await loadCloudIntoLocal(user);
+        markPendingSync(user.id, false);
+        setCloudStatus("ok");
         showSnack("Daten aus der Cloud geladen.");
         return;
       }
       if (hasLocal && remote && remote.data != null) {
-        await syncAccount(user);
+        await syncAccount(user, { reason: "start" });
+        return;
       }
+      setCloudStatus(isNetworkOnline() ? "ok" : "offline");
     } catch (err) {
       // keep local session; soft fail
       console.warn("cloud afterAuth", err);
+      const offlineish = !isNetworkOnline() || /Failed to fetch|NetworkError|Load failed|network/i.test(String(err && err.message || err || ""));
+      if (offlineish) {
+        markPendingSync(user.id, true);
+        setCloudStatus("offline");
+      }
     }
   }
 
@@ -4025,6 +4220,7 @@
     state.justWatchedId = null;
     state.pinJustWatched = false;
     state.screen = "login";
+    state.cloudStatus = "hidden";
     // Keep cloud token so the same device can reconnect; clear only the session.
     persistSession();
     render();
@@ -4087,6 +4283,8 @@
       items.push(`<button type="button" class="tag-save-head" data-act="tag-edit-save">Speichern</button>`);
     }
     if ((state.screen === "discover" || state.screen === "lists") && state.profile) {
+      const badge = cloudStatusHtml();
+      if (badge) items.push(`<span data-role="cloud-status" class="cloud-status-slot">${badge}</span>`);
       items.push(accountMenuHtml());
     }
     if (state.screen === "profiles") {
@@ -11139,6 +11337,14 @@
     seedIfNeeded();
   state.cloudSyncOn = cloudSyncAvailable() && loadCloudPref();
   restoreSession();
+  bindCloudLifecycle();
+  if (state.user && loadCloudSession()) {
+    if (!isNetworkOnline() || hasPendingSync(state.user.id)) {
+      state.cloudStatus = !isNetworkOnline() ? "offline" : "syncing";
+    } else {
+      state.cloudStatus = "ok";
+    }
+  }
   ensureLoginPostersPreloaded();
   render();
   scheduleCatalogLoad();
