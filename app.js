@@ -7972,7 +7972,6 @@
   function launchVideo(video) {
     if (!video) return;
     recordVideoWatched(video);
-    removeVideoFromWatchlist(video.id);
     closeModal();
     if (video.url) {
       try {
@@ -7980,11 +7979,10 @@
       } catch { /* ignore */ }
     }
     state.screen = "lists";
-    state.listTab = "seen";
     state.listsMode = "videos";
     render();
     burstConfetti();
-    showSnack("Video geöffnet & als Angesehen markiert");
+    showSnack("Video geöffnet · bleibt in der Watchlist, unter Angesehen vermerkt");
   }
 
   function coverFromFilm(film) {
