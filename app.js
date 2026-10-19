@@ -1138,6 +1138,231 @@
     }
   }
 
+  const videoEmbedBlocked = new Set();
+  let ytApiPromise = null;
+  let activeYtPlayer = null;
+
+  function embedParentDomain() {
+    const host = window.location.hostname || "";
+    if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".github.io")) return host;
+    return "maesspeed.github.io";
+  }
+
+  function parseYouTubeId(urlStr) {
+    if (!urlStr) return "";
+    try {
+      const url = new URL(urlStr.trim().startsWith("http") ? urlStr.trim() : `https://${urlStr.trim()}`);
+      const host = url.hostname.toLowerCase();
+      if (host.includes("youtu.be")) return (url.pathname.slice(1).split("/")[0] || "").split("?")[0];
+      if (!host.includes("youtube.com")) return "";
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts[0] === "shorts" && parts[1]) return parts[1];
+      if (parts[0] === "embed" && parts[1]) return parts[1];
+      return url.searchParams.get("v") || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function parseVimeoId(urlStr) {
+    if (!urlStr) return "";
+    try {
+      const url = new URL(urlStr.trim().startsWith("http") ? urlStr.trim() : `https://${urlStr.trim()}`);
+      if (!url.hostname.toLowerCase().includes("vimeo.com")) return "";
+      const parts = url.pathname.split("/").filter(Boolean);
+      const id = parts.find((p) => /^\d+$/.test(p));
+      return id || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function parseDailymotionId(urlStr) {
+    if (!urlStr) return "";
+    try {
+      const url = new URL(urlStr.trim().startsWith("http") ? urlStr.trim() : `https://${urlStr.trim()}`);
+      const host = url.hostname.toLowerCase();
+      if (!host.includes("dailymotion.com")) return "";
+      const m = url.pathname.match(/\/video\/([^/?#]+)/);
+      return m ? m[1] : (url.searchParams.get("video") || "");
+    } catch {
+      return "";
+    }
+  }
+
+  function parseTwitchEmbedSrc(urlStr) {
+    if (!urlStr) return "";
+    try {
+      const url = new URL(urlStr.trim().startsWith("http") ? urlStr.trim() : `https://${urlStr.trim()}`);
+      const host = url.hostname.toLowerCase();
+      if (!host.includes("twitch.tv")) return "";
+      const parent = embedParentDomain();
+      const clipMatch = url.pathname.match(/\/clip\/([^/?#]+)/i);
+      if (clipMatch) return `https://clips.twitch.tv/embed?clip=${encodeURIComponent(clipMatch[1])}&parent=${encodeURIComponent(parent)}`;
+      const videoMatch = url.pathname.match(/\/videos\/(\d+)/);
+      if (videoMatch) return `https://player.twitch.tv/?video=${encodeURIComponent(videoMatch[1])}&parent=${encodeURIComponent(parent)}`;
+      const channel = url.pathname.split("/").filter(Boolean)[0];
+      if (channel && !["directory", "videos", "clip", "clips"].includes(channel.toLowerCase())) {
+        return `https://player.twitch.tv/?channel=${encodeURIComponent(channel)}&parent=${encodeURIComponent(parent)}`;
+      }
+    } catch { /* ignore */ }
+    return "";
+  }
+
+  function embedInfo(urlStr) {
+    if (!urlStr || typeof urlStr !== "string") return { kind: "none" };
+    const detected = detectPlatform(urlStr);
+    const ytId = parseYouTubeId(urlStr);
+    if (ytId) {
+      return {
+        kind: "iframe",
+        provider: "yt",
+        videoId: ytId,
+        src: `https://www.youtube-nocookie.com/embed/${ytId}?playsinline=1&rel=0`,
+        label: "YouTube",
+      };
+    }
+    const vimeoId = parseVimeoId(urlStr);
+    if (vimeoId) {
+      return {
+        kind: "iframe",
+        provider: "vimeo",
+        src: `https://player.vimeo.com/video/${vimeoId}?playsinline=1`,
+        label: "Vimeo",
+      };
+    }
+    const dmId = parseDailymotionId(urlStr);
+    if (dmId) {
+      return {
+        kind: "iframe",
+        provider: "dailymotion",
+        src: `https://www.dailymotion.com/embed/video/${dmId}`,
+        label: "Dailymotion",
+      };
+    }
+    const twitchSrc = parseTwitchEmbedSrc(urlStr);
+    if (twitchSrc) {
+      return { kind: "iframe", provider: "twitch", src: twitchSrc, label: "Twitch" };
+    }
+    try {
+      const url = new URL(urlStr.trim().startsWith("http") ? urlStr.trim() : `https://${urlStr.trim()}`);
+      if (/\.(mp4|webm|m3u8)(\?.*)?$/i.test(url.pathname)) {
+        return { kind: "video", src: urlStr.trim(), label: detected.label || "Video" };
+      }
+    } catch { /* ignore */ }
+    return { kind: "none", label: detected.label };
+  }
+
+  function destroyInlineVideoPlayer() {
+    if (activeYtPlayer) {
+      try {
+        if (typeof activeYtPlayer.destroy === "function") activeYtPlayer.destroy();
+      } catch { /* ignore */ }
+      activeYtPlayer = null;
+    }
+  }
+
+  function loadYouTubeIframeApi() {
+    if (window.YT && window.YT.Player) return Promise.resolve();
+    if (ytApiPromise) return ytApiPromise;
+    ytApiPromise = new Promise((resolve) => {
+      const prev = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        if (typeof prev === "function") prev();
+        resolve();
+      };
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(tag);
+    });
+    return ytApiPromise;
+  }
+
+  function mountInlineVideoPlayer() {
+    if (!state.inlineVideoPlayerId || state.screen !== "lists" || state.listsMode !== "videos") return;
+    const hid = String(state.inlineVideoPlayerId);
+    if (videoEmbedBlocked.has(hid)) return;
+    const video = findVideo(hid);
+    if (!video || !video.url) return;
+    const embed = embedInfo(video.url);
+    if (embed.kind === "none") return;
+    const mount = app.querySelector(`[data-role=video-inline-mount][data-id="${hid}"]`);
+    if (!mount || mount.dataset.mounted === "1") return;
+
+    destroyInlineVideoPlayer();
+    mount.innerHTML = "";
+    mount.dataset.mounted = "1";
+
+    if (embed.kind === "video") {
+      const el = document.createElement("video");
+      el.src = embed.src;
+      el.controls = true;
+      el.playsInline = true;
+      el.setAttribute("playsinline", "");
+      el.preload = "metadata";
+      mount.appendChild(el);
+      return;
+    }
+
+    if (embed.provider === "yt" && embed.videoId) {
+      const playerId = `yt-inline-${hid.replace(/[^a-zA-Z0-9_-]/g, "")}`;
+      mount.innerHTML = `<div id="${playerId}" class="video-inline-yt"></div>`;
+      loadYouTubeIframeApi().then(() => {
+        if (state.inlineVideoPlayerId !== hid) return;
+        const box = document.getElementById(playerId);
+        if (!box || !window.YT || !window.YT.Player) return;
+        activeYtPlayer = new window.YT.Player(playerId, {
+          videoId: embed.videoId,
+          host: "https://www.youtube-nocookie.com",
+          playerVars: {
+            playsinline: 1,
+            rel: 0,
+            modestbranding: 1,
+          },
+          events: {
+            onError: (event) => {
+              if (event.data === 101 || event.data === 150) {
+                videoEmbedBlocked.add(hid);
+                destroyInlineVideoPlayer();
+                render();
+              }
+            },
+          },
+        });
+      });
+      return;
+    }
+
+    const iframe = document.createElement("iframe");
+    iframe.src = embed.src;
+    iframe.title = embed.label || "Video";
+    iframe.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+    iframe.allowFullscreen = true;
+    iframe.setAttribute("playsinline", "");
+    mount.appendChild(iframe);
+  }
+
+  function updateVideoEverywhere(patch) {
+    if (!patch || !patch.id) return false;
+    const hid = String(patch.id);
+    const now = nowIso();
+    const merged = Object.assign({}, patch, { updatedAt: now });
+    let changed = false;
+    const touch = (load, save) => {
+      const list = load();
+      const idx = list.findIndex((v) => String(v.id) === hid);
+      if (idx < 0) return;
+      const next = list.slice();
+      next[idx] = Object.assign({}, list[idx], merged);
+      save(next);
+      changed = true;
+    };
+    touch(videoWatchlist, saveVideoWatchlist);
+    touch(videoQueue, saveVideoQueue);
+    touch(videoHistory, saveVideoHistory);
+    return changed;
+  }
+
   function platformBadgeHtml(platId, labelOverride) {
     if (platId === "yt") return `<span class="v-plat plat-yt"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23 12s0-3.6-.46-5.2a2.9 2.9 0 0 0-2-2C18.8 4.3 12 4.3 12 4.3s-6.8 0-8.54.5a2.9 2.9 0 0 0-2 2C1 8.4 1 12 1 12s0 3.6.46 5.2a2.9 2.9 0 0 0 2 2c1.74.5 8.54.5 8.54.5s6.8 0 8.54-.5a2.9 2.9 0 0 0 2-2C23 15.6 23 12 23 12zm-13 3.3V8.7L16.2 12 10 15.3z"/></svg> ${labelOverride || "YT"}</span>`;
     if (platId === "ig") return `<span class="v-plat plat-ig"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 7.2A4.8 4.8 0 1 0 12 16.8 4.8 4.8 0 0 0 12 7.2zm0 7.9a3.1 3.1 0 1 1 0-6.2 3.1 3.1 0 0 1 0 6.2zm6.1-8.2a1.1 1.1 0 1 1-2.2 0 1.1 1.1 0 0 1 2.2 0zM12 3.5c-2.3 0-2.6 0-3.5.05-.9.04-1.5.2-2 .38a4 4 0 0 0-1.45.94 4 4 0 0 0-.94 1.45c-.18.5-.34 1.1-.38 2C3.5 9.4 3.5 9.7 3.5 12s0 2.6.05 3.5c.04.9.2 1.5.38 2a4 4 0 0 0 .94 1.45 4 4 0 0 0 1.45.94c.5.18 1.1.34 2 .38.9.05 1.2.05 3.5.05s2.6 0 3.5-.05c.9-.04 1.5-.2 2-.38a4 4 0 0 0 1.45-.94 4 4 0 0 0 .94-1.45c.18-.5.34-1.1.38-2 .05-.9.05-1.2.05-3.5s0-2.6-.05-3.5c-.04-.9-.17-1.26-.28-1.56-.15-.39-.33-.67-.62-.96-.29-.29-.57-.47-.96-.62-.3-.11-.74-.24-1.56-.28C14.6 3.5 14.3 3.5 12 3.5z"/></svg> ${labelOverride || "IG"}</span>`;
@@ -1261,6 +1486,8 @@
     videoFormPlat: "",
     videoFormPlatId: "",
     videoFormCustomPlat: false,
+    videoFormEditId: null,
+    inlineVideoPlayerId: null,
     settingsBusy: false,
     settingsError: "",
     settingsReturnScreen: "lists",
@@ -7128,6 +7355,7 @@
   function openVideoAddSheet() {
     closeFilmMenus();
     state.watchSheet = "video-add";
+    state.videoFormEditId = null;
     state.videoFormUrl = "";
     state.videoFormTitle = "";
     state.videoFormDesc = "";
@@ -7137,20 +7365,58 @@
     paintWatchSheet();
   }
 
-  function renderVideoAddSheetHtml() {
-    const platId = state.videoFormPlatId || (state.videoFormUrl ? detectPlatform(state.videoFormUrl).id : "");
-    const platOpt = state.videoFormPlat || (platId && platId !== "generic" ? platLabelFromId(platId) : "");
+  function openVideoEditSheet(videoId) {
+    const video = findVideo(videoId);
+    if (!video) return;
+    closeFilmMenus();
+    state.watchSheet = "video-add";
+    state.videoFormEditId = String(video.id);
+    state.videoFormUrl = video.url || "";
+    state.videoFormTitle = video.title || "";
+    state.videoFormDesc = video.desc || "";
+    const detected = detectPlatform(video.url);
+    state.videoFormPlatId = video.plat || detected.id || "";
+    state.videoFormPlat = "";
+    state.videoFormCustomPlat = false;
+    paintWatchSheet();
+  }
+
+  function videoSheetPlatPickerHtml(platId) {
     return `
-      <div class="sheet-panel is-video-add" data-role="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="video-add-title">
-        <div class="sheet-head" data-role="sheet-drag">
-          <div class="sheet-handle" aria-hidden="true"></div>
-          <h2 class="sheet-title" id="video-add-title">Video hinzufügen</h2>
-          <button type="button" class="sheet-close" data-act="watch-sheet-close" aria-label="Schließen">${ICONS.close}</button>
-        </div>
-        <form class="video-add-form" data-role="video-add-form" onsubmit="return false;">
+      <div class="video-plat-picker" role="group" aria-label="Plattform">
+        <button class="video-plat-chip" type="button" data-act="video-pick-plat" data-plat="yt" aria-pressed="${platId === "yt" ? "true" : "false"}">
+          <span class="ico yt"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.6-.46-5.2a2.9 2.9 0 0 0-2-2C18.8 4.3 12 4.3 12 4.3s-6.8 0-8.54.5a2.9 2.9 0 0 0-2 2C1 8.4 1 12 1 12s0 3.6.46 5.2a2.9 2.9 0 0 0 2 2c1.74.5 8.54.5 8.54.5s6.8 0 8.54-.5a2.9 2.9 0 0 0 2-2C23 15.6 23 12 23 12zm-13 3.3V8.7L16.2 12 10 15.3z"/></svg></span>
+          YouTube
+        </button>
+        <button class="video-plat-chip" type="button" data-act="video-pick-plat" data-plat="ig" aria-pressed="${platId === "ig" ? "true" : "false"}">
+          <span class="ico ig"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 7.2A4.8 4.8 0 1 0 12 16.8 4.8 4.8 0 0 0 12 7.2zm0 7.9a3.1 3.1 0 1 1 0-6.2 3.1 3.1 0 0 1 0 6.2zm6.1-8.2a1.1 1.1 0 1 1-2.2 0 1.1 1.1 0 0 1 2.2 0zM12 3.5c-2.3 0-2.6 0-3.5.05-.9.04-1.5.2-2 .38a4 4 0 0 0-1.45.94 4 4 0 0 0-.94 1.45c-.18.5-.34 1.1-.38 2C3.5 9.4 3.5 9.7 3.5 12s0 2.6.05 3.5c.04.9.2 1.5.38 2a4 4 0 0 0 .94 1.45 4 4 0 0 0 1.45.94c.5.18 1.1.34 2 .38.9.05 1.2.05 3.5.05s2.6 0 3.5-.05c.9-.04 1.5-.2 2-.38a4 4 0 0 0 1.45-.94 4 4 0 0 0 .94-1.45c.18-.5.34-1.1.38-2 .05-.9.05-1.2.05-3.5s0-2.6-.05-3.5c-.04-.9-.17-1.26-.28-1.56-.15-.39-.33-.67-.62-.96-.29-.29-.57-.47-.96-.62-.3-.11-.74-.24-1.56-.28C14.6 3.5 14.3 3.5 12 3.5z"/></svg></span>
+          Instagram
+        </button>
+        <button class="video-plat-chip" type="button" data-act="video-pick-plat" data-plat="fb" aria-pressed="${platId === "fb" ? "true" : "false"}">
+          <span class="ico fb"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H7v3h3v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></span>
+          Facebook
+        </button>
+      </div>
+    `;
+  }
+
+  function renderVideoAddSheetHtml() {
+    const editing = !!state.videoFormEditId;
+    const url = state.videoFormUrl || "";
+    const detected = url ? detectPlatform(url) : { id: "", label: "Web" };
+    const platId = state.videoFormPlatId || detected.id || "";
+    const embed = url ? embedInfo(url) : { kind: "none" };
+    const platLabel = platLabelFromId(platId) || detected.label || "Web";
+    const platHint = embed.kind !== "none"
+      ? `✓ Aus dem Link erkannt: ${platLabel} – auch „hier anschauen“ möglich`
+      : `✓ Aus dem Link erkannt: ${platLabel}`;
+    const platOpt = state.videoFormPlat || (platId && platId !== "generic" ? platLabelFromId(platId) : "");
+    const titleId = editing ? "video-edit-title" : "video-add-title";
+    const sheetTitle = editing ? "Video bearbeiten" : "Video hinzufügen";
+    const fieldsAdd = `
           <div class="video-field">
             <label for="video-url">URL</label>
-            <input id="video-url" type="url" placeholder="https://..." value="${escapeHtml(state.videoFormUrl)}" required autocomplete="off" autofocus>
+            <input id="video-url" type="url" placeholder="https://..." value="${escapeHtml(url)}" required autocomplete="off" autofocus>
           </div>
           <div class="video-field">
             <label for="video-title">Titel</label>
@@ -7162,29 +7428,77 @@
           </div>
           <div class="video-field">
             <label for="video-plat">Plattform <span class="hint-opt">(optional)</span></label>
-            <input id="video-plat" type="text" placeholder="Wird automatisch ermittelt" value="${escapeHtml(state.videoFormPlat)}">
-            <div class="video-plat-picker" role="group" aria-label="Plattform">
-              <button class="video-plat-chip" type="button" data-act="video-pick-plat" data-plat="yt" aria-pressed="${platId === "yt" ? "true" : "false"}">
-                <span class="ico yt"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.6-.46-5.2a2.9 2.9 0 0 0-2-2C18.8 4.3 12 4.3 12 4.3s-6.8 0-8.54.5a2.9 2.9 0 0 0-2 2C1 8.4 1 12 1 12s0 3.6.46 5.2a2.9 2.9 0 0 0 2 2c1.74.5 8.54.5 8.54.5s6.8 0 8.54-.5a2.9 2.9 0 0 0 2-2C23 15.6 23 12 23 12zm-13 3.3V8.7L16.2 12 10 15.3z"/></svg></span>
-                YouTube
-              </button>
-              <button class="video-plat-chip" type="button" data-act="video-pick-plat" data-plat="ig" aria-pressed="${platId === "ig" ? "true" : "false"}">
-                <span class="ico ig"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 7.2A4.8 4.8 0 1 0 12 16.8 4.8 4.8 0 0 0 12 7.2zm0 7.9a3.1 3.1 0 1 1 0-6.2 3.1 3.1 0 0 1 0 6.2zm6.1-8.2a1.1 1.1 0 1 1-2.2 0 1.1 1.1 0 0 1 2.2 0zM12 3.5c-2.3 0-2.6 0-3.5.05-.9.04-1.5.2-2 .38a4 4 0 0 0-1.45.94 4 4 0 0 0-.94 1.45c-.18.5-.34 1.1-.38 2C3.5 9.4 3.5 9.7 3.5 12s0 2.6.05 3.5c.04.9.2 1.5.38 2a4 4 0 0 0 .94 1.45 4 4 0 0 0 1.45.94c.5.18 1.1.34 2 .38.9.05 1.2.05 3.5.05s2.6 0 3.5-.05c.9-.04 1.5-.2 2-.38a4 4 0 0 0 1.45-.94 4 4 0 0 0 .94-1.45c.18-.5.34-1.1.38-2 .05-.9.05-1.2.05-3.5s0-2.6-.05-3.5c-.04-.9-.17-1.26-.28-1.56-.15-.39-.33-.67-.62-.96-.29-.29-.57-.47-.96-.62-.3-.11-.74-.24-1.56-.28C14.6 3.5 14.3 3.5 12 3.5z"/></svg></span>
-                Instagram
-              </button>
-              <button class="video-plat-chip" type="button" data-act="video-pick-plat" data-plat="fb" aria-pressed="${platId === "fb" ? "true" : "false"}">
-                <span class="ico fb"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H7v3h3v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></span>
-                Facebook
-              </button>
-            </div>
+            <input id="video-plat" type="text" placeholder="Wird automatisch ermittelt" value="${escapeHtml(platOpt)}">
+            ${videoSheetPlatPickerHtml(platId)}
           </div>
+    `;
+    const fieldsEdit = `
+          <div class="video-field">
+            <label for="video-title">Titel</label>
+            <input id="video-title" type="text" placeholder="Titel des Videos" value="${escapeHtml(state.videoFormTitle)}" autofocus>
+          </div>
+          <div class="video-field">
+            <label for="video-desc">Notiz / Text</label>
+            <textarea id="video-desc" placeholder="Kurzbeschreibung oder Notiz">${escapeHtml(state.videoFormDesc)}</textarea>
+          </div>
+          <div class="video-field">
+            <label for="video-url">Link (URL)</label>
+            <input id="video-url" type="url" placeholder="https://..." value="${escapeHtml(url)}" required autocomplete="off">
+          </div>
+          <div class="video-field">
+            <label>Plattform <span class="hint-opt">(automatisch erkannt)</span></label>
+            ${videoSheetPlatPickerHtml(platId)}
+            <p class="video-plat-detect-hint">${escapeHtml(platHint)}</p>
+          </div>
+    `;
+    const removeBlock = editing ? `
+          <div class="video-sheet-remove-wrap">
+            <button type="button" class="video-sheet-remove" data-act="video-edit-remove" data-id="${escapeHtml(state.videoFormEditId)}">🗑 Von Liste entfernen</button>
+            <p class="hint video-sheet-remove-hint">Entfernt das Video aus der Watchlist · mit Rückgängig</p>
+          </div>
+    ` : "";
+    return `
+      <div class="sheet-panel is-video-add${editing ? " is-video-edit" : ""}" data-role="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="${titleId}">
+        <div class="sheet-head" data-role="sheet-drag">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <h2 class="sheet-title" id="${titleId}">${sheetTitle}</h2>
+          <button type="button" class="sheet-close" data-act="watch-sheet-close" aria-label="Schließen">${ICONS.close}</button>
+        </div>
+        <form class="video-add-form" data-role="video-add-form" onsubmit="return false;">
+          ${editing ? fieldsEdit : fieldsAdd}
           <div class="video-sheet-actions">
             <button class="btn btn-ghost" type="button" data-act="watch-sheet-close">Abbrechen</button>
-            <button class="btn btn-primary" type="button" data-act="video-save">Speichern</button>
+            <button class="btn btn-primary" type="button" data-act="video-save">${editing ? "Speichern" : "Speichern"}</button>
           </div>
+          ${removeBlock}
         </form>
       </div>
     `;
+  }
+
+  function removeVideoWithUndo(video) {
+    if (!video) return;
+    const beforeWatch = videoWatchlist();
+    const beforeQueue = videoQueue();
+    const beforeHistory = videoHistory();
+    const hid = String(video.id);
+    if (state.listTab === "seen") removeVideoFromHistory(video.id);
+    else removeVideoFromWatchlist(video.id);
+    if (state.expandedVideoId === hid) state.expandedVideoId = null;
+    if (state.inlineVideoPlayerId === hid) {
+      state.inlineVideoPlayerId = null;
+      destroyInlineVideoPlayer();
+    }
+    if (state.videoFormEditId === hid) closeWatchSheet();
+    render();
+    showSnack("Video entfernt", "danger", {
+      undo: () => {
+        saveVideoWatchlist(beforeWatch);
+        saveVideoQueue(beforeQueue);
+        saveVideoHistory(beforeHistory);
+        render();
+      },
+    });
   }
 
   function saveVideoFromForm() {
@@ -7217,12 +7531,35 @@
       else if (lower.includes("ard")) platId = "ard";
       else if (lower.includes("zdf")) platId = "zdf";
       else platId = "generic";
+    } else if (state.videoFormEditId) {
+      platId = detected.id || platId || "generic";
     }
     let title = (titleInput ? titleInput.value : state.videoFormTitle || "").trim();
     if (!title) {
       title = `${customPlat || platLabelFromId(platId) || detected.label}-Video`;
     }
     const desc = (descInput ? descInput.value : state.videoFormDesc || "").trim();
+
+    if (state.videoFormEditId) {
+      const existing = findVideo(state.videoFormEditId);
+      if (!existing) {
+        closeWatchSheet();
+        render();
+        return;
+      }
+      updateVideoEverywhere({
+        id: existing.id,
+        title,
+        desc,
+        url,
+        plat: platId,
+        customPlat: customPlat || detected.label,
+      });
+      closeWatchSheet();
+      render();
+      showSnack("Gespeichert");
+      return;
+    }
 
     const newVideo = {
       id: "v-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
@@ -7325,7 +7662,7 @@
       return;
     }
     if (state.watchSheet === "video-add") {
-      const input = watchSheetEl.querySelector("#video-url");
+      const input = watchSheetEl.querySelector(state.videoFormEditId ? "#video-title" : "#video-url");
       if (input) {
         input.focus({ preventScroll: true });
         const len = input.value.length;
@@ -7403,6 +7740,7 @@
     state.similarHits = [];
     state.similarStatus = "";
     state.similarDraft = [];
+    state.videoFormEditId = null;
     resetWatchSheetPage();
     document.body.classList.remove("watch-sheet-open");
     document.body.classList.remove("zufall-sheet-open");
@@ -8957,7 +9295,7 @@
     const current = historyViews(row)[0] || row.at;
     const maxDay = todayDateInputMax();
     openModal(`
-      <div class="modal-card seen-date-sheet">
+      <div class="card modal-card seen-date-sheet">
         <h2>Wann gesehen?</h2>
         <p class="hint">${escapeHtml(film.title)}</p>
         <div class="seen-date-chips">
@@ -9038,6 +9376,65 @@
     `;
   }
 
+  function renderVideoInlinePlayer(video, embed, detected) {
+    const id = escapeHtml(String(video.id));
+    const hid = String(video.id);
+    const platLabel = embed.label || detected.label || "Web";
+    const blocked = videoEmbedBlocked.has(hid);
+    if (blocked) {
+      return `
+        <div class="video-inline-wrap is-blocked" data-role="video-inline" data-id="${id}">
+          <div class="video-inline-stage">
+            <div class="video-embed-blocked">
+              <p class="video-embed-blocked-title">Dieses Video kann nur auf ${escapeHtml(platLabel)} abgespielt werden</p>
+              <p class="hint video-embed-blocked-copy">Der Kanal hat das Abspielen in anderen Apps deaktiviert.</p>
+              <button class="btn video-embed-blocked-open" type="button" data-act="video-open-direct" data-id="${id}">${externalLinkSvg()} In ${escapeHtml(platLabel)} öffnen ↗</button>
+            </div>
+          </div>
+          <div class="video-inline-bar">
+            <span class="video-inline-ext" aria-hidden="true"></span>
+            <button type="button" class="video-inline-close" data-act="video-inline-close" data-id="${id}">✕ Player schließen</button>
+          </div>
+        </div>
+      `;
+    }
+    return `
+      <div class="video-inline-wrap" data-role="video-inline" data-id="${id}">
+        <div class="video-inline-stage">
+          <div class="video-inline-mount" data-role="video-inline-mount" data-id="${id}"></div>
+        </div>
+        <div class="video-inline-bar">
+          <button type="button" class="video-inline-ext" data-act="video-open-direct" data-id="${id}">In ${escapeHtml(platLabel)} öffnen ↗</button>
+          <button type="button" class="video-inline-close" data-act="video-inline-close" data-id="${id}">✕ Player schließen</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderVideoExpandActions(video, embed, detected) {
+    const id = escapeHtml(String(video.id));
+    const hid = String(video.id);
+    const playerOpen = state.inlineVideoPlayerId === hid;
+    const embeddable = embed.kind !== "none";
+    const playerHtml = playerOpen ? renderVideoInlinePlayer(video, embed, detected) : "";
+    const split = embeddable && !playerOpen;
+    const hierBtn = split
+      ? `<button class="btn btn-ghost video-hier-btn" type="button" data-act="video-inline-open" data-id="${id}"><span aria-hidden="true">▶</span> hier anschauen</button>`
+      : "";
+    return `
+      ${playerHtml}
+      <div class="video-expand-actions${split ? " is-split" : " is-single"}">
+        <button class="btn btn-primary" type="button" data-act="video-confirm" data-id="${id}">
+          <span class="btn-play" aria-hidden="true">${enamelPlayIcon()}</span>Anschauen
+        </button>
+        ${hierBtn}
+      </div>
+      <div class="video-expand-secondary">
+        <button class="btn btn-ghost video-edit-btn" type="button" data-act="video-edit-open" data-id="${id}">✎ Bearbeiten</button>
+      </div>
+    `;
+  }
+
   // Videos rendering
   function renderVideoRow(video, opts) {
     if (!video) return "";
@@ -9047,6 +9444,7 @@
     const isSeen = !!opts.gesehen;
     const dateStr = isSeen && video.at ? formatSeenOn(video.at) : "";
     const detected = detectPlatform(video.url);
+    const embed = embedInfo(video.url);
     const platId = video.plat || detected.id;
     const badgeLabel = platId === "generic" ? (video.customPlat || detected.label) : "";
     const badgeHtml = platformBadgeHtml(platId, badgeLabel);
@@ -9076,16 +9474,7 @@
     const tags = renderVideoTagChips(video);
     const expand = open ? `
       <div class="film-row-expand">
-        <p class="film-expand-plot">${escapeHtml(video.desc || "Video aufrufen und in der Liste als Angesehen markieren.")}</p>
-        <div class="video-expand-actions">
-          <button class="btn btn-primary" type="button" data-act="video-confirm" data-id="${id}">
-            <span class="btn-play" aria-hidden="true">${enamelPlayIcon()}</span>Anschauen
-          </button>
-          <button class="btn btn-ghost video-ext-btn" type="button" data-act="video-open-direct" data-id="${id}">
-            ${externalLinkSvg()} Öffnet ${escapeHtml(detected.label)} extern
-          </button>
-          <button class="btn btn-ghost" type="button" data-act="video-remove" data-id="${id}">Von Liste</button>
-        </div>
+        ${renderVideoExpandActions(video, embed, detected)}
         <p class="film-expand-in-label">Tags</p>
         <div class="film-expand-tags">${tags || `<span class="hint">Noch keine eigenen Tags</span>`}</div>
         <p class="film-expand-in-label">Bewertung</p>
@@ -9321,8 +9710,8 @@
         <span class="watch-search-glass" aria-hidden="true">${ICONS.search}</span>
         Suchen
       </button>
-      <button type="button" class="watch-add-chip rated-filter-chip" data-act="video-seen-unrated" aria-pressed="${state.seenOnlyUnrated}">nur unbewertet</button>
-      <button type="button" class="watch-add-chip rated-filter-chip" data-act="video-seen-all" aria-pressed="${!state.seenOnlyUnrated}">alle</button>
+      <button type="button" class="watch-add-chip rated-filter-chip" data-act="video-seen-unrated" aria-pressed="${state.seenOnlyUnrated}">Unbewertete</button>
+      <button type="button" class="watch-add-chip rated-filter-chip" data-act="video-seen-all" aria-pressed="${!state.seenOnlyUnrated}">Alle</button>
     `;
 
     return `
@@ -9819,6 +10208,7 @@
       state.pinJustWatched = false;
       const keptListScroll = pinJust ? null : captureSameTabListScroll();
       blurAppFocus();
+      destroyInlineVideoPlayer();
       app.innerHTML = renderLists();
       if (pinJust) {
         const list = app.querySelector("[data-role=film-list]");
@@ -9833,6 +10223,11 @@
       const films = [...shown].map((row) => findFilm(row.dataset.id)).filter(Boolean);
       if (state.listTab !== "seen") enrichListCast(films);
       if (state.expandedFilmId) enrichExpandedFilm(state.expandedFilmId);
+      if (state.inlineVideoPlayerId) {
+        window.requestAnimationFrame(() => {
+          mountInlineVideoPlayer();
+        });
+      }
       window.requestAnimationFrame(paintChipOverflow);
     }
     else if (state.screen === "tags") app.innerHTML = renderTagsManage();
@@ -10372,6 +10767,10 @@
     }
     if (act === "video-save") {
       saveVideoFromForm();
+      return true;
+    }
+    if (act === "video-edit-remove") {
+      removeVideoWithUndo(findVideo(t.dataset.id));
       return true;
     }
     if (act === "video-pick-plat") {
@@ -10917,6 +11316,8 @@
       state.listTab = t.dataset.id;
       state.expandedFilmId = null;
       state.expandedVideoId = null;
+      state.inlineVideoPlayerId = null;
+      destroyInlineVideoPlayer();
       state.seenRateFor = "";
       state.seenVideoRateFor = "";
       render();
@@ -10926,6 +11327,8 @@
       state.listsMode = state.listsMode === "videos" ? "filme" : "videos";
       state.expandedFilmId = null;
       state.expandedVideoId = null;
+      state.inlineVideoPlayerId = null;
+      destroyInlineVideoPlayer();
       state.seenRateFor = "";
       state.seenVideoRateFor = "";
       state.videoSearchOpen = false;
@@ -10955,7 +11358,33 @@
     }
     if (act === "video-expand") {
       const hid = String(t.dataset.id || "");
-      state.expandedVideoId = state.expandedVideoId === hid ? null : hid;
+      const closing = state.expandedVideoId === hid;
+      if (closing) {
+        if (state.inlineVideoPlayerId === hid) {
+          state.inlineVideoPlayerId = null;
+          destroyInlineVideoPlayer();
+        }
+      } else if (state.inlineVideoPlayerId && state.inlineVideoPlayerId !== hid) {
+        state.inlineVideoPlayerId = null;
+        destroyInlineVideoPlayer();
+      }
+      state.expandedVideoId = closing ? null : hid;
+      render();
+      return;
+    }
+    if (act === "video-edit-open") {
+      openVideoEditSheet(t.dataset.id);
+      return;
+    }
+    if (act === "video-inline-open") {
+      const hid = String(t.dataset.id || "");
+      state.inlineVideoPlayerId = hid;
+      render();
+      return;
+    }
+    if (act === "video-inline-close") {
+      state.inlineVideoPlayerId = null;
+      destroyInlineVideoPlayer();
       render();
       return;
     }
@@ -10969,16 +11398,6 @@
       try {
         window.open(video.url, "_blank", "noopener,noreferrer");
       } catch { /* ignore */ }
-      return;
-    }
-    if (act === "video-remove") {
-      const video = findVideo(t.dataset.id);
-      if (!video) return;
-      if (state.listTab === "seen") removeVideoFromHistory(video.id);
-      else removeVideoFromWatchlist(video.id);
-      if (state.expandedVideoId === String(video.id)) state.expandedVideoId = null;
-      render();
-      showSnack(`${video.title} entfernt`, "danger");
       return;
     }
     if (act === "video-search-toggle") {
@@ -11531,7 +11950,7 @@
     dismissWatchSwipeHint();
     const row = event.target.closest("[data-swipe-row]");
     if (!row || !row.dataset.swipeMode) return;
-    if (event.target.closest("[data-act=film-menu], .film-menu-pop, [data-act=watch-toggle], .film-row-expand, [data-act=rate], [data-act=film-tag], [data-act=choose], .suggest-inline-watch, [data-act=video-confirm], [data-act=video-expand], .v-anschauen, .video-expand-actions, .seen-rate-bubble, [data-act=video-seen-rate-open], [data-act=video-seen-undo]")) return;
+    if (event.target.closest("[data-act=film-menu], .film-menu-pop, [data-act=watch-toggle], .film-row-expand, [data-act=rate], [data-act=film-tag], [data-act=choose], .suggest-inline-watch, [data-act=video-confirm], [data-act=video-expand], [data-act=video-inline-open], [data-act=video-inline-close], [data-act=video-edit-open], .v-anschauen, .video-expand-actions, .video-inline-wrap, .seen-rate-bubble, [data-act=video-seen-rate-open], [data-act=video-seen-undo]")) return;
     if (event.target.closest(".film-row.is-open")) return;
     if (swipeDrag) return;
     swipeDrag = {
@@ -11694,6 +12113,14 @@
           const p = chip.dataset.plat || "";
           chip.setAttribute("aria-pressed", p === state.videoFormPlatId ? "true" : "false");
         });
+      }
+      const hint = watchSheetEl.querySelector(".video-plat-detect-hint");
+      if (hint && state.videoFormEditId) {
+        const embed = embedInfo(t.value);
+        const platLabel = platLabelFromId(state.videoFormPlatId) || detected.label || "Web";
+        hint.textContent = embed.kind !== "none"
+          ? `✓ Aus dem Link erkannt: ${platLabel} – auch „hier anschauen“ möglich`
+          : `✓ Aus dem Link erkannt: ${platLabel}`;
       }
     }
     if (t.id === "video-title") {
