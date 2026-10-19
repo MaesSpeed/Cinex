@@ -1468,6 +1468,44 @@ body.on-home #app {
   display: none !important;
 }
 
+.tags-scope-hint {
+  margin: 6px 2px 0;
+  padding: 0 2px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.tags-scope-hint--manage {
+  margin: 0 0 12px;
+}
+
+.tags-scope-kicker {
+  font-weight: 700;
+  color: #2a4a6e;
+}
+
+.tag-chip-new {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 2px 10px;
+  border: 1.5px dashed rgba(0, 102, 179, 0.5);
+  border-radius: 999px;
+  background: #fff;
+  color: #0066b3;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.film-expand-tags .tag-chip-new {
+  margin: 2px 0;
+}
+
 .filter-empty {
   margin: 0;
   font-size: 0.78rem;

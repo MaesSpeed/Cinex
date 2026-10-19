@@ -5,7 +5,8 @@
     "test:known-sync": "node --test scripts/test-known-sync.mjs",
     "test:known-sync:browser": "node --test scripts/test-known-sync-browser.mjs",
     "test:list-hydration:browser": "node --test scripts/test-list-hydration-browser.mjs",
-    "test:view-entries": "node --test scripts/test-view-entries.mjs"
+    "test:view-entries": "node --test scripts/test-view-entries.mjs",
+    "test:tag-scope": "node --test scripts/test-tag-scope.mjs"
   },
   "devDependencies": {
     "playwright": "^1.64.1"
