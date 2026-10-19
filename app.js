@@ -1450,6 +1450,8 @@
     seenOnlyUnrated: false,
     seenViewsExpanded: {},
     seenDateEditId: "",
+    seenDateEditScope: "film",
+    seenSheetFrac: { kind: "preset", f: 1, customPct: "", lastPreset: 1 },
     justWatchedId: null,
     pinJustWatched: false,
     chosen: null,
@@ -2733,13 +2735,63 @@
     scheduleDebouncedSync();
   }
 
-  function historyViews(row) {
-    if (!row || typeof row !== "object") return [];
-    if (Array.isArray(row.views) && row.views.length) {
-      return row.views.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => b - a);
+  function viewAtOf(entry) {
+    if (entry == null) return NaN;
+    if (typeof entry === "number") return Number(entry);
+    if (typeof entry === "object") {
+      const at = Number(entry.at);
+      return Number.isFinite(at) && at > 0 ? at : NaN;
     }
-    const at = Number(row.at);
-    return Number.isFinite(at) && at > 0 ? [at] : [];
+    return NaN;
+  }
+
+  function viewFractionOf(entry) {
+    if (entry == null) return 1;
+    if (typeof entry === "number") return 1;
+    if (typeof entry === "object") {
+      const f = Number(entry.f);
+      if (!Number.isFinite(f) || f <= 0) return 1;
+      if (f >= 1) return 1;
+      return Math.round(f * 10000) / 10000;
+    }
+    return 1;
+  }
+
+  function parseViewsList(row) {
+    if (!row || typeof row !== "object") return [];
+    let raw = [];
+    if (Array.isArray(row.views) && row.views.length) raw = row.views.slice();
+    else {
+      const at = Number(row.at);
+      if (Number.isFinite(at) && at > 0) raw = [at];
+      else return [];
+    }
+    const detailed = raw
+      .map((v) => ({ at: viewAtOf(v), f: viewFractionOf(v) }))
+      .filter((v) => Number.isFinite(v.at) && v.at > 0);
+    detailed.sort((a, b) => b.at - a.at);
+    return detailed;
+  }
+
+  function compactViewsList(detailed) {
+    return detailed
+      .map(({ at, f }) => {
+        if (!Number.isFinite(at) || at <= 0) return null;
+        if (f >= 0.9999) return at;
+        const pct = Math.round(f * 100);
+        if (pct >= 100) return at;
+        if (pct <= 0) return at;
+        return { at, f: pct / 100 };
+      })
+      .filter(Boolean);
+  }
+
+  function historyViews(row) {
+    return parseViewsList(row).map((v) => v.at);
+  }
+
+  function historyViewsDetailed(row) {
+    return parseViewsList(row);
   }
 
   function history() {
@@ -2773,7 +2825,7 @@
     let entry;
     if (idx >= 0) {
       const prev = rows[idx];
-      const views = [when, ...historyViews(prev)];
+      const views = compactViewsList([{ at: when, f: 1 }, ...parseViewsList(prev)]);
       entry = Object.assign({}, prev, { id: hid, title: film.title, at: when, views });
       rows.splice(idx, 1);
     } else {
@@ -2789,14 +2841,14 @@
     const idx = before.findIndex((row) => String(row.id) === hid);
     if (idx < 0) return null;
     const row = before[idx];
-    const views = historyViews(row);
-    const removedAt = views[0];
-    const restViews = views.slice(1);
+    const detailed = parseViewsList(row);
+    const removedAt = detailed[0] ? detailed[0].at : NaN;
+    const restViews = compactViewsList(detailed.slice(1));
     let next;
     if (!restViews.length) {
       next = before.filter((r) => String(r.id) !== hid);
     } else {
-      const updated = Object.assign({}, row, { at: restViews[0], views: restViews });
+      const updated = Object.assign({}, row, { at: viewAtOf(restViews[0]), views: restViews });
       next = before.slice();
       next[idx] = updated;
     }
@@ -2839,20 +2891,28 @@
     return ts;
   }
 
-  function updateLatestViewDate(id, newAt) {
-    const hid = String(filmId(id));
-    const rows = history();
+  function updateLatestViewEntry(id, newAt, newF, scope) {
+    const isVideo = scope === "video";
+    const hid = isVideo ? String(id) : String(filmId(id));
+    const rows = isVideo ? videoHistory() : history();
+    const save = isVideo ? saveVideoHistory : saveHistory;
     const idx = rows.findIndex((row) => String(row.id) === hid);
     if (idx < 0) return false;
     const row = rows[idx];
-    const views = historyViews(row);
-    if (!views.length) return false;
-    views[0] = newAt;
+    const detailed = parseViewsList(row);
+    if (!detailed.length) return false;
+    const f = newF != null && Number.isFinite(Number(newF)) ? Math.min(1, Math.max(0.01, Number(newF))) : detailed[0].f;
+    detailed[0] = { at: newAt, f };
+    const views = compactViewsList(detailed);
     const updated = Object.assign({}, row, { at: newAt, views });
     const next = rows.slice();
     next[idx] = updated;
-    saveHistory(next);
+    save(next);
     return true;
+  }
+
+  function updateLatestViewDate(id, newAt) {
+    return updateLatestViewEntry(id, newAt, null, "film");
   }
 
   // Videos Core API (separate per-profile storage, not mixed with films)
@@ -2950,12 +3010,11 @@
   }
 
   function videoHistoryViews(row) {
-    if (!row || typeof row !== "object") return [];
-    if (Array.isArray(row.views) && row.views.length) {
-      return row.views.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => b - a);
-    }
-    const at = Number(row.at);
-    return Number.isFinite(at) && at > 0 ? [at] : [];
+    return historyViews(row);
+  }
+
+  function videoHistoryViewsDetailed(row) {
+    return historyViewsDetailed(row);
   }
 
   function recordVideoWatched(video, at) {
@@ -2967,7 +3026,7 @@
     let entry;
     if (idx >= 0) {
       const prev = rows[idx];
-      const views = [when, ...videoHistoryViews(prev)];
+      const views = compactViewsList([{ at: when, f: 1 }, ...parseViewsList(prev)]);
       entry = Object.assign({}, prev, video, { at: when, views });
       rows.splice(idx, 1);
     } else {
@@ -2983,14 +3042,14 @@
     const idx = before.findIndex((v) => String(v.id) === hid);
     if (idx < 0) return null;
     const row = before[idx];
-    const views = videoHistoryViews(row);
-    const removedAt = views[0];
-    const restViews = views.slice(1);
+    const detailed = parseViewsList(row);
+    const removedAt = detailed[0] ? detailed[0].at : NaN;
+    const restViews = compactViewsList(detailed.slice(1));
     let next;
     if (!restViews.length) {
       next = before.filter((v) => String(v.id) !== hid);
     } else {
-      const updated = Object.assign({}, row, { at: restViews[0], views: restViews });
+      const updated = Object.assign({}, row, { at: viewAtOf(restViews[0]), views: restViews });
       next = before.slice();
       next[idx] = updated;
     }
@@ -9235,15 +9294,171 @@
 
   const SEEN_UNDO_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7H5v4"/><path d="M5 11a7 7 0 1 0 1.6-4.4"/></svg>`;
 
+  const SEEN_FRAC_PRESETS = [
+    { f: 1, label: "100 %" },
+    { f: 0.75, label: "75 %" },
+    { f: 0.5, label: "50 %" },
+    { f: 0.25, label: "25 %" },
+  ];
+
+  function viewPercentLabel(f) {
+    return `${Math.round(Number(f) * 100)} %`;
+  }
+
+  function viewPieIconHtml(f, extraClass) {
+    const frac = Number(f);
+    const cls = `seen-pie-icon${extraClass ? ` ${extraClass}` : ""}`;
+    if (!Number.isFinite(frac) || frac >= 0.9999) {
+      return `<span class="${cls} is-full" aria-hidden="true">●</span>`;
+    }
+    const pct = Math.max(0, Math.min(1, frac));
+    const deg = pct * 360;
+    const r = 6;
+    const cx = 8;
+    const cy = 8;
+    if (deg <= 0.01) {
+      return `<svg class="${cls}" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="${cx}" cy="${cy}" r="${r}" fill="#e8eef4" stroke="#b8c5d4" stroke-width="1"/></svg>`;
+    }
+    if (deg >= 359.9) {
+      return `<span class="${cls} is-full" aria-hidden="true">●</span>`;
+    }
+    const rad = ((deg - 90) * Math.PI) / 180;
+    const x = cx + r * Math.cos(rad);
+    const y = cy + r * Math.sin(rad);
+    const large = deg > 180 ? 1 : 0;
+    const d = `M ${cx} ${cy} L ${cx} ${cy - r} A ${r} ${r} 0 ${large} 1 ${x} ${y} Z`;
+    return `<svg class="${cls}" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="${cx}" cy="${cy}" r="${r}" fill="#e8eef4" stroke="#b8c5d4" stroke-width="1"/><path d="${d}" fill="#0066b3"/></svg>`;
+  }
+
+  function seenFracPresetIconHtml(frac) {
+    if (frac >= 0.9999) return "";
+    return viewPieIconHtml(frac, "seen-frac-chip-pie");
+  }
+
+  function isPresetSheetFraction(f) {
+    const pct = Math.round(Number(f) * 100);
+    return [100, 75, 50, 25].includes(pct);
+  }
+
+  function initSeenSheetFracFromView(view) {
+    const f = view && Number.isFinite(view.f) ? view.f : 1;
+    const pct = Math.round(f * 100);
+    if (isPresetSheetFraction(f)) {
+      return { kind: "preset", f, customPct: "", lastPreset: f };
+    }
+    return { kind: "custom", f, customPct: String(pct), lastPreset: 1 };
+  }
+
+  function readSeenSheetFraction() {
+    const st = state.seenSheetFrac;
+    if (!st) return 1;
+    if (st.kind === "custom") {
+      const n = Number(st.customPct);
+      if (Number.isFinite(n) && n >= 1 && n <= 99) return n / 100;
+      return NaN;
+    }
+    const f = Number(st.f);
+    return Number.isFinite(f) && f > 0 && f <= 1 ? f : 1;
+  }
+
+  function seenFracHintText(runtimeMin, frac, customActive) {
+    const parts = [];
+    const m = Number(runtimeMin) || 0;
+    const f = Number(frac);
+    if (m > 0 && Number.isFinite(f) && f > 0 && f < 0.9999) {
+      parts.push(`≈ ${Math.round(m * f)} von ${m} Min.`);
+    } else if (m > 0) {
+      parts.push(`${m} Min.`);
+    }
+    parts.push(customActive ? "Eigener Wert 1–99 %" : "Eigenen Wert antippen (1–99 %)");
+    return parts.join(" · ");
+  }
+
+  function renderSeenFracChipsHtml() {
+    const st = state.seenSheetFrac || initSeenSheetFracFromView({ f: 1 });
+    const presetBtns = SEEN_FRAC_PRESETS.map((p) => {
+      const selected = st.kind === "preset" && Math.abs(st.f - p.f) < 0.001;
+      const icon = seenFracPresetIconHtml(p.f);
+      return `<button type="button" class="seen-frac-chip${selected ? " is-selected" : ""}" data-act="seen-frac-pick" data-frac="${p.f}">${icon}${escapeHtml(p.label)}</button>`;
+    }).join("");
+    const customSelected = st.kind === "custom";
+    const customVal = st.customPct || "";
+    const customBtn = `
+      <div class="seen-frac-chip seen-frac-custom${customSelected ? " is-selected" : ""}" data-act="seen-frac-custom-focus" role="button" tabindex="0">
+        <input class="seen-frac-custom-input" data-act="seen-frac-custom" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="✎ Eigene %" value="${escapeHtml(customVal)}" aria-label="Eigener Prozentwert (1–99)">
+        ${customVal ? `<span class="seen-frac-suffix" aria-hidden="true">%</span>` : ""}
+      </div>`;
+    return `<div class="seen-frac-chips" role="group" aria-label="Wie viel gesehen">${presetBtns}${customBtn}</div>`;
+  }
+
+  function renderSeenViewsStack(id, hid, row, scope) {
+    const viewsDetailed = historyViewsDetailed(row);
+    const multi = viewsDetailed.length >= 2;
+    const expanded = !!state.seenViewsExpanded[hid];
+    const latest = viewsDetailed[0];
+    const latestF = latest ? latest.f : 1;
+    const seenDate = formatSeenOn(row.at);
+    const scopeAttr = scope === "video" ? "video" : "film";
+    const piePill = latestF < 0.9999 ? viewPieIconHtml(latestF) : "";
+    const datePill = `<button type="button" class="seen-date-pill" data-act="seen-date-open" data-scope="${scopeAttr}" data-id="${id}">Gesehen: ${escapeHtml(seenDate)}${piePill ? ` ${piePill}` : ""} <span class="seen-date-edit" aria-hidden="true">✎</span></button>`;
+    const viewsBadge = multi
+      ? `<button type="button" class="seen-views-badge" data-act="seen-views-toggle" data-id="${id}" aria-expanded="${expanded ? "true" : "false"}">${viewsDetailed.length}× gesehen <span aria-hidden="true">${expanded ? "▴" : "▾"}</span></button>`
+      : "";
+    const viewsList = multi && expanded
+      ? `<ul class="seen-views-list">${viewsDetailed.map((v, i) => {
+        const label = formatSeenOn(v.at);
+        const latestRow = i === 0;
+        const editBtn = latestRow
+          ? ` <button type="button" class="seen-views-edit" data-act="seen-date-open" data-scope="${scopeAttr}" data-id="${id}" aria-label="Sichtung bearbeiten">✎</button>`
+          : "";
+        const zuletzt = latestRow ? ` <span class="seen-views-zuletzt">(zuletzt)</span>` : "";
+        const frac = ` · ${viewPieIconHtml(v.f)} ${viewPercentLabel(v.f)}`;
+        return `<li class="seen-views-item${latestRow ? " is-latest" : ""}">${escapeHtml(label)}${frac}${zuletzt}${editBtn}</li>`;
+      }).join("")}</ul>`
+      : "";
+    return { datePill, viewsBadge, viewsList };
+  }
+
+  function syncSeenFracUI() {
+    const sheet = modalEl.querySelector(".seen-date-sheet");
+    if (!sheet) return;
+    const st = state.seenSheetFrac || initSeenSheetFracFromView({ f: 1 });
+    const runtime = Number(sheet.dataset.runtimeMin) || 0;
+    const hint = sheet.querySelector(".seen-frac-hint");
+    if (hint) {
+      const frac = readSeenSheetFraction();
+      const customActive = st.kind === "custom";
+      hint.textContent = seenFracHintText(runtime, Number.isFinite(frac) ? frac : st.f, customActive);
+    }
+    sheet.querySelectorAll("[data-act=seen-frac-pick]").forEach((btn) => {
+      const f = Number(btn.dataset.frac);
+      const on = st.kind === "preset" && Math.abs(st.f - f) < 0.001;
+      btn.classList.toggle("is-selected", on);
+    });
+    const customWrap = sheet.querySelector(".seen-frac-custom");
+    if (customWrap) customWrap.classList.toggle("is-selected", st.kind === "custom");
+    const input = sheet.querySelector("[data-act=seen-frac-custom]");
+    if (input && document.activeElement !== input) input.value = st.customPct || "";
+    if (customWrap && input) {
+      let suffix = customWrap.querySelector(".seen-frac-suffix");
+      if (st.customPct) {
+        if (!suffix) {
+          suffix = document.createElement("span");
+          suffix.className = "seen-frac-suffix";
+          suffix.setAttribute("aria-hidden", "true");
+          suffix.textContent = "%";
+          customWrap.appendChild(suffix);
+        }
+      } else if (suffix) suffix.remove();
+    }
+    syncSeenDateSaveDisabled();
+  }
+
   function renderSeenCard(film, opts) {
     film = filmWithPoster(film) || film;
     const id = escapeHtml(filmId(film));
     const hid = filmId(film);
     const row = opts.historyRow;
-    const views = historyViews(row);
-    const seenDate = formatSeenOn(row.at);
-    const multi = views.length >= 2;
-    const expanded = !!state.seenViewsExpanded[hid];
     const bubble = state.seenRateFor === hid;
     const undoBtn = `<button type="button" class="seen-undo-open" data-act="seen-undo-view" data-id="${id}">${SEEN_UNDO_ICON}Rückgängig</button>`;
     const rateValue = opts.rateLabel
@@ -9252,21 +9467,8 @@
     const bubbleHtml = bubble
       ? `<div class="seen-rate-bubble" data-role="seen-rate-bubble" role="group" aria-label="Bewertung">${renderRates(film, true)}</div>`
       : "";
-    const datePill = `<button type="button" class="seen-date-pill" data-act="seen-date-open" data-id="${id}">Gesehen: ${escapeHtml(seenDate)} <span class="seen-date-edit" aria-hidden="true">✎</span></button>`;
-    const viewsBadge = multi
-      ? `<button type="button" class="seen-views-badge" data-act="seen-views-toggle" data-id="${id}" aria-expanded="${expanded ? "true" : "false"}">${views.length}× gesehen <span aria-hidden="true">${expanded ? "▴" : "▾"}</span></button>`
-      : "";
-    const viewsList = multi && expanded
-      ? `<ul class="seen-views-list">${views.map((v, i) => {
-        const label = formatSeenOn(v);
-        const latest = i === 0;
-        const editBtn = latest
-          ? ` <button type="button" class="seen-date-pill" data-act="seen-date-open" data-id="${id}" style="padding:1px 6px;font-size:11px">✎</button>`
-          : "";
-        const zuletzt = latest ? ` <span class="seen-views-zuletzt">(zuletzt)</span>` : "";
-        return `<li class="seen-views-item${latest ? " is-latest" : ""}">${escapeHtml(label)}${zuletzt}${editBtn}</li>`;
-      }).join("")}</ul>`
-      : "";
+    const stack = renderSeenViewsStack(id, hid, row, "film");
+    const { datePill, viewsBadge, viewsList } = stack;
     return `
       <article class="film-row seen-card${opts.unrated ? " is-unrated" : ""}" data-seen="1" data-id="${id}">
         <div class="film-row-head">
@@ -9286,27 +9488,42 @@
     `;
   }
 
-  function openSeenDateSheet(id) {
-    const hid = filmId(id);
-    const row = history().find((r) => String(r.id) === hid);
-    const film = findFilm(hid) || (row ? { id: hid, title: row.title } : null);
-    if (!row || !film) return;
+  function openSeenDateSheet(id, scope) {
+    const isVideo = scope === "video";
+    const hid = isVideo ? String(id) : filmId(id);
+    const row = isVideo
+      ? videoHistory().find((r) => String(r.id) === hid)
+      : history().find((r) => String(r.id) === hid);
+    const titleEntity = isVideo
+      ? (findVideo(hid) || row)
+      : (findFilm(hid) || (row ? { id: hid, title: row.title } : null));
+    if (!row || !titleEntity) return;
     state.seenDateEditId = hid;
-    const current = historyViews(row)[0] || row.at;
+    state.seenDateEditScope = isVideo ? "video" : "film";
+    const latest = historyViewsDetailed(row)[0] || { at: row.at, f: 1 };
+    state.seenSheetFrac = initSeenSheetFracFromView(latest);
+    const current = latest.at || row.at;
+    const runtimeMin = isVideo
+      ? (Number(titleEntity.minutes) || 0)
+      : filmMinutesOf(titleEntity);
     const maxDay = todayDateInputMax();
+    const fracHint = seenFracHintText(runtimeMin, latest.f, state.seenSheetFrac.kind === "custom");
     openModal(`
-      <div class="card modal-card seen-date-sheet">
+      <div class="card modal-card seen-date-sheet" data-runtime-min="${runtimeMin}">
         <h2>Wann gesehen?</h2>
-        <p class="hint">${escapeHtml(film.title)}</p>
+        <p class="hint">${escapeHtml(titleEntity.title || "")}</p>
         <div class="seen-date-chips">
           <button type="button" class="chip" data-act="seen-date-pick" data-offset="0">Heute</button>
           <button type="button" class="chip" data-act="seen-date-pick" data-offset="1">Gestern</button>
           <button type="button" class="chip" data-act="seen-date-pick" data-offset="2">Vorgestern</button>
         </div>
         <input class="seen-date-field" type="date" max="${maxDay}" data-act="seen-date-input" value="${escapeHtml(dateInputValueFromTs(current))}" aria-label="Datum">
+        <p class="seen-frac-label">Wie viel?</p>
+        ${renderSeenFracChipsHtml()}
+        <p class="hint seen-frac-hint">${escapeHtml(fracHint)}</p>
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost" data-act="seen-date-cancel">Abbrechen</button>
-          <button type="button" class="btn btn-primary btn-confirm" data-act="seen-date-save" data-id="${escapeHtml(hid)}">Speichern</button>
+          <button type="button" class="btn btn-primary btn-confirm" data-act="seen-date-save" data-id="${escapeHtml(hid)}" data-scope="${isVideo ? "video" : "film"}">Speichern</button>
         </div>
       </div>
     `, { bottom: true });
@@ -9318,32 +9535,40 @@
     const save = modalEl.querySelector("[data-act=seen-date-save]");
     if (!input || !save) return;
     const max = todayDateInputMax();
-    const ok = input.value && input.value <= max;
-    save.disabled = !ok;
+    const dateOk = input.value && input.value <= max;
+    const frac = readSeenSheetFraction();
+    const fracOk = Number.isFinite(frac) && frac > 0 && frac <= 1;
+    save.disabled = !dateOk || !fracOk;
   }
 
-  function commitSeenDateSave(id) {
-    const hid = filmId(id);
+  function commitSeenDateSave(id, scope) {
+    const isVideo = scope === "video" || state.seenDateEditScope === "video";
+    const hid = isVideo ? String(id) : filmId(id);
     const input = modalEl.querySelector("[data-act=seen-date-input]");
     if (!input || !input.value) return;
     const max = todayDateInputMax();
     if (input.value > max) return;
-    const row = history().find((r) => String(r.id) === hid);
+    const row = isVideo
+      ? videoHistory().find((r) => String(r.id) === hid)
+      : history().find((r) => String(r.id) === hid);
     if (!row) return;
     const prevAt = historyViews(row)[0] || row.at;
-    const before = history();
+    const before = isVideo ? videoHistory() : history();
+    const saveList = isVideo ? saveVideoHistory : saveHistory;
     const newAt = tsFromDateInput(input.value, prevAt);
-    if (!Number.isFinite(newAt) || newAt > Date.now()) return;
-    if (!updateLatestViewDate(hid, newAt)) return;
+    const newF = readSeenSheetFraction();
+    if (!Number.isFinite(newAt) || newAt > Date.now() || !Number.isFinite(newF)) return;
+    if (!updateLatestViewEntry(hid, newAt, newF, isVideo ? "video" : "film")) return;
     closeModal();
-    if (state.justWatchedId === hid && newAt < Date.now() - 60000) {
+    if (!isVideo && state.justWatchedId === hid && newAt < Date.now() - 60000) {
       state.justWatchedId = null;
       state.pinJustWatched = false;
     }
     render();
-    showSnack("Datum geändert", "success", {
+    const pct = Math.round(newF * 100);
+    showSnack(`Gespeichert: ${pct} %`, "success", {
       undo: () => {
-        saveHistory(before);
+        saveList(before);
         render();
       },
     });
@@ -9586,8 +9811,6 @@
   function renderVideoSeenCard(video, opts) {
     const id = escapeHtml(String(video.id));
     const hid = String(video.id);
-    const views = videoHistoryViews(video);
-    const seenDate = formatSeenOn(video.at);
     const bubble = state.seenVideoRateFor === hid;
     const all = ratings();
     const unrated = !all[hid];
@@ -9603,6 +9826,8 @@
     const platId = video.plat || detected.id;
     const badgeLabel = platId === "generic" ? (video.customPlat || detected.label) : "";
     const badgeHtml = platformBadgeHtml(platId, badgeLabel);
+    const stack = renderSeenViewsStack(id, hid, video, "video");
+    const { datePill, viewsBadge, viewsList } = stack;
     return `
       <article class="film-row video-card seen-card video-seen-card${unrated ? " is-unrated" : ""}" data-seen="1" data-id="${id}">
         <div class="film-row-head v-card-head">
@@ -9611,7 +9836,9 @@
             <p class="v-title">${escapeHtml(video.title)}</p>
             ${video.desc ? `<p class="v-desc">${escapeHtml(video.desc)}</p>` : ""}
             <div class="seen-stack">
-              <p class="seen-meta">Angesehen: ${escapeHtml(seenDate)}${views.length >= 2 ? ` · ${views.length}×` : ""}</p>
+              ${datePill}
+              ${viewsBadge}
+              ${viewsList}
               <div class="v-foot">${badgeHtml}</div>
               <p class="seen-meta seen-rate-line">Bewertung: ${rateValue}</p>
               ${bubbleHtml}
@@ -11178,7 +11405,7 @@
       return;
     }
     if (act === "seen-date-open") {
-      openSeenDateSheet(t.dataset.id);
+      openSeenDateSheet(t.dataset.id, t.dataset.scope === "video" ? "video" : "film");
       return;
     }
     if (act === "seen-views-toggle") {
@@ -11664,6 +11891,39 @@
     if (act === "tag-name") state.newTagName = t.value.slice(0, 10);
     if (act === "spectrum-hue" || act === "spectrum-sat") onSpectrumInput(t);
     if (act === "seen-date-input") syncSeenDateSaveDisabled();
+    if (act === "seen-frac-custom") {
+      const raw = String(t.value || "").replace(/\D/g, "").slice(0, 2);
+      t.value = raw;
+      const n = Number(raw);
+      if (raw === "100") {
+        state.seenSheetFrac = { kind: "preset", f: 1, customPct: "", lastPreset: 1 };
+      } else if (raw && Number.isFinite(n) && n >= 1 && n <= 99) {
+        state.seenSheetFrac = Object.assign({}, state.seenSheetFrac, { kind: "custom", customPct: raw, f: n / 100 });
+      } else {
+        state.seenSheetFrac = Object.assign({}, state.seenSheetFrac, { kind: "custom", customPct: raw });
+      }
+      syncSeenFracUI();
+    }
+  });
+
+  modalEl.addEventListener("focusin", (event) => {
+    const t = event.target;
+    if (!t || !t.dataset || t.dataset.act !== "seen-frac-custom") return;
+    state.seenSheetFrac = Object.assign({}, state.seenSheetFrac, { kind: "custom" });
+    syncSeenFracUI();
+  });
+
+  modalEl.addEventListener("focusout", (event) => {
+    const t = event.target;
+    if (!t || !t.dataset || t.dataset.act !== "seen-frac-custom") return;
+    const st = state.seenSheetFrac;
+    if (!st || st.kind !== "custom") return;
+    const raw = String(st.customPct || "").trim();
+    if (!raw) {
+      const back = st.lastPreset != null ? st.lastPreset : 1;
+      state.seenSheetFrac = { kind: "preset", f: back, customPct: "", lastPreset: back };
+      syncSeenFracUI();
+    }
   });
 
   modalEl.addEventListener("click", (event) => {
@@ -11690,7 +11950,7 @@
       return;
     }
     if (t.dataset.act === "seen-date-save") {
-      commitSeenDateSave(t.dataset.id);
+      commitSeenDateSave(t.dataset.id, t.dataset.scope);
       return;
     }
     if (t.dataset.act === "seen-date-pick") {
@@ -11703,6 +11963,21 @@
       d.setDate(d.getDate() - offset);
       input.value = dateInputValueFromTs(d.getTime());
       syncSeenDateSaveDisabled();
+      return;
+    }
+    if (t.dataset.act === "seen-frac-pick") {
+      const f = Number(t.dataset.frac);
+      if (!Number.isFinite(f)) return;
+      state.seenSheetFrac = { kind: "preset", f, customPct: "", lastPreset: f };
+      syncSeenFracUI();
+      return;
+    }
+    const fracCustomWrap = t.closest("[data-act=seen-frac-custom-focus]");
+    if (fracCustomWrap) {
+      const input = fracCustomWrap.querySelector("[data-act=seen-frac-custom]") || modalEl.querySelector("[data-act=seen-frac-custom]");
+      state.seenSheetFrac = Object.assign({}, state.seenSheetFrac, { kind: "custom" });
+      syncSeenFracUI();
+      if (input) input.focus();
       return;
     }
     if (t.dataset.act === "settings-sync-confirm") {
@@ -12352,6 +12627,12 @@
   const cinexTestExpose = typeof location !== "undefined" && /(?:\?|&)cinex_test=1/.test(location.search);
   if (cinexTestExpose) {
     window.__CINEX_TEST__ = {
+      parseViewsList,
+      compactViewsList,
+      historyViews,
+      historyViewsDetailed,
+      viewAtOf,
+      viewFractionOf,
       mergeProfileBags,
       mergeKnownMaps,
       normalizeKnownMap,
