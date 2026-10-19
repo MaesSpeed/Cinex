@@ -11972,8 +11972,9 @@
       syncSeenFracUI();
       return;
     }
-    if (t.dataset.act === "seen-frac-custom-focus") {
-      const input = t.querySelector("[data-act=seen-frac-custom]") || modalEl.querySelector("[data-act=seen-frac-custom]");
+    const fracCustomWrap = t.closest("[data-act=seen-frac-custom-focus]");
+    if (fracCustomWrap) {
+      const input = fracCustomWrap.querySelector("[data-act=seen-frac-custom]") || modalEl.querySelector("[data-act=seen-frac-custom]");
       state.seenSheetFrac = Object.assign({}, state.seenSheetFrac, { kind: "custom" });
       syncSeenFracUI();
       if (input) input.focus();
