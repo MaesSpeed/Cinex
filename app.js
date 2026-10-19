@@ -1479,6 +1479,7 @@
     tagCoverCandidate: null,
     expandedFilmId: null,
     listsMode: "filme",
+    tagManageScope: "film",
     expandedVideoId: null,
     videoSearch: "",
     videoSearchOpen: false,
@@ -1884,7 +1885,87 @@
   const SYNC_PROFILE_SUFFIXES = [
     "watchlist", "queue", "history", "ratings", "tags", "filmTags", "tagCovers",
     "favorite", "known", "videoWatchlist", "videoQueue", "videoHistory", "watchSwipeHint",
+    "profileMeta",
   ];
+
+  const TAG_SCOPE_MIGRATION_VERSION = 1;
+
+  function isVideoEntityId(id) {
+    return String(id || "").startsWith("v-");
+  }
+
+  function tagScopeOf(tag) {
+    if (!tag || typeof tag !== "object") return "film";
+    return tag.scope === "video" ? "video" : "film";
+  }
+
+  function profileStoragePrefix(userId, profileId) {
+    return `wdq.p.${userId}.${profileId}.`;
+  }
+
+  function migrateTagsScopeForStorage(prefix) {
+    if (!prefix) return;
+    const meta = loadJson(`${prefix}profileMeta`, {});
+    if (Number(meta.tagsScopeMigrated) >= TAG_SCOPE_MIGRATION_VERSION) return;
+
+    const mapRaw = loadJson(`${prefix}filmTags`, {});
+    const map = mapRaw && typeof mapRaw === "object" && !Array.isArray(mapRaw) ? mapRaw : {};
+    let tags = loadJson(`${prefix}tags`, []);
+    if (!Array.isArray(tags)) tags = [];
+
+    const usedOnFilm = new Set();
+    const usedOnVideo = new Set();
+    Object.entries(map).forEach(([entityId, tagIds]) => {
+      const ids = Array.isArray(tagIds) ? tagIds : [];
+      if (isVideoEntityId(entityId)) ids.forEach((tid) => usedOnVideo.add(String(tid)));
+      else ids.forEach((tid) => usedOnFilm.add(String(tid)));
+    });
+
+    const removedTagIds = new Set();
+    const nextTags = [];
+    tags.forEach((tag) => {
+      if (!tag || typeof tag !== "object" || tag.id == null) return;
+      const id = String(tag.id);
+      const onFilm = usedOnFilm.has(id);
+      const onVideo = usedOnVideo.has(id);
+      const scope = tagScopeOf(tag);
+      if (scope === "video" || (onVideo && !onFilm)) {
+        removedTagIds.add(id);
+        return;
+      }
+      const copy = Object.assign({}, tag, { scope: "film" });
+      nextTags.push(copy);
+    });
+
+    const nextMap = {};
+    Object.entries(map).forEach(([entityId, tagIds]) => {
+      if (isVideoEntityId(entityId)) return;
+      const cleaned = (Array.isArray(tagIds) ? tagIds : [])
+        .map(String)
+        .filter((tid) => !removedTagIds.has(tid));
+      if (cleaned.length) nextMap[entityId] = cleaned;
+    });
+
+    saveJson(`${prefix}tags`, nextTags);
+    saveJson(`${prefix}filmTags`, nextMap);
+    saveJson(`${prefix}profileMeta`, Object.assign({}, meta, {
+      tagsScopeMigrated: TAG_SCOPE_MIGRATION_VERSION,
+    }));
+  }
+
+  function migrateTagsScopeIfNeeded() {
+    if (!state.user || !state.profile) return;
+    migrateTagsScopeForStorage(profileStoragePrefix(state.user.id, state.profile.id));
+  }
+
+  function migrateTagsScopeForUser(userId) {
+    if (!userId) return;
+    const profiles = loadJson(`wdq.profiles.${userId}`, []);
+    (Array.isArray(profiles) ? profiles : []).forEach((prof) => {
+      if (!prof || !prof.id) return;
+      migrateTagsScopeForStorage(profileStoragePrefix(userId, String(prof.id)));
+    });
+  }
 
   function syncMetaKey(userId) {
     return `wdq.sync.meta.${userId}`;
@@ -2090,6 +2171,7 @@
         }
       });
       if (Array.isArray(bag._tombstones)) saveJson(prefix + "_tombstones", bag._tombstones);
+      migrateTagsScopeForStorage(prefix);
     });
   }
 
@@ -2250,8 +2332,22 @@
           merged[id] = vb !== undefined ? vb : va;
         }
       });
+      const migA = Number((a.profileMeta || {}).tagsScopeMigrated) || 0;
+      const migB = Number((b.profileMeta || {}).tagsScopeMigrated) || 0;
+      if (Math.max(migA, migB) >= TAG_SCOPE_MIGRATION_VERSION) {
+        Object.keys(merged).forEach((id) => {
+          if (isVideoEntityId(id)) delete merged[id];
+        });
+      }
       out.filmTags = merged;
     }
+    out.profileMeta = (() => {
+      const ma = a.profileMeta && typeof a.profileMeta === "object" ? a.profileMeta : {};
+      const mb = b.profileMeta && typeof b.profileMeta === "object" ? b.profileMeta : {};
+      const merged = Object.assign({}, ma, mb);
+      merged.tagsScopeMigrated = Math.max(Number(ma.tagsScopeMigrated) || 0, Number(mb.tagsScopeMigrated) || 0);
+      return merged;
+    })();
     out.tagCovers = (() => {
       const ta = a.tagCovers || {};
       const tb = b.tagCovers || {};
@@ -3066,6 +3162,8 @@
   }
 
   function countVideosWithTag(tagId) {
+    const tag = customTags().find((row) => row.id === tagId);
+    if (tag && tagScopeOf(tag) !== "video") return 0;
     const map = filmTags();
     let n = 0;
     for (const v of allKnownVideos()) {
@@ -3119,10 +3217,16 @@
     return next;
   }
 
-  function customTags() {
+  function customTags(scope) {
     const list = loadJson(pkey("tags"), []);
     if (!Array.isArray(list)) return [];
-    return migrateTags(list);
+    const migrated = migrateTags(list);
+    if (!scope) return migrated;
+    return migrated.filter((tag) => tagScopeOf(tag) === scope);
+  }
+
+  function activeTagManageScope() {
+    return state.tagManageScope === "video" ? "video" : "film";
   }
 
   function saveTags(list) {
@@ -3229,6 +3333,7 @@
     const profile = profilesOf(user.id).find((p) => p.id === session.profileId) || null;
     state.profile = profile;
     invalidateKnownFilmsCache();
+    migrateTagsScopeIfNeeded();
     state.discoverView = "hub";
     if (profile) openWatchlistHome();
     else state.screen = "profiles";
@@ -3727,20 +3832,32 @@
   }
 
   function countFilmsWithTag(tagId) {
+    const tag = customTags().find((row) => row.id === tagId);
+    if (tag && tagScopeOf(tag) !== "film") return 0;
     const map = filmTags();
     let n = 0;
-    for (const ids of Object.values(map)) {
+    for (const [id, ids] of Object.entries(map)) {
+      if (isVideoEntityId(id)) continue;
       if ((ids || []).includes(tagId)) n += 1;
     }
     return n;
   }
 
-  function sortedTags() {
-    return customTags().slice().sort((a, b) => {
-      const diff = countFilmsWithTag(b.id) - countFilmsWithTag(a.id);
+  function sortedTags(scope) {
+    const useScope = scope === "video" ? "video" : "film";
+    const countFn = useScope === "video" ? countVideosWithTag : countFilmsWithTag;
+    return customTags(useScope).slice().sort((a, b) => {
+      const diff = countFn(b.id) - countFn(a.id);
       if (diff) return diff;
       return String(a.name).localeCompare(b.name, "de", { sensitivity: "base" });
     });
+  }
+
+  function renderTagsScopeHint(scope) {
+    if (scope === "video") {
+      return `<p class="tags-scope-hint"><span class="tags-scope-kicker">▶ Videos</span> <strong>Video-Tags</strong> · Film-Tags sind getrennt und erscheinen hier nicht.</p>`;
+    }
+    return `<p class="tags-scope-hint"><span class="tags-scope-kicker">🎬 Filme</span> <strong>Film-Tags</strong> · Video-Tags sind getrennt und erscheinen hier nicht.</p>`;
   }
 
   function tagPillHtml(tag) {
@@ -4653,7 +4770,7 @@
   }
 
   function filterChipRows() {
-    const tags = customTags();
+    const tags = customTags("film");
     const chips = [];
     if (state.filters.dauerOn) {
       chips.push({ kind: "dauer", id: "dauer", label: dauerChipLabel(state.filters.dauer) });
@@ -4888,9 +5005,11 @@
   function askDeleteTag(id) {
     const tag = customTags().find((t) => t.id === id);
     if (!tag) return;
-    const n = countFilmsWithTag(id);
+    const isVideo = tagScopeOf(tag) === "video";
+    const n = isVideo ? countVideosWithTag(id) : countFilmsWithTag(id);
+    const entity = isVideo ? "Videos" : "Filme";
     const html = n > 0
-      ? `<p class="hint hint-with-pill">Es gibt mit ${tagPillHtml(tag)} getaggte Filme. Willst Du wirklich löschen?</p>`
+      ? `<p class="hint hint-with-pill">Es gibt mit ${tagPillHtml(tag)} getaggte ${entity}. Willst Du wirklich löschen?</p>`
       : `<p class="hint hint-with-pill">Willst Du ${tagPillHtml(tag)} wirklich löschen?</p>`;
     openConfirm({
       title: "Wirklich löschen?",
@@ -4953,7 +5072,8 @@
       )));
     } else {
       const list = customTags();
-      const row = { id: `tag-${Date.now()}`, name, plate };
+      const scope = activeTagManageScope();
+      const row = { id: `tag-${Date.now()}`, name, plate, scope };
       if (cover) row.cover = cover;
       list.push(row);
       saveTags(list);
@@ -4964,12 +5084,15 @@
     render();
   }
 
-  function jumpToExactTag(id) {
+  function jumpToExactTag(id, scope) {
+    const useScope = scope || activeTagManageScope();
+    state.listsMode = useScope === "video" ? "videos" : "filme";
     state.listTab = "tags";
     state.tagFilter = [id];
     state.screen = "lists";
     state.tagEditId = null;
     state.expandedFilmId = null;
+    state.expandedVideoId = null;
     render();
   }
 
@@ -6185,7 +6308,7 @@
       label: g,
       on: state.filters.genres.includes(g),
     }));
-    const tagItems = customTags().map((t) => ({
+    const tagItems = customTags("film").map((t) => ({
       chipHtml: tagChipHtml(t, {
         size: "mini",
         act: "filter-tag",
@@ -6446,9 +6569,21 @@
     const map = filmTags();
     const out = [];
     for (const [id, ids] of Object.entries(map)) {
+      if (isVideoEntityId(id)) continue;
       if (!(ids || []).includes(tagId)) continue;
       const film = listFilmOrPlaceholder(id);
       if (film) out.push(film);
+    }
+    return out;
+  }
+
+  function tagSourceVideos(tagId) {
+    const map = filmTags();
+    const out = [];
+    for (const v of allKnownVideos()) {
+      const id = String(v.id);
+      if (!(map[id] || []).includes(tagId)) continue;
+      out.push(v);
     }
     return out;
   }
@@ -6689,7 +6824,7 @@
 
   function renderFilmTagChips(film) {
     const have = tagsFor(film.id);
-    return customTags().map((t) => tagChipHtml(t, {
+    return customTags("film").map((t) => tagChipHtml(t, {
       size: "mini",
       act: "film-tag",
       attrs: `data-id="${escapeHtml(filmId(film))}" data-tag="${escapeHtml(t.id)}"`,
@@ -6700,12 +6835,14 @@
   function renderVideoTagChips(video) {
     const vid = String(video.id);
     const have = tagsFor(vid);
-    return customTags().map((t) => tagChipHtml(t, {
+    const chips = customTags("video").map((t) => tagChipHtml(t, {
       size: "mini",
       act: "film-tag",
       attrs: `data-id="${escapeHtml(vid)}" data-tag="${escapeHtml(t.id)}"`,
       pressed: have.includes(t.id),
     })).join("");
+    const addBtn = `<button type="button" class="tag-chip-new" data-act="tag-add-open">＋ Neuer Tag</button>`;
+    return `${chips}${addBtn}`;
   }
 
   function renderVideoRates(video) {
@@ -9064,7 +9201,7 @@
 
   function zufallAvailableSources() {
     const out = ["watch", "queue", "rated"];
-    customTags().forEach((tag) => out.push(`tag:${tag.id}`));
+    customTags("film").forEach((tag) => out.push(`tag:${tag.id}`));
     return out.filter((id) => zufallSourceMeta(id));
   }
 
@@ -9248,7 +9385,7 @@
   }
 
   function renderTagsTab() {
-    const tags = customTags();
+    const tags = customTags("film");
     const chips = tags.map((t) => tagChipHtml(t, {
       size: "mini",
       act: "tag-filter",
@@ -9281,6 +9418,7 @@
       <div class="list-toolbar is-tags">
         ${renderListChipRow("listTagsActions", actionChips)}
         ${renderListChipRow("listTags", chips || `<span class="hint filter-empty">Noch keine eigenen Tags</span>`)}
+        ${renderTagsScopeHint("film")}
       </div>
       <section class="film-list" data-role="film-list">${listBody}</section>
     `;
@@ -9700,8 +9838,8 @@
     const expand = open ? `
       <div class="film-row-expand">
         ${renderVideoExpandActions(video, embed, detected)}
-        <p class="film-expand-in-label">Tags</p>
-        <div class="film-expand-tags">${tags || `<span class="hint">Noch keine eigenen Tags</span>`}</div>
+        <p class="film-expand-in-label">Tags (Video)</p>
+        <div class="film-expand-tags">${tags}</div>
         <p class="film-expand-in-label">Bewertung</p>
         <div class="film-expand-rates">${renderVideoRates(video)}</div>
         <div class="film-expand-collapse">
@@ -9878,7 +10016,7 @@
   }
 
   function renderVideoTagsTab() {
-    const tags = customTags();
+    const tags = customTags("video");
     const chips = tags.map((t) => tagChipHtml(t, {
       size: "mini",
       act: "tag-filter",
@@ -9911,12 +10049,13 @@
         <span class="watch-search-glass" aria-hidden="true">${ICONS.search}</span>
         Suchen
       </button>
-      <button type="button" class="watch-add-chip tags-manage-btn" data-act="tags">Tags verwalten</button>
+      <button type="button" class="watch-add-chip tags-manage-btn" data-act="tags">Video-Tags verwalten</button>
     `;
     return `
       <div class="list-toolbar is-tags">
         ${renderListChipRow("videoTagsActions", actionChips)}
         ${renderListChipRow("videoTags", chips || `<span class="hint filter-empty">Noch keine eigenen Tags</span>`)}
+        ${renderTagsScopeHint("video")}
         ${renderVideoSearchBar()}
       </div>
       <section class="film-list video-mode" data-role="film-list">${listBody}</section>
@@ -10170,7 +10309,10 @@
   }
 
   function renderTagListPreview(draft) {
-    const others = customTags().filter((tag) => tag.id !== state.tagEditId).slice(0, 5);
+    const editScope = state.tagEditId
+      ? tagScopeOf(customTags().find((tag) => tag.id === state.tagEditId))
+      : activeTagManageScope();
+    const others = customTags(editScope).filter((tag) => tag.id !== state.tagEditId).slice(0, 5);
     const mine = tagChipHtml(draft, { size: "mini", pressed: true, draft: true });
     const rest = others.map((tag) => tagChipHtml(tag, { size: "mini" })).join("");
     return `<div class="tag-edit-live">${mine}${rest}</div>`;
@@ -10244,10 +10386,13 @@
   }
 
   function renderTagsManage() {
-    const tags = sortedTags();
+    const scope = activeTagManageScope();
+    const tags = sortedTags(scope);
     const rows = tags.map((t) => {
-      const n = countFilmsWithTag(t.id);
-      const countLabel = n === 1 ? "1 Film getaggt" : `${n} Filme getaggt`;
+      const n = scope === "video" ? countVideosWithTag(t.id) : countFilmsWithTag(t.id);
+      const countLabel = scope === "video"
+        ? (n === 1 ? "1 Video getaggt" : `${n} Videos getaggt`)
+        : (n === 1 ? "1 Film getaggt" : `${n} Filme getaggt`);
       return `
         <article class="card tag-manage-card" data-tag-card="${t.id}">
           <div class="tag-manage-row">
@@ -10261,8 +10406,13 @@
         </article>
       `;
     }).join("");
+    const title = scope === "video" ? "Video-Tags verwalten" : "Tags verwalten";
+    const hint = scope === "video"
+      ? `<p class="tags-scope-hint tags-scope-hint--manage"><span class="tags-scope-kicker">▶ Videos</span> Nur Video-Tags · Film-Tags verwaltest du unter Filme</p>`
+      : "";
     return `
-      <h2 class="screen-title home-title">Tags verwalten</h2>
+      <h2 class="screen-title home-title">${title}</h2>
+      ${hint}
       <section class="stack">${rows || `<p class="hint">Noch keine eigenen Tags.</p>`}</section>
       <button type="button" class="card menu-card add-entity" data-act="tag-add-open">
         <span class="plus-circle">${ICONS.plus}</span>
@@ -10506,6 +10656,7 @@
     const list = profilesOf(user.id);
     if (list.length === 1) {
       state.profile = list[0];
+      migrateTagsScopeIfNeeded();
       resetSessionPicks();
       openWatchlistHome();
     } else {
@@ -11082,6 +11233,7 @@
       if (!profile) return;
       state.profile = profile;
       invalidateKnownFilmsCache();
+      migrateTagsScopeIfNeeded();
       resetSessionPicks();
       openWatchlistHome();
       persistSession();
@@ -11339,7 +11491,7 @@
     if (act === "suggest-tag") {
       const box = t.closest(".film-row-expand");
       const tagsEl = box && box.querySelector("[data-role=suggest-tags]");
-      if (!customTags().length) {
+      if (!customTags("film").length) {
         showSnack("Noch keine eigenen Tags", "warn");
         return;
       }
@@ -11374,6 +11526,7 @@
     }
     if (act === "tags") {
       state.tagEditId = null;
+      state.tagManageScope = state.listsMode === "videos" ? "video" : "film";
       state.screen = "tags";
       render();
       return;
@@ -11481,6 +11634,10 @@
       const map = filmTags();
       const id = String(t.dataset.id);
       const tag = t.dataset.tag;
+      const row = customTags().find((r) => r.id === tag);
+      if (!row) return;
+      const onVideo = isVideoEntityId(id);
+      if ((tagScopeOf(row) === "video") !== onVideo) return;
       const have = new Set(map[id] || []);
       if (have.has(tag)) have.delete(tag);
       else have.add(tag);
@@ -11713,6 +11870,11 @@
       return;
     }
     if (act === "tag-add-open") {
+      if (state.listsMode === "videos" || state.screen === "tags" && activeTagManageScope() === "video") {
+        state.tagManageScope = "video";
+      } else if (state.screen !== "tags") {
+        state.tagManageScope = "film";
+      }
       openAddTagModal();
       return;
     }
@@ -11723,6 +11885,7 @@
     if (act === "tag-edit-open") {
       const tag = customTags().find((x) => x.id === t.dataset.id);
       if (!tag) return;
+      state.tagManageScope = tagScopeOf(tag);
       openTagEditor(tag);
       return;
     }
@@ -12659,6 +12822,11 @@
       getSyncPushDebounceMs() {
         return SYNC_PUSH_DEBOUNCE_MS;
       },
+      TAG_SCOPE_MIGRATION_VERSION,
+      isVideoEntityId,
+      tagScopeOf,
+      migrateTagsScopeForStorage,
+      profileStoragePrefix,
     };
   }
 })();
