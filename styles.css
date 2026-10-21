@@ -4040,7 +4040,7 @@ body.has-footer.footer-open.watch-sheet-open .snackbar {
     0 -10px 28px rgba(16, 42, 67, 0.16);
 }
 
-.sheet-panel.has-sheet-bg > :not(.sheet-bg) {
+.sheet-panel.has-sheet-bg > :not(.sheet-bg):not(.zufall-filter-host) {
   position: relative;
   z-index: 2;
 }
@@ -5594,17 +5594,28 @@ body.on-login #app {
   text-align: center;
 }
 
+.zufall-filter-host {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+}
+
 .zufall-filter-sheet {
   position: absolute;
   inset: 0;
-  z-index: 6;
+  z-index: 1;
   display: none;
+  width: 100%;
+  height: 100%;
   background: rgba(255, 255, 255, 0.97);
   border-radius: inherit;
+  pointer-events: none;
 }
 
 .zufall-filter-sheet.is-open {
   display: flex;
+  pointer-events: auto;
 }
 
 .zufall-filter-sheet-panel {

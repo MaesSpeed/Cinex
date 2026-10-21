@@ -5037,7 +5037,7 @@
   function saveZufallFiltersToStorage() {
     if (!state.user || !state.profile) return;
     saveJson(pkey("zufallFilters"), cloneFilterBag(state.zufallFilters));
-    scheduleSyncPush();
+    scheduleDebouncedSync();
   }
 
   function zufallFiltersDraftBag() {
@@ -9554,7 +9554,6 @@
           <div class="zufall-filter-empty">
             <button type="button" class="zufall-filter-open-btn" data-act="zufall-filter-open"><span class="zufall-filter-open-icon" aria-hidden="true">${ICONS.filter}</span> Filter</button>
           </div>
-          ${zufallMatchLineHtml(stats)}
         </div>
       `;
     }
@@ -9679,8 +9678,6 @@
     state.actorHits = [];
     state.actorStatus = "";
     paintZufallFilterSheet();
-    const sheet = watchSheetEl && watchSheetEl.querySelector("[data-role=zufall-filter-sheet]");
-    if (sheet) sheet.classList.add("is-open");
   }
 
   function closeZufallFilterSheet() {
@@ -9739,7 +9736,6 @@
         </div>
         <div class="zufall-sources" data-role="zufall-sources">${renderZufallSourceChips()}</div>
         <div data-role="zufall-filter-zone">${renderZufallFilterBar()}</div>
-        <div data-role="zufall-filter-host">${renderZufallFilterSheetHtml()}</div>
         <div class="zufall-body">
           <div class="zufall-empty card" data-role="zufall-empty"${noMatches ? "" : " hidden"}>
             <p><strong>Kein Film passt</strong></p>
@@ -9785,6 +9781,7 @@
             <button type="button" class="zufall-again" data-act="zufall-again">Erneut drehen</button>
           </div>
         </div>
+        <div class="zufall-filter-host" data-role="zufall-filter-host">${renderZufallFilterSheetHtml()}</div>
       </div>
     `;
   }
@@ -13235,7 +13232,7 @@
     if (event.target.closest("[data-act=watch-sheet-close]")) return true;
     if (event.target.closest("[data-role=sheet-drag]")) return false;
     if (state.watchSheet === "search" && event.target.closest("[data-act=watch-search], .sheet-search-wrap")) return false;
-    if (event.target.closest("button, a, input, [data-role=zufall-carousel], [data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open], [data-act=watch-search-goto], [data-act=search-ctx-tag], [data-act=search-ctx-rate], [data-act=watch-more], [data-role=watch-more], [data-swipe-row], [data-act=zufall-source], [data-act=zufall-more]")) return true;
+    if (event.target.closest("button, a, input, [data-role=zufall-carousel], [data-act=watch-toggle], [data-act=watch-cat], [data-act=watch-search-open], [data-act=watch-search-goto], [data-act=search-ctx-tag], [data-act=search-ctx-rate], [data-act=watch-more], [data-role=watch-more], [data-swipe-row], [data-act=zufall-source], [data-act=zufall-more], [data-act=zufall-filter-open], [data-act=zufall-filter-back], [data-act=zufall-filter-apply], [data-act=zufall-filter-reset], [data-act=zufall-filter-clear-all], [data-act=zufall-filter-chip-remove], [data-role=zufall-filter-zone], .zufall-filter-sheet")) return true;
     const list = event.target.closest("[data-role=watch-sheet-list], [data-role=similar-list]");
     if (list && list.scrollTop > 2) return true;
     return false;
