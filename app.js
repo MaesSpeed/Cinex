@@ -2668,6 +2668,27 @@
     markTombstone(state.user.id, state.profile.id, kind, id);
   }
 
+  function clearProfileTombstone(kind, id) {
+    if (!state.user || !state.profile || id == null) return;
+    const key = `wdq.p.${state.user.id}.${state.profile.id}._tombstones`;
+    const list = loadJson(key, []);
+    const next = list.filter((r) => !(r && String(r.id) === String(id) && r.kind === kind));
+    if (next.length !== list.length) saveJson(key, next);
+  }
+
+  function stampSyncRows(list) {
+    const now = nowIso();
+    return (Array.isArray(list) ? list : []).map((row) => (
+      row && typeof row === "object" ? Object.assign({}, row, { updatedAt: now }) : row
+    ));
+  }
+
+  function restoreListAfterUndo(kind, list, saveFn) {
+    const ids = new Set((Array.isArray(list) ? list : []).map((row) => row && row.id != null ? String(row.id) : "").filter(Boolean));
+    ids.forEach((id) => clearProfileTombstone(kind, id));
+    saveFn(stampSyncRows(list));
+  }
+
   function scheduleDebouncedSync() {
     if (!state.user || !loadCloudSession()) return;
     markPendingSync(state.user.id, true);
@@ -5400,14 +5421,15 @@
     const plate = normalizeTagPlate(state.editTagPlate);
     const cover = normalizeCover(state.editTagCover) || tagStarterCovers()[0] || null;
     const id = state.tagEditId;
+    const now = nowIso();
     if (id) {
       saveTags(customTags().map((tag) => (
-        tag.id === id ? Object.assign({}, tag, { name, plate, cover }) : tag
+        tag.id === id ? Object.assign({}, tag, { name, plate, cover, updatedAt: now }) : tag
       )));
     } else {
       const list = customTags();
       const scope = activeTagManageScope();
-      const row = { id: `tag-${Date.now()}`, name, plate, scope };
+      const row = { id: `tag-${Date.now()}`, name, plate, scope, updatedAt: now };
       if (cover) row.cover = cover;
       list.push(row);
       saveTags(list);
@@ -8031,9 +8053,9 @@
     render();
     showSnack("Video entfernt", "danger", {
       undo: () => {
-        saveVideoWatchlist(beforeWatch);
-        saveVideoQueue(beforeQueue);
-        saveVideoHistory(beforeHistory);
+        restoreListAfterUndo("videoWatchlist", beforeWatch, saveVideoWatchlist);
+        restoreListAfterUndo("videoQueue", beforeQueue, saveVideoQueue);
+        restoreListAfterUndo("videoHistory", beforeHistory, saveVideoHistory);
         render();
       },
     });
@@ -12362,7 +12384,7 @@
       const title = film ? film.title : hid;
       showSnack(`Sichtung vom ${label} entfernt`, "success", {
         undo: () => {
-          saveHistory(result.before);
+          restoreListAfterUndo("history", result.before, saveHistory);
           render();
         },
       });
@@ -12613,7 +12635,7 @@
       const title = video ? video.title : hid;
       showSnack(`Sichtung vom ${label} entfernt`, "success", {
         undo: () => {
-          saveVideoHistory(result.before);
+          restoreListAfterUndo("videoHistory", result.before, saveVideoHistory);
           render();
         },
       });
@@ -13181,7 +13203,7 @@
     dismissWatchSwipeHint();
     const row = event.target.closest("[data-swipe-row]");
     if (!row || !row.dataset.swipeMode) return;
-    if (event.target.closest("[data-act=film-menu], .film-menu-pop, [data-act=watch-toggle], [data-act=film-expand], .film-row-expand, [data-act=rate], [data-act=film-tag], [data-act=choose], .suggest-inline-watch, [data-act=video-confirm], [data-act=video-expand], [data-act=video-inline-open], [data-act=video-inline-close], [data-act=video-edit-open], .v-anschauen, .video-expand-actions, .video-inline-wrap, .seen-rate-bubble, [data-act=video-seen-rate-open], [data-act=video-seen-undo]")) return;
+    if (event.target.closest("[data-act=film-menu], .film-menu-pop, [data-act=watch-toggle], .film-row-chevron, .film-row-fold, .film-row-expand, [data-act=rate], [data-act=film-tag], [data-act=choose], .suggest-inline-watch, [data-act=video-confirm], [data-act=video-inline-open], [data-act=video-inline-close], [data-act=video-edit-open], .v-anschauen, .video-expand-actions, .video-inline-wrap, .seen-rate-bubble, [data-act=video-seen-rate-open], [data-act=video-seen-undo], .seen-undo-open")) return;
     if (event.target.closest(".film-row.is-open")) return;
     if (swipeDrag) return;
     swipeDrag = {
