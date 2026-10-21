@@ -4554,6 +4554,7 @@
   }
 
   function profileConsumedFilmIds() {
+    if (!state.user || !state.profile) return new Set();
     const ids = new Set();
     history().forEach((row) => {
       if (row && row.id != null) ids.add(String(row.id));
@@ -8418,9 +8419,15 @@
 
   function actorFilterLabel(actor) {
     if (!actor || !actor.name) return "";
-    if (actor.filmStatus === "live") {
-      const count = actorCountLabel(actor.liveCount);
-      if (count) return `${actor.name} · ${count}`;
+    const scoped = Number(actor.displayCount);
+    if (Number.isFinite(scoped) && scoped > 0) {
+      const label = actorCountLabel(scoped);
+      if (label) return `${actor.name} · ${label}`;
+    }
+    const pick = Number(actor.count);
+    if (pick > 0) {
+      const label = actorCountLabel(pick);
+      if (label) return `${actor.name} · ${label}`;
     }
     return actor.name;
   }
@@ -9721,9 +9728,7 @@
         <button type="button" class="linkish" data-act="zufall-filter-reset">Alle Filter zurücksetzen</button>
       </div>
     ` : "";
-    const footerCount = zero
-      ? `Trifft auf <strong class="is-warn">0</strong> von ${stats.total} Filmen zu – bitte Filter lockern`
-      : `Trifft auf <strong>${stats.count}</strong> von ${stats.total} Filmen zu`;
+    const footerCount = zufallSheetCountMarkup(stats);
     return `
       <div class="zufall-filter-sheet${state.zufallFilterSheet ? " is-open" : ""}" data-role="zufall-filter-sheet" aria-hidden="${state.zufallFilterSheet ? "false" : "true"}">
         <div class="zufall-filter-sheet-panel">
@@ -9773,6 +9778,24 @@
     if (!zone) return;
     zone.outerHTML = renderZufallFilterBar();
     paintZufallFilterOverflow();
+  }
+
+  function zufallSheetCountMarkup(stats) {
+    const zero = stats.count === 0;
+    return zero
+      ? `Trifft auf <strong class="is-warn">0</strong> von ${stats.total} Filmen zu – bitte Filter lockern`
+      : `Trifft auf <strong>${stats.count}</strong> von ${stats.total} Filmen zu`;
+  }
+
+  function paintZufallFilterSheetCount() {
+    const host = watchSheetEl && watchSheetEl.querySelector("[data-role=zufall-filter-host]");
+    if (!host) return;
+    const stats = zufallMatchStats(zufallFiltersDraftBag());
+    const zero = stats.count === 0;
+    const countEl = host.querySelector("[data-role=zufall-sheet-count]");
+    if (countEl) countEl.innerHTML = zufallSheetCountMarkup(stats);
+    const apply = host.querySelector("[data-act=zufall-filter-apply]");
+    if (apply) apply.disabled = zero;
   }
 
   function paintZufallFilterSheet() {
@@ -11867,6 +11890,7 @@
           name,
           tmdb: tmdb || (hit && hit.tmdb) || 0,
           count: hit ? hit.count : 0,
+          displayCount: hit ? shownActorCount(hit) : 0,
         };
         if (!bag.actors) bag.actors = [];
         bag.actors.push(actor);
@@ -12201,6 +12225,7 @@
           name,
           tmdb: tmdb || (hit && hit.tmdb) || 0,
           count: hit ? hit.count : 0,
+          displayCount: hit ? shownActorCount(hit) : 0,
         };
         if (!bag.actors) bag.actors = [];
         bag.actors.push(actor);
@@ -12789,7 +12814,7 @@
       t.classList.remove("idle");
       const value = t.parentElement.querySelector("[data-role=dauer-value]");
       if (value) value.textContent = dauerLabel(bag.dauer);
-      if (ctx === "zufall") paintZufallFilterSheet();
+      if (ctx === "zufall") paintZufallFilterSheetCount();
       else paintDiscoverActiveChips();
       return;
     }
@@ -13366,6 +13391,12 @@
       scheduleSimilarSearch(t.value);
     }
     handleFilterFieldInput(t);
+  });
+
+  watchSheetEl.addEventListener("change", (event) => {
+    const t = event.target;
+    if (!t || !t.dataset || t.dataset.act !== "dauer") return;
+    if (filterCtxFrom(t) === "zufall") paintZufallFilterSheet();
   });
 
   let sheetDrag = null;
