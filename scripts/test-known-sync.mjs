@@ -143,6 +143,33 @@ test("tombstones: re-added film after delete survives when newer than tombstone"
   assert.equal(String(merged.watchlist[0].id), "t42");
 });
 
+test("tag edit with newer updatedAt wins over stale remote on merge", () => {
+  const local = {
+    tags: [{ id: "tag-a", name: "Omma", plate: "hell", updatedAt: "2026-10-21T14:00:00.000Z" }],
+  };
+  const remote = {
+    tags: [{ id: "tag-a", name: "Omma", plate: "schwarz", updatedAt: "2026-10-01T08:00:00.000Z" }],
+  };
+  const merged = mergeProfileBags(local, remote);
+  assert.equal(merged.tags.length, 1);
+  assert.equal(merged.tags[0].plate, "hell");
+});
+
+test("undo restore: row newer than remote tombstone survives merge", () => {
+  const restoredAt = "2026-10-21T14:00:00.000Z";
+  const deletedAt = "2026-10-20T12:00:00.000Z";
+  const local = {
+    videoWatchlist: [{ id: "v-seed-3", at: 1, updatedAt: restoredAt }],
+    _tombstones: [],
+  };
+  const remote = {
+    videoWatchlist: [],
+    _tombstones: [{ id: "v-seed-3", kind: "videoWatchlist", deleted: true, updatedAt: deletedAt }],
+  };
+  const merged = mergeProfileBags(local, remote);
+  assert.equal(merged.videoWatchlist.some((r) => String(r.id) === "v-seed-3"), true);
+});
+
 test("tagCovers merge keeps array shape", () => {
   const local = {
     tagCovers: [{ id: "cov-a", poster: "https://example.test/a.jpg", updatedAt: "2026-10-10T00:00:00.000Z" }],
