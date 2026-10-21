@@ -311,6 +311,7 @@
       vote_count: Number(raw.vote_count) || 0,
       providers,
       overview: String(raw.overview || raw.plot || raw.tagline || "").trim(),
+      ...(Number(raw.castOrderFixed) >= 1 ? { castOrderFixed: 1 } : {}),
     };
   }
 
@@ -8295,9 +8296,13 @@
   }
 
   function paintActorHits() {
-    const box = app.querySelector("[data-role=actor-hits]");
-    if (!box) return;
-    box.innerHTML = actorHitsHtml();
+    const html = actorHitsHtml();
+    const roots = [app, watchSheetEl].filter(Boolean);
+    roots.forEach((root) => {
+      root.querySelectorAll("[data-role=actor-hits]").forEach((box) => {
+        box.innerHTML = html;
+      });
+    });
   }
 
   function shownActorCount(row) {
@@ -10581,9 +10586,26 @@
     openModal(html);
   }
 
+  function snackVideoWatched(video, options) {
+    if (!video || !video.id) return;
+    const hid = String(video.id);
+    const beforeHistory = videoHistory();
+    recordVideoWatched(video);
+    const inline = !!(options && options.inline);
+    const message = inline
+      ? "Unter Angesehen vermerkt"
+      : "Video geöffnet · bleibt in der Watchlist, unter Angesehen vermerkt";
+    showSnack(message, undefined, {
+      undo: () => {
+        saveVideoHistory(beforeHistory);
+        render();
+      },
+    });
+  }
+
   function launchVideo(video) {
     if (!video) return;
-    recordVideoWatched(video);
+    snackVideoWatched(video);
     closeModal();
     if (video.url) {
       try {
@@ -10594,7 +10616,6 @@
     state.listsMode = "videos";
     render();
     burstConfetti();
-    showSnack("Video geöffnet · bleibt in der Watchlist, unter Angesehen vermerkt");
   }
 
   function coverFromFilm(film) {
@@ -10878,12 +10899,8 @@
       `;
     }).join("");
     const title = scope === "video" ? "Video-Tags verwalten" : "Tags verwalten";
-    const hint = scope === "video"
-      ? `<p class="tags-scope-hint tags-scope-hint--manage"><span class="tags-scope-kicker">▶ Videos</span> Nur Video-Tags · Film-Tags verwaltest du unter Filme</p>`
-      : "";
     return `
       <h2 class="screen-title home-title">${title}</h2>
-      ${hint}
       <section class="stack">${rows || `<p class="hint">Noch keine eigenen Tags.</p>`}</section>
       <button type="button" class="card menu-card add-entity" data-act="tag-add-open">
         <span class="plus-circle">${ICONS.plus}</span>
@@ -12378,7 +12395,7 @@
     if (act === "video-inline-open") {
       const hid = String(t.dataset.id || "");
       const video = findVideo(hid);
-      if (video) recordVideoWatched(video);
+      if (video) snackVideoWatched(video, { inline: true });
       state.inlineVideoPlayerId = hid;
       render();
       return;
@@ -12634,6 +12651,12 @@
       state.watchSearch = t.value;
       scheduleTitleSearch(t.value);
     }
+    handleFilterFieldInput(t);
+  });
+
+  function handleFilterFieldInput(t) {
+    if (!t || !t.dataset) return;
+    const act = t.dataset.act;
     if (act === "dauer") {
       const ctx = filterCtxFrom(t);
       const bag = filtersBagForCtx(ctx);
@@ -12645,12 +12668,13 @@
       if (value) value.textContent = dauerLabel(bag.dauer);
       if (ctx === "zufall") paintZufallFilterSheet();
       else paintDiscoverActiveChips();
+      return;
     }
     if (act === "actor-search") {
       state.actorQuery = t.value;
       scheduleActorSearch(t.value);
     }
-  });
+  }
 
   headerActions.addEventListener("click", (event) => {
     const t = event.target.closest("[data-act]");
@@ -13217,6 +13241,7 @@
       if (wrap) wrap.classList.toggle("is-active", !!t.value.trim() || (state.similarDraft || []).length > 0);
       scheduleSimilarSearch(t.value);
     }
+    handleFilterFieldInput(t);
   });
 
   let sheetDrag = null;
