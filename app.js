@@ -436,7 +436,7 @@
   function creditsCastNames(data) {
     return ((data && data.credits && data.credits.cast) || [])
       .slice()
-      .sort((a, b) => (Number(a.order) || 99) - (Number(b.order) || 99))
+      .sort(sortCastByOrder)
       .map((row) => String((row && (row.name || row.original_name)) || "").trim())
       .filter(Boolean)
       .slice(0, 4);
@@ -446,7 +446,10 @@
     const next = fromTmdbMovie(data);
     if (!next) return null;
     const names = creditsCastNames(data);
-    if (names.length) next.cast = names;
+    if (names.length) {
+      next.cast = names;
+      next.castOrderFixed = 1;
+    }
     return next;
   }
 
@@ -1392,6 +1395,9 @@
     discoverView: "hub",
     discoverCat: "",
     filters: { dauerOn: false, dauer: 120, genres: [], tags: [], streaming: [], types: [], actors: [], similar: [] },
+    zufallFilters: { dauerOn: false, dauer: 120, genres: [], tags: [], streaming: [], types: [], actors: [], similar: [] },
+    zufallFiltersDraft: null,
+    zufallFilterSheet: false,
     actorQuery: "",
     actorHits: [],
     actorStatus: "",
@@ -1885,10 +1891,18 @@
   const SYNC_PROFILE_SUFFIXES = [
     "watchlist", "queue", "history", "ratings", "tags", "filmTags", "tagCovers",
     "favorite", "known", "videoWatchlist", "videoQueue", "videoHistory", "watchSwipeHint",
-    "profileMeta",
+    "profileMeta", "zufallFilters",
   ];
 
   const TAG_SCOPE_MIGRATION_VERSION = 1;
+  const CAST_ORDER_MIGRATION_VERSION = 1;
+  const FILM_FALLBACK_CAST_IDS = new Set(FILMS.map((row) => filmId(row)));
+
+  function sortCastByOrder(a, b) {
+    const ao = Number.isFinite(Number(a.order)) ? Number(a.order) : 999;
+    const bo = Number.isFinite(Number(b.order)) ? Number(b.order) : 999;
+    return ao - bo;
+  }
 
   function isVideoEntityId(id) {
     return String(id || "").startsWith("v-");
@@ -1956,6 +1970,49 @@
   function migrateTagsScopeIfNeeded() {
     if (!state.user || !state.profile) return;
     migrateTagsScopeForStorage(profileStoragePrefix(state.user.id, state.profile.id));
+  }
+
+  function migrateCastOrderForStorage(prefix) {
+    if (!prefix) return;
+    const meta = loadJson(`${prefix}profileMeta`, {});
+    if (Number(meta.castOrderFixed) >= CAST_ORDER_MIGRATION_VERSION) return;
+    const key = `${prefix}known`;
+    const raw = loadJson(key, {});
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      saveJson(`${prefix}profileMeta`, Object.assign({}, meta, { castOrderFixed: CAST_ORDER_MIGRATION_VERSION }));
+      return;
+    }
+    const next = Object.assign({}, raw);
+    let changed = false;
+    Object.keys(next).forEach((id) => {
+      if (KNOWN_SYNC_META_KEYS.has(id)) return;
+      const row = next[id];
+      if (!row || typeof row !== "object") return;
+      const canon = canonicalListFilmId(filmId(row));
+      if (FILM_FALLBACK_CAST_IDS.has(canon)) return;
+      if (!Array.isArray(row.cast) || !row.cast.length) return;
+      const copy = Object.assign({}, row);
+      delete copy.cast;
+      next[id] = copy;
+      changed = true;
+    });
+    if (changed) saveJson(key, next);
+    saveJson(`${prefix}profileMeta`, Object.assign({}, meta, { castOrderFixed: CAST_ORDER_MIGRATION_VERSION }));
+  }
+
+  function migrateCastOrderIfNeeded() {
+    if (!state.user || !state.profile) return;
+    migrateCastOrderForStorage(profileStoragePrefix(state.user.id, state.profile.id));
+    invalidateKnownFilmsCache();
+  }
+
+  function migrateCastOrderForUser(userId) {
+    if (!userId) return;
+    const profiles = loadJson(`wdq.profiles.${userId}`, []);
+    (Array.isArray(profiles) ? profiles : []).forEach((prof) => {
+      if (!prof || !prof.id) return;
+      migrateCastOrderForStorage(profileStoragePrefix(userId, String(prof.id)));
+    });
   }
 
   function migrateTagsScopeForUser(userId) {
@@ -2172,6 +2229,7 @@
       });
       if (Array.isArray(bag._tombstones)) saveJson(prefix + "_tombstones", bag._tombstones);
       migrateTagsScopeForStorage(prefix);
+      migrateCastOrderForStorage(prefix);
     });
   }
 
@@ -2263,7 +2321,9 @@
     if (title && title !== "Lädt…") score += 10;
     if (film.poster) score += 8;
     if (Number(film.minutes || film.runtime) > 0) score += 4;
-    score += Math.min(filmCastNames(film).length, 4) * 2;
+    if (Number(film.castOrderFixed) >= 1) {
+      score += Math.min(filmCastNames(film).length, 4) * 2;
+    }
     if (String(film.overview || "").trim()) score += 2;
     if (Array.isArray(film.genres) && film.genres.length) score += 1;
     return score;
@@ -2272,6 +2332,10 @@
   function pickRicherKnownEntry(a, b) {
     if (!a) return b;
     if (!b) return a;
+    const fixA = Number(a.castOrderFixed) >= 1;
+    const fixB = Number(b.castOrderFixed) >= 1;
+    if (fixA && !fixB) return a;
+    if (fixB && !fixA) return b;
     const ta = knownEntryTs(a);
     const tb = knownEntryTs(b);
     if (ta && tb && ta !== tb) return ta > tb ? a : b;
@@ -2346,6 +2410,7 @@
       const mb = b.profileMeta && typeof b.profileMeta === "object" ? b.profileMeta : {};
       const merged = Object.assign({}, ma, mb);
       merged.tagsScopeMigrated = Math.max(Number(ma.tagsScopeMigrated) || 0, Number(mb.tagsScopeMigrated) || 0);
+      merged.castOrderFixed = Math.max(Number(ma.castOrderFixed) || 0, Number(mb.castOrderFixed) || 0);
       return merged;
     })();
     out.tagCovers = (() => {
@@ -2353,6 +2418,8 @@
       const tb = b.tagCovers || {};
       return Object.assign({}, ta, tb);
     })();
+    const zufallMerged = mergeObjectsLww(a.zufallFilters, b.zufallFilters);
+    if (zufallMerged != null) out.zufallFilters = zufallMerged;
     const favoriteMerged = mergeObjectsLww(a.favorite, b.favorite);
     if (favoriteMerged != null) out.favorite = favoriteMerged;
     const hintMerged = mergeObjectsLww(a.watchSwipeHint, b.watchSwipeHint);
@@ -3334,6 +3401,7 @@
     state.profile = profile;
     invalidateKnownFilmsCache();
     migrateTagsScopeIfNeeded();
+    migrateCastOrderIfNeeded();
     state.discoverView = "hub";
     if (profile) openWatchlistHome();
     else state.screen = "profiles";
@@ -3418,6 +3486,7 @@
         poster: n.poster || prev.poster,
         genres: n.genres && n.genres.length ? n.genres : prev.genres,
         cast: (n.cast && n.cast.length) ? n.cast : (prev.cast || []),
+        castOrderFixed: Math.max(Number(n.castOrderFixed) || 0, Number(prev.castOrderFixed) || 0),
         year: n.year || prev.year,
         original_title: n.original_title || prev.original_title || "",
         aliases: uniqueAliasList([...(n.aliases || []), ...(prev.aliases || [])]),
@@ -3548,12 +3617,12 @@
         const data = await tmdbFetch(`/movie/${film.tmdb}/credits`);
         const names = (data.cast || [])
           .slice()
-          .sort((a, b) => (Number(a.order) || 99) - (Number(b.order) || 99))
+          .sort(sortCastByOrder)
           .map((row) => String(row.name || row.original_name || "").trim())
           .filter(Boolean)
           .slice(0, 3);
         if (names.length) {
-          rememberFilm({ ...film, cast: names });
+          rememberFilm({ ...film, cast: names, castOrderFixed: 1 });
           changed = true;
         }
       } catch {
@@ -3854,10 +3923,7 @@
   }
 
   function renderTagsScopeHint(scope) {
-    if (scope === "video") {
-      return `<p class="tags-scope-hint"><span class="tags-scope-kicker">▶ Videos</span> <strong>Video-Tags</strong> · Film-Tags sind getrennt und erscheinen hier nicht.</p>`;
-    }
-    return `<p class="tags-scope-hint"><span class="tags-scope-kicker">🎬 Filme</span> <strong>Film-Tags</strong> · Video-Tags sind getrennt und erscheinen hier nicht.</p>`;
+    return "";
   }
 
   function tagPillHtml(tag) {
@@ -4268,8 +4334,8 @@
     state.directionSeeds = [seed].concat(rest).slice(0, 3);
   }
 
-  function filmMatchesType(film) {
-    const wanted = state.filters.types || [];
+  function filmMatchesType(film, filters) {
+    const wanted = (filters || state.filters).types || [];
     if (!wanted.length) return true;
     const genres = filmGenres(film);
     const animated = genres.includes("Animation");
@@ -4284,8 +4350,8 @@
     });
   }
 
-  function filmMatchesActors(film) {
-    const wanted = state.filters.actors || [];
+  function filmMatchesActors(film, filters) {
+    const wanted = (filters || state.filters).actors || [];
     if (!wanted.length) return true;
     const id = filmId(film);
     const names = filmCastNames(film).map((name) => foldSearch(name));
@@ -4723,14 +4789,7 @@
   }
 
   function discoverCatOn(id) {
-    if (id === "dauer") return !!state.filters.dauerOn;
-    if (id === "genre") return state.filters.genres.length > 0;
-    if (id === "tags") return state.filters.tags.length > 0;
-    if (id === "streaming") return state.filters.streaming.length > 0;
-    if (id === "typ") return state.filters.types.length > 0;
-    if (id === "actor") return state.filters.actors.length > 0;
-    if (id === "similar") return (state.filters.similar || []).length > 0;
-    return false;
+    return filterCatOn(state.filters, id);
   }
 
   function entdeckenIconHtml(large) {
@@ -4940,6 +4999,174 @@
     similarRemoteIds = new Set();
     similarFetchedKey = "";
     similarSeedCacheKey = "";
+  }
+
+  function emptyFilterBag() {
+    return {
+      dauerOn: false,
+      dauer: 120,
+      genres: [],
+      tags: [],
+      streaming: [],
+      types: [],
+      actors: [],
+      similar: [],
+    };
+  }
+
+  function cloneFilterBag(src) {
+    const bag = src || emptyFilterBag();
+    return {
+      dauerOn: !!bag.dauerOn,
+      dauer: Number(bag.dauer) || 120,
+      genres: (bag.genres || []).slice(),
+      tags: (bag.tags || []).slice(),
+      streaming: (bag.streaming || []).slice(),
+      types: (bag.types || []).slice(),
+      actors: (bag.actors || []).map((actor) => Object.assign({}, actor)),
+      similar: (bag.similar || []).map((film) => Object.assign({}, film)),
+    };
+  }
+
+  function loadZufallFiltersFromStorage() {
+    if (!state.user || !state.profile) return;
+    const raw = loadJson(pkey("zufallFilters"), null);
+    state.zufallFilters = cloneFilterBag(raw || emptyFilterBag());
+  }
+
+  function saveZufallFiltersToStorage() {
+    if (!state.user || !state.profile) return;
+    saveJson(pkey("zufallFilters"), cloneFilterBag(state.zufallFilters));
+    scheduleSyncPush();
+  }
+
+  function zufallFiltersDraftBag() {
+    return state.zufallFiltersDraft || state.zufallFilters;
+  }
+
+  function filterCtxFrom(el) {
+    const box = el && el.closest("[data-filter-ctx]");
+    return box && box.dataset.filterCtx === "zufall" ? "zufall" : "discover";
+  }
+
+  function filtersBagForCtx(ctx) {
+    return ctx === "zufall" ? zufallFiltersDraftBag() : state.filters;
+  }
+
+  function zufallAnyFilterOn(bag) {
+    const f = bag || state.zufallFilters;
+    return f.dauerOn
+      || f.genres.length > 0
+      || f.tags.length > 0
+      || f.types.length > 0
+      || (f.actors || []).length > 0;
+  }
+
+  function zufallActiveFilterCount(bag) {
+    const f = bag || state.zufallFilters;
+    let n = 0;
+    if (f.dauerOn) n += 1;
+    n += f.genres.length;
+    n += f.tags.length;
+    n += f.types.length;
+    n += (f.actors || []).length;
+    return n;
+  }
+
+  function filterCatOn(filters, id) {
+    const bag = filters || state.filters;
+    if (id === "dauer") return !!bag.dauerOn;
+    if (id === "genre") return bag.genres.length > 0;
+    if (id === "tags") return bag.tags.length > 0;
+    if (id === "streaming") return bag.streaming.length > 0;
+    if (id === "typ") return bag.types.length > 0;
+    if (id === "actor") return (bag.actors || []).length > 0;
+    if (id === "similar") return (bag.similar || []).length > 0;
+    return false;
+  }
+
+  function zufallFilterChipRows(bag) {
+    const filters = bag || state.zufallFilters;
+    const tags = customTags("film");
+    const chips = [];
+    if (filters.dauerOn) {
+      chips.push({ kind: "dauer", id: "dauer", label: dauerChipLabel(filters.dauer) });
+    }
+    for (const genre of filters.genres) {
+      chips.push({ kind: "genre", id: genre, label: genre });
+    }
+    for (const id of filters.tags) {
+      const tag = tags.find((t) => t.id === id);
+      if (tag) chips.push({ kind: "tag", id, label: tag.name });
+    }
+    for (const id of filters.types) {
+      const row = TYPE_CHIPS.find((s) => s.id === id);
+      if (row) chips.push({ kind: "type", id, label: row.label });
+    }
+    for (const actor of filters.actors || []) {
+      chips.push({ kind: "actor", id: actor.id, label: actorFilterLabel(actor) });
+    }
+    return chips;
+  }
+
+  function zufallHardMatch(film, filters) {
+    const bag = filters || state.zufallFilters;
+    if (!film) return false;
+    if (bag.dauerOn) {
+      const minutes = Number(film.minutes || film.runtime) || 0;
+      if (!minutes) return false;
+      const limit = Number(bag.dauer) * 1.1;
+      if (minutes > limit) return false;
+    }
+    if (bag.genres.length && !filmGenres(film).some((name) => bag.genres.includes(name))) return false;
+    if (bag.tags.length && !bag.tags.some((tag) => tagsFor(film.id).includes(tag))) return false;
+    if (bag.types.length && !filmMatchesType(film, bag)) return false;
+    if ((bag.actors || []).length && !filmMatchesActors(film, bag)) return false;
+    return true;
+  }
+
+  function zufallMatchStats(filters) {
+    const base = zufallUnionFilms(state.zufallSources && state.zufallSources.length
+      ? state.zufallSources
+      : defaultZufallOrigin()).map(filmWithPoster).filter(Boolean);
+    const bag = filters || state.zufallFilters;
+    let hiddenNoRuntime = 0;
+    const matched = [];
+    for (const film of base) {
+      if (bag.dauerOn) {
+        const minutes = Number(film.minutes || film.runtime) || 0;
+        if (!minutes) {
+          hiddenNoRuntime += 1;
+          continue;
+        }
+      }
+      if (zufallHardMatch(film, bag)) matched.push(film);
+    }
+    return { base, matched, total: base.length, count: matched.length, hiddenNoRuntime };
+  }
+
+  function zufallLoosenSuggestions(draft) {
+    const stats = zufallMatchStats(draft);
+    if (stats.count > 0) return [];
+    const out = [];
+    const bag = draft || zufallFiltersDraftBag();
+    if (bag.dauerOn) {
+      const tryBag = cloneFilterBag(bag);
+      tryBag.dauerOn = false;
+      const n = zufallMatchStats(tryBag).count;
+      if (n > stats.count) {
+        out.push({ act: "zufall-loosen-dauer", label: `Dauer auf ≤ ${bag.dauer} Min.`, count: n });
+      }
+    }
+    for (const genre of bag.genres) {
+      const tryBag = cloneFilterBag(bag);
+      tryBag.genres = tryBag.genres.filter((g) => g !== genre);
+      const n = zufallMatchStats(tryBag).count;
+      if (n > 0) {
+        out.push({ act: "zufall-loosen-genre", id: genre, label: `„${genre}“ entfernen`, count: n });
+      }
+    }
+    return out.slice(0, 4);
   }
 
   function closeFilmMenus() {
@@ -6296,70 +6523,87 @@
     `;
   }
 
-  function filterCardClass(id, extra) {
-    return `card filter-card${extra ? ` ${extra}` : ""}${discoverCatOn(id) ? " is-on" : ""}`;
+  function filterCardClass(id, extra, filters) {
+    const bag = filters || state.filters;
+    return `card filter-card${extra ? ` ${extra}` : ""}${filterCatOn(bag, id) ? " is-on" : ""}`;
   }
 
-  function renderDiscoverFilters() {
-    const fill = dauerFill(state.filters.dauer);
+  function renderDiscoverFilters(ctx) {
+    const isZufall = ctx === "zufall";
+    const filters = isZufall ? zufallFiltersDraftBag() : state.filters;
+    const fill = dauerFill(filters.dauer);
     const genreItems = genrePicks.map((g) => ({
       act: "genre",
       attrs: `data-genre="${escapeHtml(g)}"`,
       label: g,
-      on: state.filters.genres.includes(g),
+      on: filters.genres.includes(g),
     }));
     const tagItems = customTags("film").map((t) => ({
       chipHtml: tagChipHtml(t, {
         size: "mini",
         act: "filter-tag",
         attrs: `data-id="${escapeHtml(t.id)}"`,
-        pressed: state.filters.tags.includes(t.id),
+        pressed: filters.tags.includes(t.id),
       }),
     }));
     const streamItems = STREAMING_CHIPS.map((s) => ({
       act: "filter-stream",
       attrs: `data-id="${s.id}"`,
       label: s.label,
-      on: state.filters.streaming.includes(s.id),
+      on: filters.streaming.includes(s.id),
     }));
     const typeItems = TYPE_CHIPS.map((row) => ({
       act: "filter-type",
       attrs: `data-id="${row.id}"`,
       label: row.label,
-      on: state.filters.types.includes(row.id),
+      on: filters.types.includes(row.id),
     }));
-    const selectedActors = state.filters.actors.map((actor) => `
+    const selectedActors = (filters.actors || []).map((actor) => `
       <span class="active-chip">
         <span>${escapeHtml(actorFilterLabel(actor))}</span>
         <button type="button" class="active-chip-x" data-act="actor-remove" data-id="${escapeHtml(actor.id)}" aria-label="${escapeHtml(actorFilterLabel(actor))} entfernen">${ICONS.chipX}</button>
       </span>
     `).join("");
-    return `
-      <div class="filter-stack">
-        <div class="${filterCardClass("dauer", "is-dauer")}" data-cat="dauer">
-          <span class="filter-label">Dauer</span>
-          <div class="dauer-controls">
-            <input class="filigree${state.filters.dauerOn ? "" : " idle"}" data-act="dauer" type="range" min="60" max="210" step="5" value="${state.filters.dauer}" style="--fill:${fill}%" aria-label="Maximale Dauer">
-            <span class="dauer-value" data-role="dauer-value">${dauerLabel(state.filters.dauer)}</span>
-          </div>
-        </div>
-        <div class="${filterCardClass("genre")}" data-cat="genre">
-          <span class="filter-label">Genre</span>
-          ${renderOverflowChips("genre", genreItems)}
-        </div>
-        <div class="${filterCardClass("tags")}" data-cat="tags">
-          <span class="filter-label">Tags</span>
-          ${renderOverflowChips("tags", tagItems)}
-        </div>
-        <div class="${filterCardClass("streaming")}" data-cat="streaming">
+    const streamBlock = isZufall ? "" : `
+        <div class="${filterCardClass("streaming", "", filters)}" data-cat="streaming">
           <span class="filter-label">Stream</span>
           ${renderOverflowChips("streaming", streamItems)}
+        </div>`;
+    const similarBlock = isZufall ? "" : `
+        <div class="${filterCardClass("similar", "is-similar", filters)}" data-cat="similar">
+          <span class="filter-label">Ähnlich wie</span>
+          <div class="similar-search-col">
+            ${similarHubChips()}
+            <button type="button" class="similar-hub-search${(state.filters.similar || []).length ? " is-active" : ""}" data-act="similar-open" aria-haspopup="dialog" aria-label="Filme suchen">
+              <span class="sheet-search-icon">${ICONS.search}</span>
+              <span>Filme suchen</span>
+            </button>
+          </div>
+        </div>`;
+    const moreKey = isZufall ? "zufallF" : "";
+    return `
+      <div class="filter-stack" data-filter-ctx="${isZufall ? "zufall" : "discover"}">
+        <div class="${filterCardClass("dauer", "is-dauer", filters)}" data-cat="dauer">
+          <span class="filter-label">Dauer</span>
+          <div class="dauer-controls">
+            <input class="filigree${filters.dauerOn ? "" : " idle"}" data-act="dauer" type="range" min="60" max="210" step="5" value="${filters.dauer}" style="--fill:${fill}%" aria-label="Maximale Dauer">
+            <span class="dauer-value" data-role="dauer-value">${dauerLabel(filters.dauer)}</span>
+          </div>
         </div>
-        <div class="${filterCardClass("typ")}" data-cat="typ">
+        <div class="${filterCardClass("genre", "", filters)}" data-cat="genre">
+          <span class="filter-label">Genre</span>
+          ${renderOverflowChips(isZufall ? "zufallFGenre" : "genre", genreItems)}
+        </div>
+        <div class="${filterCardClass("tags", "", filters)}" data-cat="tags">
+          <span class="filter-label">Tags</span>
+          ${renderOverflowChips(isZufall ? "zufallFTags" : "tags", tagItems)}
+        </div>
+        ${streamBlock}
+        <div class="${filterCardClass("typ", "", filters)}" data-cat="typ">
           <span class="filter-label">Typ</span>
-          ${renderOverflowChips("types", typeItems)}
+          ${renderOverflowChips(isZufall ? "zufallFTypes" : "types", typeItems)}
         </div>
-        <div class="${filterCardClass("actor", "is-actor")}" data-cat="actor">
+        <div class="${filterCardClass("actor", "is-actor", filters)}" data-cat="actor">
           <span class="filter-label">Schauspieler</span>
           <div class="actor-search-col">
             ${selectedActors ? `<div class="active-chip-row">${selectedActors}</div>` : ""}
@@ -6370,16 +6614,7 @@
             <div class="actor-hits" data-role="actor-hits">${actorHitsHtml()}</div>
           </div>
         </div>
-        <div class="${filterCardClass("similar", "is-similar")}" data-cat="similar">
-          <span class="filter-label">Ähnlich wie</span>
-          <div class="similar-search-col">
-            ${similarHubChips()}
-            <button type="button" class="similar-hub-search${(state.filters.similar || []).length ? " is-active" : ""}" data-act="similar-open" aria-haspopup="dialog" aria-label="Filme suchen">
-              <span class="sheet-search-icon">${ICONS.search}</span>
-              <span>Filme suchen</span>
-            </button>
-          </div>
-        </div>
+        ${similarBlock}
       </div>
     `;
   }
@@ -7853,7 +8088,9 @@
       });
     }
     if (state.watchSheet === "zufall") {
+      loadZufallFiltersFromStorage();
       mountZufallCarousel();
+      paintZufallFilterOverflow();
       paintChipOverflow();
       return;
     }
@@ -7925,6 +8162,8 @@
     state.watchSheet = null;
     state.zufallSources = [];
     state.zufallOrigin = [];
+    state.zufallFilterSheet = false;
+    state.zufallFiltersDraft = null;
     state.filterMore.zufall = false;
     clearWatchSheetBaseline();
     state.watchSearch = "";
@@ -8098,8 +8337,13 @@
     }
   }
 
+  function activeFilterActorsBag() {
+    if (state.zufallFilterSheet) return zufallFiltersDraftBag();
+    return state.filters;
+  }
+
   function actorStillSelected(actor) {
-    return (state.filters.actors || []).some((row) => row === actor);
+    return (activeFilterActorsBag().actors || []).some((row) => row === actor);
   }
 
   function settleActorFilmographies() {
@@ -8577,10 +8821,7 @@
   }
 
   function zufallPoolFilms() {
-    const ids = (state.zufallSources && state.zufallSources.length)
-      ? state.zufallSources
-      : defaultZufallOrigin();
-    return zufallUnionFilms(ids).map(filmWithPoster).filter(Boolean);
+    return zufallMatchStats().matched.filter((film) => film && film.poster);
   }
 
   function isZufallPoolFilm(film) {
@@ -8687,8 +8928,12 @@
     if (idle) idle.hidden = done;
     if (result) result.hidden = !done;
     if (push) {
-      push.hidden = spinning || done;
-      push.disabled = !zufallUi.pool.length;
+      const poolEmpty = !zufallUi.pool.length;
+      push.hidden = done;
+      push.disabled = poolEmpty;
+      push.classList.toggle("is-disabled", poolEmpty);
+      push.classList.toggle("is-spinning", spinning);
+      push.setAttribute("aria-disabled", poolEmpty ? "true" : "false");
     }
     if (skip && (!spinning || done)) skip.hidden = true;
     const root = zufallSheetRoot();
@@ -8859,6 +9104,11 @@
     paintZufallActions();
     if (!quiet) burstZufallFireworks();
     refreshZufallProviders(zufallUi.front.center);
+    const pushBtn = watchSheetEl && watchSheetEl.querySelector("[data-act=zufall-push]");
+    if (pushBtn && !zufallUi.reduced) {
+      pushBtn.classList.add("is-result-flash");
+      window.setTimeout(() => pushBtn.classList.remove("is-result-flash"), 420);
+    }
   }
 
   function settleZufallFromAngle() {
@@ -8903,6 +9153,9 @@
     const skip = !!(opts && opts.skip);
     if (!zufallUi.pool.length) return;
     if (zufallUi.phase === "spinning") return;
+    try {
+      if (navigator.vibrate) navigator.vibrate(10);
+    } catch { /* ignore */ }
     hideZufallIdleCues();
     zufallUi.phase = "spinning";
     zufallUi.frontLocked = false;
@@ -9063,7 +9316,7 @@
     zufallUi.reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const pool = zufallPoolFilms().filter((film) => film && film.poster);
     if (!pool.length) {
-      closeWatchSheet();
+      paintZufallActions();
       return;
     }
     const fillerRows = await ensureLoginPostersPreloaded();
@@ -9192,6 +9445,7 @@
     state.zufallOrigin = origin.slice();
     state.zufallSources = origin.slice();
     state.filterMore.zufall = false;
+    loadZufallFiltersFromStorage();
     if (!zufallUnionCount(state.zufallSources)) return;
     closeFilmMenus();
     teardownZufallCarousel();
@@ -9250,18 +9504,231 @@
     else selected.push(id);
     state.zufallSources = selected;
     paintZufallSources();
-    const root = zufallSheetRoot();
+    paintZufallFilterZone();
     if (!zufallUnionCount(selected)) {
       teardownZufallCarousel();
+      const root = zufallSheetRoot();
       if (root) root.hidden = true;
       paintZufallActions();
       return;
     }
+    refreshZufallAfterFilters();
+  }
+
+  function zufallMatchLineHtml(stats) {
+    const s = stats || zufallMatchStats();
+    const hidden = s.hiddenNoRuntime > 0 && state.zufallFilters.dauerOn
+      ? `<span class="zufall-runtime-hint">${s.hiddenNoRuntime === 1 ? "1 Film ohne Dauer-Angabe ausgeblendet" : `${s.hiddenNoRuntime} Filme ohne Dauer-Angabe ausgeblendet`}</span>`
+      : "";
+    return `
+      <p class="zufall-match-line" data-role="zufall-match-line">Trifft auf <strong>${s.count}</strong> von ${s.total} Filmen zu</p>
+      ${hidden}
+    `;
+  }
+
+  function zufallPushButtonHtml() {
+    return `
+      <button type="button" class="zufall-push-p2" data-act="zufall-push" aria-label="Zufallsfilm drehen">
+        <svg class="zufall-push-p2__led" viewBox="0 0 120 120" aria-hidden="true">
+          <g class="zufall-push-p2__led-segs">${Array.from({ length: 24 }, (_, i) => {
+    const a = (i / 24) * 360;
+    const rad = (a - 90) * (Math.PI / 180);
+    const x = 60 + Math.cos(rad) * 52;
+    const y = 60 + Math.sin(rad) * 52;
+    return `<rect class="zufall-push-p2__led-seg" x="${x - 1.2}" y="${y - 2.4}" width="2.4" height="4.8" rx="0.6" transform="rotate(${a} ${x} ${y})"/>`;
+  }).join("")}</g>
+        </svg>
+        <span class="zufall-push-p2__bezel" aria-hidden="true"></span>
+        <span class="zufall-push-p2__dome"><span class="zufall-push-p2__label">Push</span></span>
+      </button>
+    `;
+  }
+
+  function renderZufallFilterBar() {
+    const expanded = !!state.filterMore.zufall;
+    const count = zufallActiveFilterCount();
+    const stats = zufallMatchStats();
+    if (!zufallAnyFilterOn()) {
+      return `
+        <div class="zufall-filter-zone" data-role="zufall-filter-zone">
+          <div class="zufall-filter-empty">
+            <button type="button" class="zufall-filter-open-btn" data-act="zufall-filter-open"><span class="zufall-filter-open-icon" aria-hidden="true">${ICONS.filter}</span> Filter</button>
+          </div>
+          ${zufallMatchLineHtml(stats)}
+        </div>
+      `;
+    }
+    if (expanded) {
+      return `
+        <div class="zufall-filter-zone" data-role="zufall-filter-zone">
+          <button type="button" class="zufall-filter-compact" data-act="zufall-filter-open">Filter · ${count} aktiv</button>
+          ${zufallMatchLineHtml(stats)}
+        </div>
+      `;
+    }
+    const chips = zufallFilterChipRows();
+    const chipHtml = chips.map((chip) => `
+      <span class="active-chip zufall-filter-chip${chip.kind === "tag" ? " is-tag" : ""}">
+        <span>${escapeHtml(chip.label)}</span>
+        <button type="button" class="active-chip-x" data-act="zufall-filter-chip-remove" data-kind="${escapeHtml(chip.kind)}" data-id="${escapeHtml(chip.id)}" aria-label="${escapeHtml(chip.label)} entfernen">${ICONS.chipX}</button>
+      </span>
+    `).join("");
+    return `
+      <div class="zufall-filter-zone" data-role="zufall-filter-zone">
+        <div class="zufall-filter-row">
+          <button type="button" class="chip-clear-all" data-act="zufall-filter-clear-all" aria-label="Alle Filter löschen" title="Alle Filter löschen">×</button>
+          <div class="zufall-filter-chips" data-chip-row="zufallFilters">
+            ${chipHtml}
+            <button type="button" class="chip zufall-filter-more-chip" data-act="zufall-filter-open" hidden data-role="zufall-filter-overflow">+0</button>
+          </div>
+          <button type="button" class="zufall-filter-open-btn has-badge" data-act="zufall-filter-open">
+            <span aria-hidden="true">▾</span> Filter
+            <span class="zufall-filter-badge">${count}</span>
+          </button>
+        </div>
+        ${zufallMatchLineHtml(stats)}
+      </div>
+    `;
+  }
+
+  function renderZufallFilterSheetHtml() {
+    const draft = zufallFiltersDraftBag();
+    const stats = zufallMatchStats(draft);
+    const scope = escapeHtml(zufallUberLabel(state.zufallSources) || "Auswahl");
+    const zero = stats.count === 0;
+    const loosen = zero ? zufallLoosenSuggestions(draft) : [];
+    const loosenHtml = zero ? `
+      <div class="card zufall-filter-zero card-warn">
+        <p class="zufall-filter-zero-title">Trifft auf <strong>0</strong> von ${stats.total} Filmen zu – bitte Filter lockern</p>
+        <p class="hint">Bitte Filter lockern – so lässt sich der Filter nicht übernehmen.</p>
+        <div class="zufall-loosen-list">
+          ${loosen.map((row) => `
+            <button type="button" class="zufall-loosen-btn" data-act="${escapeHtml(row.act)}"${row.id ? ` data-id="${escapeHtml(row.id)}"` : ""}>
+              <span>${escapeHtml(row.label)}</span>
+              <span class="zufall-loosen-count">${row.count === 1 ? "1 Film" : `${row.count} Filme`}</span>
+            </button>
+          `).join("")}
+        </div>
+        <button type="button" class="linkish" data-act="zufall-filter-reset">Alle Filter zurücksetzen</button>
+      </div>
+    ` : "";
+    const footerCount = zero
+      ? `Trifft auf <strong class="is-warn">0</strong> von ${stats.total} Filmen zu – bitte Filter lockern`
+      : `Trifft auf <strong>${stats.count}</strong> von ${stats.total} Filmen zu`;
+    return `
+      <div class="zufall-filter-sheet${state.zufallFilterSheet ? " is-open" : ""}" data-role="zufall-filter-sheet" aria-hidden="${state.zufallFilterSheet ? "false" : "true"}">
+        <div class="zufall-filter-sheet-panel">
+          <div class="zufall-filter-sheet-head">
+            <button type="button" class="linkish" data-act="zufall-filter-back">‹ Zurück</button>
+            <button type="button" class="linkish" data-act="zufall-filter-reset">Zurücksetzen</button>
+          </div>
+          <h3 class="zufall-filter-sheet-title">Filter für Zufall</h3>
+          <p class="zufall-filter-sheet-sub">gilt für: ${scope}</p>
+          <div class="zufall-filter-sheet-scroll">
+            ${loosenHtml}
+            ${renderDiscoverFilters("zufall")}
+            <p class="hint zufall-filter-sheet-note">Gleiche Filter wie bei Vorschläge – aber nur auf Deine Auswahl angewendet.</p>
+          </div>
+          <div class="zufall-filter-sheet-foot">
+            <p class="zufall-filter-sheet-count" data-role="zufall-sheet-count">${footerCount}</p>
+            <button type="button" class="btn btn-primary" data-act="zufall-filter-apply"${zero ? " disabled" : ""}>Übernehmen</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function paintZufallFilterOverflow() {
+    const row = watchSheetEl && watchSheetEl.querySelector("[data-chip-row=zufallFilters]");
+    const more = watchSheetEl && watchSheetEl.querySelector("[data-role=zufall-filter-overflow]");
+    if (!row || !more) return;
+    const chips = [...row.querySelectorAll(".zufall-filter-chip")];
+    chips.forEach((chip) => { chip.hidden = false; });
+    more.hidden = true;
+    const overflows = () => row.scrollWidth > row.clientWidth + 1;
+    if (!overflows()) return;
+    for (let i = chips.length - 1; i >= 0; i -= 1) {
+      chips[i].hidden = true;
+      if (!overflows()) break;
+    }
+    const hidden = chips.filter((chip) => chip.hidden).length;
+    if (hidden > 0) {
+      more.hidden = false;
+      more.textContent = `+${hidden}`;
+    }
+    if (chips.every((chip) => chip.hidden) && chips[0]) chips[0].hidden = false;
+  }
+
+  function paintZufallFilterZone() {
+    const zone = watchSheetEl && watchSheetEl.querySelector("[data-role=zufall-filter-zone]");
+    if (!zone) return;
+    zone.outerHTML = renderZufallFilterBar();
+    paintZufallFilterOverflow();
+  }
+
+  function paintZufallFilterSheet() {
+    const host = watchSheetEl && watchSheetEl.querySelector("[data-role=zufall-filter-host]");
+    if (!host) return;
+    host.innerHTML = renderZufallFilterSheetHtml();
+  }
+
+  function openZufallFilterSheet() {
+    state.zufallFiltersDraft = cloneFilterBag(state.zufallFilters);
+    state.zufallFilterSheet = true;
+    state.actorQuery = "";
+    state.actorHits = [];
+    state.actorStatus = "";
+    paintZufallFilterSheet();
+    const sheet = watchSheetEl && watchSheetEl.querySelector("[data-role=zufall-filter-sheet]");
+    if (sheet) sheet.classList.add("is-open");
+  }
+
+  function closeZufallFilterSheet() {
+    state.zufallFilterSheet = false;
+    state.zufallFiltersDraft = null;
+    paintZufallFilterSheet();
+  }
+
+  function applyZufallFiltersFromDraft() {
+    state.zufallFilters = cloneFilterBag(zufallFiltersDraftBag());
+    saveZufallFiltersToStorage();
+    closeZufallFilterSheet();
+    resetZufallIdle();
+    refreshZufallAfterFilters();
+  }
+
+  function clearZufallFilters() {
+    state.zufallFilters = emptyFilterBag();
+    saveZufallFiltersToStorage();
+    if (state.zufallFilterSheet) state.zufallFiltersDraft = cloneFilterBag(state.zufallFilters);
+    resetZufallIdle();
+    refreshZufallAfterFilters();
+  }
+
+  function refreshZufallAfterFilters() {
+    paintZufallFilterZone();
+    const pool = zufallPoolFilms();
+    if (!pool.length) {
+      teardownZufallCarousel();
+      const root = zufallSheetRoot();
+      if (root) {
+        root.hidden = true;
+        const empty = root.parentElement && root.parentElement.querySelector("[data-role=zufall-empty]");
+        if (empty) empty.hidden = false;
+      }
+      paintZufallActions();
+      return;
+    }
+    const root = zufallSheetRoot();
     if (root) root.hidden = false;
+    const empty = root && root.parentElement && root.parentElement.querySelector("[data-role=zufall-empty]");
+    if (empty) empty.hidden = true;
     mountZufallCarousel();
   }
 
   function renderZufallSheetHtml() {
+    const stats = zufallMatchStats();
+    const noMatches = stats.count < 1;
     return `
       <div class="sheet-panel zufall-panel has-sheet-bg" data-role="sheet-panel">
         ${sheetLeavesBgHtml("a")}
@@ -9271,7 +9738,14 @@
           <button type="button" class="sheet-close" data-act="watch-sheet-close" aria-label="Schließen">${ICONS.close}</button>
         </div>
         <div class="zufall-sources" data-role="zufall-sources">${renderZufallSourceChips()}</div>
+        <div data-role="zufall-filter-zone">${renderZufallFilterBar()}</div>
+        <div data-role="zufall-filter-host">${renderZufallFilterSheetHtml()}</div>
         <div class="zufall-body">
+          <div class="zufall-empty card" data-role="zufall-empty"${noMatches ? "" : " hidden"}>
+            <p><strong>Kein Film passt</strong></p>
+            <p class="hint">Filter lockern oder Grundgesamtheit erweitern.</p>
+            <button type="button" class="btn btn-ghost" data-act="zufall-filter-open">Filter anpassen</button>
+          </div>
           <div class="login-carousel zufall-carousel" data-role="zufall-carousel" aria-hidden="true">
             <div class="login-carousel-inner">
               <div class="login-carousel-stage">
@@ -9294,7 +9768,7 @@
             </div>
           </div>
           <div class="zufall-idle-actions" data-role="zufall-idle-actions">
-            <button type="button" class="zufall-push" data-act="zufall-push">Push</button>
+            ${zufallPushButtonHtml()}
             <button type="button" class="zufall-skip" data-act="zufall-skip" hidden>Überspringen</button>
           </div>
           <div class="zufall-result" data-role="zufall-result" hidden>
@@ -10657,6 +11131,8 @@
     if (list.length === 1) {
       state.profile = list[0];
       migrateTagsScopeIfNeeded();
+      migrateCastOrderIfNeeded();
+      loadZufallFiltersFromStorage();
       resetSessionPicks();
       openWatchlistHome();
     } else {
@@ -11057,6 +11533,61 @@
     if (act === "zufall-more") {
       state.filterMore.zufall = !state.filterMore.zufall;
       paintZufallSources();
+      paintZufallFilterZone();
+      return true;
+    }
+    if (act === "zufall-filter-open") {
+      openZufallFilterSheet();
+      return true;
+    }
+    if (act === "zufall-filter-back") {
+      closeZufallFilterSheet();
+      return true;
+    }
+    if (act === "zufall-filter-apply") {
+      const stats = zufallMatchStats(zufallFiltersDraftBag());
+      if (!stats.count) return true;
+      applyZufallFiltersFromDraft();
+      return true;
+    }
+    if (act === "zufall-filter-reset") {
+      if (state.zufallFilterSheet) {
+        state.zufallFiltersDraft = emptyFilterBag();
+        paintZufallFilterSheet();
+      } else {
+        clearZufallFilters();
+        paintZufallFilterZone();
+      }
+      return true;
+    }
+    if (act === "zufall-filter-clear-all") {
+      clearZufallFilters();
+      paintZufallFilterZone();
+      return true;
+    }
+    if (act === "zufall-filter-chip-remove") {
+      const kind = t.dataset.kind;
+      const id = t.dataset.id;
+      const bag = state.zufallFilters;
+      if (kind === "dauer") bag.dauerOn = false;
+      if (kind === "genre") bag.genres = bag.genres.filter((x) => x !== id);
+      if (kind === "tag") bag.tags = bag.tags.filter((x) => x !== id);
+      if (kind === "type") bag.types = bag.types.filter((x) => x !== id);
+      if (kind === "actor") bag.actors = (bag.actors || []).filter((x) => x.id !== id);
+      saveZufallFiltersToStorage();
+      refreshZufallAfterFilters();
+      return true;
+    }
+    if (act === "zufall-loosen-dauer") {
+      const bag = zufallFiltersDraftBag();
+      bag.dauerOn = false;
+      paintZufallFilterSheet();
+      return true;
+    }
+    if (act === "zufall-loosen-genre") {
+      const bag = zufallFiltersDraftBag();
+      bag.genres = bag.genres.filter((g) => g !== t.dataset.id);
+      paintZufallFilterSheet();
       return true;
     }
     if (act === "zufall-swap") {
@@ -11163,6 +11694,69 @@
       });
       return true;
     }
+    if (handleZufallFilterSheetClick(event)) return true;
+    return false;
+  }
+
+  function handleZufallFilterSheetClick(event) {
+    const t = event.target.closest("[data-act]");
+    if (!t || filterCtxFrom(t) !== "zufall") return false;
+    const act = t.dataset.act;
+    const bag = zufallFiltersDraftBag();
+    if (act === "genre") {
+      const g = t.dataset.genre;
+      if (bag.genres.includes(g)) bag.genres = bag.genres.filter((x) => x !== g);
+      else bag.genres.push(g);
+      paintZufallFilterSheet();
+      return true;
+    }
+    if (act === "filter-tag") {
+      const id = t.dataset.id;
+      if (bag.tags.includes(id)) bag.tags = bag.tags.filter((x) => x !== id);
+      else bag.tags.push(id);
+      paintZufallFilterSheet();
+      return true;
+    }
+    if (act === "filter-type") {
+      const id = t.dataset.id;
+      if (bag.types.includes(id)) bag.types = bag.types.filter((x) => x !== id);
+      else bag.types.push(id);
+      paintZufallFilterSheet();
+      return true;
+    }
+    if (act === "actor-pick") {
+      const name = t.dataset.name || "";
+      const id = t.dataset.id || name;
+      const tmdb = Number(t.dataset.tmdb) || 0;
+      const hit = (state.actorHits || []).find((row) => String(row.id) === String(id) || foldSearch(row.name) === foldSearch(name));
+      if (name && !(bag.actors || []).some((actor) => foldSearch(actor.name) === foldSearch(name))) {
+        const actor = {
+          id,
+          name,
+          tmdb: tmdb || (hit && hit.tmdb) || 0,
+          count: hit ? hit.count : 0,
+        };
+        if (!bag.actors) bag.actors = [];
+        bag.actors.push(actor);
+        actor.filmPromise = loadActorFilmography(actor);
+      }
+      state.actorQuery = "";
+      state.actorHits = [];
+      state.actorStatus = "";
+      paintZufallFilterSheet();
+      return true;
+    }
+    if (act === "actor-remove") {
+      bag.actors = (bag.actors || []).filter((actor) => actor.id !== t.dataset.id);
+      paintZufallFilterSheet();
+      return true;
+    }
+    if (act === "filter-more") {
+      const key = t.dataset.key;
+      if (key) state.filterMore[key] = !state.filterMore[key];
+      paintZufallFilterSheet();
+      return true;
+    }
     return false;
   }
 
@@ -11234,6 +11828,8 @@
       state.profile = profile;
       invalidateKnownFilmsCache();
       migrateTagsScopeIfNeeded();
+      migrateCastOrderIfNeeded();
+      loadZufallFiltersFromStorage();
       resetSessionPicks();
       openWatchlistHome();
       persistSession();
@@ -11388,20 +11984,26 @@
     }
     if (act === "genre") {
       const g = t.dataset.genre;
-      if (state.filters.genres.includes(g)) {
-        state.filters.genres = state.filters.genres.filter((x) => x !== g);
-      } else {
-        state.filters.genres.push(g);
+      const ctx = filterCtxFrom(t);
+      const bag = filtersBagForCtx(ctx);
+      if (bag.genres.includes(g)) bag.genres = bag.genres.filter((x) => x !== g);
+      else bag.genres.push(g);
+      if (ctx === "zufall") {
+        paintZufallFilterSheet();
+        return;
       }
       render();
       return;
     }
     if (act === "filter-tag") {
       const id = t.dataset.id;
-      if (state.filters.tags.includes(id)) {
-        state.filters.tags = state.filters.tags.filter((x) => x !== id);
-      } else {
-        state.filters.tags.push(id);
+      const ctx = filterCtxFrom(t);
+      const bag = filtersBagForCtx(ctx);
+      if (bag.tags.includes(id)) bag.tags = bag.tags.filter((x) => x !== id);
+      else bag.tags.push(id);
+      if (ctx === "zufall") {
+        paintZufallFilterSheet();
+        return;
       }
       render();
       return;
@@ -11443,10 +12045,13 @@
     }
     if (act === "filter-type") {
       const id = t.dataset.id;
-      if (state.filters.types.includes(id)) {
-        state.filters.types = state.filters.types.filter((x) => x !== id);
-      } else {
-        state.filters.types.push(id);
+      const ctx = filterCtxFrom(t);
+      const bag = filtersBagForCtx(ctx);
+      if (bag.types.includes(id)) bag.types = bag.types.filter((x) => x !== id);
+      else bag.types.push(id);
+      if (ctx === "zufall") {
+        paintZufallFilterSheet();
+        return;
       }
       render();
       return;
@@ -11455,25 +12060,38 @@
       const name = t.dataset.name || "";
       const id = t.dataset.id || name;
       const tmdb = Number(t.dataset.tmdb) || 0;
+      const ctx = filterCtxFrom(t);
+      const bag = filtersBagForCtx(ctx);
       const hit = (state.actorHits || []).find((row) => String(row.id) === String(id) || foldSearch(row.name) === foldSearch(name));
-      if (name && !state.filters.actors.some((actor) => foldSearch(actor.name) === foldSearch(name))) {
+      if (name && !(bag.actors || []).some((actor) => foldSearch(actor.name) === foldSearch(name))) {
         const actor = {
           id,
           name,
           tmdb: tmdb || (hit && hit.tmdb) || 0,
           count: hit ? hit.count : 0,
         };
-        state.filters.actors.push(actor);
+        if (!bag.actors) bag.actors = [];
+        bag.actors.push(actor);
         actor.filmPromise = loadActorFilmography(actor);
       }
       state.actorQuery = "";
       state.actorHits = [];
       state.actorStatus = "";
+      if (ctx === "zufall") {
+        paintZufallFilterSheet();
+        return;
+      }
       render();
       return;
     }
     if (act === "actor-remove") {
-      state.filters.actors = state.filters.actors.filter((actor) => actor.id !== t.dataset.id);
+      const ctx = filterCtxFrom(t);
+      const bag = filtersBagForCtx(ctx);
+      bag.actors = (bag.actors || []).filter((actor) => actor.id !== t.dataset.id);
+      if (ctx === "zufall") {
+        paintZufallFilterSheet();
+        return;
+      }
       render();
       return;
     }
@@ -11762,6 +12380,8 @@
     }
     if (act === "video-inline-open") {
       const hid = String(t.dataset.id || "");
+      const video = findVideo(hid);
+      if (video) recordVideoWatched(video);
       state.inlineVideoPlayerId = hid;
       render();
       return;
@@ -12018,13 +12638,16 @@
       scheduleTitleSearch(t.value);
     }
     if (act === "dauer") {
-      state.filters.dauer = Number(t.value);
-      state.filters.dauerOn = true;
-      t.style.setProperty("--fill", `${dauerFill(state.filters.dauer)}%`);
+      const ctx = filterCtxFrom(t);
+      const bag = filtersBagForCtx(ctx);
+      bag.dauer = Number(t.value);
+      bag.dauerOn = true;
+      t.style.setProperty("--fill", `${dauerFill(bag.dauer)}%`);
       t.classList.remove("idle");
       const value = t.parentElement.querySelector("[data-role=dauer-value]");
-      if (value) value.textContent = dauerLabel(state.filters.dauer);
-      paintDiscoverActiveChips();
+      if (value) value.textContent = dauerLabel(bag.dauer);
+      if (ctx === "zufall") paintZufallFilterSheet();
+      else paintDiscoverActiveChips();
     }
     if (act === "actor-search") {
       state.actorQuery = t.value;
