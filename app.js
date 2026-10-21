@@ -1501,6 +1501,7 @@
     settingsBusy: false,
     settingsError: "",
     settingsReturnScreen: "lists",
+    tagsReturnScreen: null,
   };
 
   const app = document.getElementById("app");
@@ -2260,12 +2261,73 @@
       if (!map.has(k)) map.set(k, row);
       else map.set(k, newerWins(map.get(k), row));
     });
+    return [...map.values()].filter((row) => row && !row.deleted);
+  }
+
+  function mergeTombstoneRows(localArr, remoteArr) {
+    const map = new Map();
+    const tombKey = (row) => {
+      if (!row || row.id == null || !row.kind || !row.deleted) return null;
+      return `${row.kind}:${String(row.id)}`;
+    };
+    (Array.isArray(localArr) ? localArr : []).concat(Array.isArray(remoteArr) ? remoteArr : []).forEach((row) => {
+      const k = tombKey(row);
+      if (!k) return;
+      if (!map.has(k)) map.set(k, row);
+      else map.set(k, newerWins(map.get(k), row));
+    });
     const cutoff = Date.now() - SYNC_TOMBSTONE_MAX_MS;
-    return [...map.values()].filter((row) => {
-      if (!row || !row.deleted) return true;
-      return tsOf(row.updatedAt) >= cutoff;
+    return [...map.values()].filter((row) => tsOf(row.updatedAt) >= cutoff);
+  }
+
+  function tombstoneLookup(rows) {
+    const map = new Map();
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      if (!row || !row.deleted || row.id == null || !row.kind) return;
+      const k = `${row.kind}:${String(row.id)}`;
+      const prev = map.get(k);
+      if (!prev || tsOf(row.updatedAt) > tsOf(prev.updatedAt)) map.set(k, row);
+    });
+    return map;
+  }
+
+  function rowListTs(row) {
+    return tsOf(row && row.updatedAt) || tsOf(row && row.at) || 0;
+  }
+
+  function applyListTombstones(list, kind, lookup) {
+    return (Array.isArray(list) ? list : []).filter((row) => {
+      if (!row || row.deleted) return false;
+      const id = row.id != null ? String(row.id) : "";
+      if (!id) return true;
+      const tomb = lookup.get(`${kind}:${id}`);
+      if (!tomb) return true;
+      return rowListTs(row) > tsOf(tomb.updatedAt);
     });
   }
+
+  function applyRatingsTombstones(ratingsMap, lookup) {
+    const out = Object.assign({}, ratingsMap || {});
+    lookup.forEach((tomb, key) => {
+      if (!key.startsWith("ratings:")) return;
+      const id = key.slice(8);
+      const row = out[id];
+      if (!row) return;
+      const rowTs = row && typeof row === "object" && row.updatedAt ? tsOf(row.updatedAt) : 0;
+      if (rowTs <= tsOf(tomb.updatedAt)) delete out[id];
+    });
+    return out;
+  }
+
+  const SYNC_LIST_TOMBSTONE_KIND = {
+    watchlist: "watchlist",
+    queue: "queue",
+    history: "history",
+    tags: "tags",
+    videoWatchlist: "videoWatchlist",
+    videoQueue: "videoQueue",
+    videoHistory: "videoHistory",
+  };
 
   function mergeRatings(localMap, remoteMap) {
     const out = {};
@@ -2374,8 +2436,14 @@
     listKeys.forEach((k) => {
       out[k] = mergeArrayById(a[k], b[k], k === "tags" ? "tags" : "list");
     });
+    out._tombstones = mergeTombstoneRows(a._tombstones, b._tombstones);
+    const tombLookup = tombstoneLookup(out._tombstones);
+    listKeys.forEach((k) => {
+      const kind = SYNC_LIST_TOMBSTONE_KIND[k] || k;
+      out[k] = applyListTombstones(out[k], kind, tombLookup);
+    });
     out.known = mergeKnownMaps(a.known, b.known);
-    out.ratings = mergeRatings(a.ratings, b.ratings);
+    out.ratings = applyRatingsTombstones(mergeRatings(a.ratings, b.ratings), tombLookup);
     // filmTags is a map id->tagIds[]; merge keys LWW per film id
     if ((a.filmTags && typeof a.filmTags === "object") || (b.filmTags && typeof b.filmTags === "object")) {
       const fa = a.filmTags || {};
@@ -2414,18 +2482,17 @@
       merged.castOrderFixed = Math.max(Number(ma.castOrderFixed) || 0, Number(mb.castOrderFixed) || 0);
       return merged;
     })();
-    out.tagCovers = (() => {
-      const ta = a.tagCovers || {};
-      const tb = b.tagCovers || {};
-      return Object.assign({}, ta, tb);
-    })();
+    out.tagCovers = mergeArrayById(
+      Array.isArray(a.tagCovers) ? a.tagCovers : [],
+      Array.isArray(b.tagCovers) ? b.tagCovers : [],
+      "tags",
+    );
     const zufallMerged = mergeObjectsLww(a.zufallFilters, b.zufallFilters);
     if (zufallMerged != null) out.zufallFilters = zufallMerged;
     const favoriteMerged = mergeObjectsLww(a.favorite, b.favorite);
     if (favoriteMerged != null) out.favorite = favoriteMerged;
     const hintMerged = mergeObjectsLww(a.watchSwipeHint, b.watchSwipeHint);
     if (hintMerged != null) out.watchSwipeHint = hintMerged;
-    out._tombstones = mergeArrayById(a._tombstones, b._tombstones, "list");
     return out;
   }
 
@@ -2594,6 +2661,11 @@
     const next = list.filter((r) => !(r && String(r.id) === String(id) && r.kind === kind));
     next.push(row);
     saveJson(key, next);
+  }
+
+  function markProfileTombstone(kind, id) {
+    if (!state.user || !state.profile || id == null) return;
+    markTombstone(state.user.id, state.profile.id, kind, id);
   }
 
   function scheduleDebouncedSync() {
@@ -3011,6 +3083,7 @@
     let next;
     if (!restViews.length) {
       next = before.filter((r) => String(r.id) !== hid);
+      markProfileTombstone("history", hid);
     } else {
       const updated = Object.assign({}, row, { at: viewAtOf(restViews[0]), views: restViews });
       next = before.slice();
@@ -3067,8 +3140,10 @@
     if (!detailed.length) return false;
     const f = newF != null && Number.isFinite(Number(newF)) ? Math.min(1, Math.max(0.01, Number(newF))) : detailed[0].f;
     detailed[0] = { at: newAt, f };
+    detailed.sort((a, b) => b.at - a.at);
     const views = compactViewsList(detailed);
-    const updated = Object.assign({}, row, { at: newAt, views });
+    const latestAt = detailed[0] ? detailed[0].at : newAt;
+    const updated = Object.assign({}, row, { at: latestAt, views });
     const next = rows.slice();
     next[idx] = updated;
     save(next);
@@ -3150,6 +3225,7 @@
     const hid = String(id);
     const next = videoQueue().filter((v) => String(v.id) !== hid);
     if (next.length === videoQueue().length) return false;
+    markProfileTombstone("videoQueue", hid);
     saveVideoQueue(next);
     return true;
   }
@@ -3159,7 +3235,10 @@
     const before = videoWatchlist();
     const next = before.filter((v) => String(v.id) !== hid);
     const removed = next.length !== before.length;
-    if (removed) saveVideoWatchlist(next);
+    if (removed) {
+      markProfileTombstone("videoWatchlist", hid);
+      saveVideoWatchlist(next);
+    }
     removeVideoQueueId(hid);
     return removed;
   }
@@ -3169,7 +3248,10 @@
     const before = videoHistory();
     const next = before.filter((v) => String(v.id) !== hid);
     const removed = next.length !== before.length;
-    if (removed) saveVideoHistory(next);
+    if (removed) {
+      markProfileTombstone("videoHistory", hid);
+      saveVideoHistory(next);
+    }
     return removed;
   }
 
@@ -3212,6 +3294,7 @@
     let next;
     if (!restViews.length) {
       next = before.filter((v) => String(v.id) !== hid);
+      markProfileTombstone("videoHistory", hid);
     } else {
       const updated = Object.assign({}, row, { at: viewAtOf(restViews[0]), views: restViews });
       next = before.slice();
@@ -3615,13 +3698,14 @@
       const id = filmId(film);
       castFetchTried.add(id);
       try {
-        const data = await tmdbFetch(`/movie/${film.tmdb}/credits`);
-        const names = (data.cast || [])
-          .slice()
-          .sort(sortCastByOrder)
-          .map((row) => String(row.name || row.original_name || "").trim())
-          .filter(Boolean)
-          .slice(0, 3);
+        let names = [];
+        if (remoteSearchAvailable()) {
+          const data = await proxyFetch(`/movie/${film.tmdb}`, { append_to_response: "credits" });
+          names = creditsCastNames(data).slice(0, 3);
+        } else if (tmdbKey()) {
+          const data = await tmdbFetch(`/movie/${film.tmdb}/credits`);
+          names = creditsCastNames({ credits: data && data.cast ? data : { cast: [] } }).slice(0, 3);
+        }
         if (names.length) {
           rememberFilm({ ...film, cast: names, castOrderFixed: 1 });
           changed = true;
@@ -4469,9 +4553,28 @@
     return filmMatchesType(film) && filmMatchesActors(film) && filmMatchesSimilar(film);
   }
 
+  function profileConsumedFilmIds() {
+    const ids = new Set();
+    history().forEach((row) => {
+      if (row && row.id != null) ids.add(String(row.id));
+    });
+    const map = ratings();
+    Object.keys(map).forEach((id) => {
+      const row = map[id];
+      if (row == null) return;
+      if (typeof row === "object" && row.deleted) return;
+      const val = typeof row === "object" && "value" in row ? row.value : row;
+      if (val != null && val !== "" && Number(val) !== 0) ids.add(String(id));
+    });
+    return ids;
+  }
+
   function buildPool(excludeIds) {
     const exclude = new Set((excludeIds || []).map(filmId));
-    const usable = (film) => !exclude.has(filmId(film)) && passesHardFilters(film);
+    const consumed = profileConsumedFilmIds();
+    const usable = (film) => !exclude.has(filmId(film))
+      && !consumed.has(filmId(film))
+      && passesHardFilters(film);
     let pool = state.catalog.filter((film) => (
       usable(film)
       && !state.sessionBlocked.has(filmId(film))
@@ -4526,9 +4629,11 @@
 
   function suggestionCandidates(excludeIds) {
     const exclude = new Set((excludeIds || []).map(filmId));
+    const consumed = profileConsumedFilmIds();
     return state.catalog.filter((film) => {
       const id = filmId(film);
       return !exclude.has(id)
+        && !consumed.has(id)
         && passesHardFilters(film)
         && !state.sessionBlocked.has(id)
         && !state.sessionSkip.has(id);
@@ -10011,7 +10116,7 @@
     const expanded = !!state.seenViewsExpanded[hid];
     const latest = viewsDetailed[0];
     const latestF = latest ? latest.f : 1;
-    const seenDate = formatSeenOn(row.at);
+    const seenDate = formatSeenOn(latest ? latest.at : row.at);
     const scopeAttr = scope === "video" ? "video" : "film";
     const piePill = latestF < 0.9999 ? viewPieIconHtml(latestF) : "";
     const datePill = `<button type="button" class="seen-date-pill" data-act="seen-date-open" data-scope="${scopeAttr}" data-id="${id}">Gesehen: ${escapeHtml(seenDate)}${piePill ? ` ${piePill}` : ""} <span class="seen-date-edit" aria-hidden="true">✎</span></button>`;
@@ -11129,8 +11234,20 @@
     else if (state.screen === "settings") {
       state.screen = state.settingsReturnScreen || "lists";
       state.settingsError = "";
-    } else if (state.screen === "lists" || state.screen === "tags" || state.screen === "done") {
-      if (state.screen === "tags") state.tagEditId = null;
+    } else if (state.screen === "tags") {
+      state.tagEditId = null;
+      const ret = state.tagsReturnScreen;
+      state.tagsReturnScreen = null;
+      if (ret && ret.screen === "lists") {
+        state.screen = "lists";
+        if (ret.listTab) state.listTab = ret.listTab;
+        if (ret.listsMode) state.listsMode = ret.listsMode;
+      } else {
+        state.screen = "lists";
+        state.listTab = "tags";
+      }
+      state.expandedFilmId = null;
+    } else if (state.screen === "lists" || state.screen === "done") {
       state.screen = "discover";
       state.discoverView = "hub";
       state.expandedFilmId = null;
@@ -11358,7 +11475,7 @@
     scheduleLiveDetails(film);
     const list = watchlist();
     if (list.some((row) => String(row.id) === filmId(film))) return false;
-    list.unshift({ id: filmId(film), at: Date.now() });
+    list.unshift({ id: filmId(film), at: Date.now(), updatedAt: nowIso() });
     saveWatchlist(list);
     return true;
   }
@@ -11389,6 +11506,7 @@
     const hid = String(id);
     const next = queue().filter((row) => String(row.id) !== hid);
     if (next.length === queue().length) return false;
+    markProfileTombstone("queue", hid);
     saveQueue(next);
     return true;
   }
@@ -11399,7 +11517,7 @@
     const next = before.filter((row) => String(row.id) !== hid);
     const removed = next.length !== before.length;
     if (removed) {
-      if (state.user && state.profile) markTombstone(state.user.id, state.profile.id, "watchlist", id);
+      markProfileTombstone("watchlist", hid);
       saveWatchlist(next);
     }
     removeQueueId(hid);
@@ -12159,6 +12277,11 @@
     if (act === "tags") {
       state.tagEditId = null;
       state.tagManageScope = state.listsMode === "videos" ? "video" : "film";
+      state.tagsReturnScreen = {
+        screen: state.screen,
+        listTab: state.listTab,
+        listsMode: state.listsMode,
+      };
       state.screen = "tags";
       render();
       return;
@@ -12823,6 +12946,7 @@
     }
     if (t.dataset.act === "delete-tag") {
       const id = t.dataset.id;
+      markProfileTombstone("tags", id);
       saveTags(customTags().filter((x) => x.id !== id));
       const map = filmTags();
       for (const key of Object.keys(map)) {
@@ -13032,7 +13156,7 @@
     dismissWatchSwipeHint();
     const row = event.target.closest("[data-swipe-row]");
     if (!row || !row.dataset.swipeMode) return;
-    if (event.target.closest("[data-act=film-menu], .film-menu-pop, [data-act=watch-toggle], .film-row-expand, [data-act=rate], [data-act=film-tag], [data-act=choose], .suggest-inline-watch, [data-act=video-confirm], [data-act=video-expand], [data-act=video-inline-open], [data-act=video-inline-close], [data-act=video-edit-open], .v-anschauen, .video-expand-actions, .video-inline-wrap, .seen-rate-bubble, [data-act=video-seen-rate-open], [data-act=video-seen-undo]")) return;
+    if (event.target.closest("[data-act=film-menu], .film-menu-pop, [data-act=watch-toggle], [data-act=film-expand], .film-row-expand, [data-act=rate], [data-act=film-tag], [data-act=choose], .suggest-inline-watch, [data-act=video-confirm], [data-act=video-expand], [data-act=video-inline-open], [data-act=video-inline-close], [data-act=video-edit-open], .v-anschauen, .video-expand-actions, .video-inline-wrap, .seen-rate-bubble, [data-act=video-seen-rate-open], [data-act=video-seen-undo]")) return;
     if (event.target.closest(".film-row.is-open")) return;
     if (swipeDrag) return;
     swipeDrag = {
@@ -13043,9 +13167,6 @@
       dx: 0,
       moved: false,
     };
-    if (row.setPointerCapture) {
-      try { row.setPointerCapture(event.pointerId); } catch { /* ignore */ }
-    }
   }
 
   function moveRowSwipe(event) {
@@ -13060,6 +13181,9 @@
       }
       swipeDrag.moved = true;
       closeFilmMenus();
+      if (swipeDrag.row.setPointerCapture) {
+        try { swipeDrag.row.setPointerCapture(event.pointerId); } catch { /* ignore */ }
+      }
     }
     swipeDrag.dx = dx;
     const mode = swipeDrag.row.dataset.swipeMode;

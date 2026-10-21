@@ -3,6 +3,7 @@
  */
 
 export const KNOWN_SYNC_META_KEYS = new Set(["updatedAt", "deleted", "id", "at"]);
+export const SYNC_TOMBSTONE_MAX_MS = 90 * 24 * 3600 * 1000;
 
 export function normalizeKnownMap(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -111,6 +112,58 @@ export function mergeArrayById(localArr, remoteArr, kind) {
   return [...map.values()].filter((row) => row && !row.deleted);
 }
 
+export function mergeTombstoneRows(localArr, remoteArr) {
+  const map = new Map();
+  const tombKey = (row) => {
+    if (!row || row.id == null || !row.kind || !row.deleted) return null;
+    return `${row.kind}:${String(row.id)}`;
+  };
+  (Array.isArray(localArr) ? localArr : []).concat(Array.isArray(remoteArr) ? remoteArr : []).forEach((row) => {
+    const k = tombKey(row);
+    if (!k) return;
+    if (!map.has(k)) map.set(k, row);
+    else map.set(k, newerWins(map.get(k), row));
+  });
+  const cutoff = Date.now() - SYNC_TOMBSTONE_MAX_MS;
+  return [...map.values()].filter((row) => tsOf(row.updatedAt) >= cutoff);
+}
+
+export function tombstoneLookup(rows) {
+  const map = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    if (!row || !row.deleted || row.id == null || !row.kind) return;
+    const k = `${row.kind}:${String(row.id)}`;
+    const prev = map.get(k);
+    if (!prev || tsOf(row.updatedAt) > tsOf(prev.updatedAt)) map.set(k, row);
+  });
+  return map;
+}
+
+function rowListTs(row) {
+  return tsOf(row && row.updatedAt) || tsOf(row && row.at) || 0;
+}
+
+export function applyListTombstones(list, kind, lookup) {
+  return (Array.isArray(list) ? list : []).filter((row) => {
+    if (!row || row.deleted) return false;
+    const id = row.id != null ? String(row.id) : "";
+    if (!id) return true;
+    const tomb = lookup.get(`${kind}:${id}`);
+    if (!tomb) return true;
+    return rowListTs(row) > tsOf(tomb.updatedAt);
+  });
+}
+
+const SYNC_LIST_TOMBSTONE_KIND = {
+  watchlist: "watchlist",
+  queue: "queue",
+  history: "history",
+  tags: "tags",
+  videoWatchlist: "videoWatchlist",
+  videoQueue: "videoQueue",
+  videoHistory: "videoHistory",
+};
+
 export function mergeProfileBags(localBag, remoteBag) {
   const a = localBag || {};
   const b = remoteBag || {};
@@ -119,8 +172,19 @@ export function mergeProfileBags(localBag, remoteBag) {
   listKeys.forEach((k) => {
     out[k] = mergeArrayById(a[k], b[k], k === "tags" ? "tags" : "list");
   });
+  out._tombstones = mergeTombstoneRows(a._tombstones, b._tombstones);
+  const tombLookup = tombstoneLookup(out._tombstones);
+  listKeys.forEach((k) => {
+    const kind = SYNC_LIST_TOMBSTONE_KIND[k] || k;
+    out[k] = applyListTombstones(out[k], kind, tombLookup);
+  });
   out.known = mergeKnownMaps(a.known, b.known);
   out.ratings = a.ratings || b.ratings || {};
+  out.tagCovers = mergeArrayById(
+    Array.isArray(a.tagCovers) ? a.tagCovers : [],
+    Array.isArray(b.tagCovers) ? b.tagCovers : [],
+    "tags",
+  );
   return out;
 }
 
