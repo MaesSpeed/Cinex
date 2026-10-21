@@ -170,6 +170,30 @@ test("undo restore: row newer than remote tombstone survives merge", () => {
   assert.equal(merged.videoWatchlist.some((r) => String(r.id) === "v-seed-3"), true);
 });
 
+function sanitizeActorFilter(actor) {
+  if (!actor || typeof actor !== "object") return null;
+  const name = String(actor.name || "").trim();
+  const id = actor.id != null ? String(actor.id) : (name || "");
+  if (!id && !name) return null;
+  const out = { id: id || name, name: name || id, tmdb: Number(actor.tmdb) || 0, count: Number(actor.count) || 0 };
+  const displayCount = Number(actor.displayCount);
+  if (Number.isFinite(displayCount) && displayCount > 0) out.displayCount = displayCount;
+  return out;
+}
+
+function actorLiveIdSetMatches(actor, filmId) {
+  if (actor && actor.liveIdSet instanceof Set && actor.liveIdSet.has(filmId)) return true;
+  return false;
+}
+
+test("broken persisted liveIdSet object does not throw actor id match", () => {
+  const actor = { id: "p31", name: "Tom Hanks", liveIdSet: {}, filmPromise: {} };
+  assert.equal(actorLiveIdSetMatches(actor, "t99"), false);
+  const clean = sanitizeActorFilter(actor);
+  assert.equal(clean.liveIdSet, undefined);
+  assert.equal(clean.name, "Tom Hanks");
+});
+
 test("tagCovers merge keeps array shape", () => {
   const local = {
     tagCovers: [{ id: "cov-a", poster: "https://example.test/a.jpg", updatedAt: "2026-10-10T00:00:00.000Z" }],
