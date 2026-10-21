@@ -2488,7 +2488,7 @@
       "tags",
     );
     const zufallMerged = mergeObjectsLww(a.zufallFilters, b.zufallFilters);
-    if (zufallMerged != null) out.zufallFilters = zufallMerged;
+    if (zufallMerged != null) out.zufallFilters = cloneFilterBag(zufallMerged);
     const favoriteMerged = mergeObjectsLww(a.favorite, b.favorite);
     if (favoriteMerged != null) out.favorite = favoriteMerged;
     const hintMerged = mergeObjectsLww(a.watchSwipeHint, b.watchSwipeHint);
@@ -4462,7 +4462,7 @@
     const id = filmId(film);
     const names = filmCastNames(film).map((name) => foldSearch(name));
     return wanted.some((actor) => {
-      if (actor && actor.liveIdSet && actor.liveIdSet.has(id)) return true;
+      if (actor && actor.liveIdSet instanceof Set && actor.liveIdSet.has(id)) return true;
       const q = foldSearch(actor && actor.name);
       if (!q || !names.length) return false;
       return names.some((name) => name === q || name.includes(q));
@@ -5142,6 +5142,22 @@
     };
   }
 
+  function sanitizeActorFilter(actor) {
+    if (!actor || typeof actor !== "object") return null;
+    const name = String(actor.name || "").trim();
+    const id = actor.id != null ? String(actor.id) : (name || "");
+    if (!id && !name) return null;
+    const out = {
+      id: id || name,
+      name: name || id,
+      tmdb: Number(actor.tmdb) || 0,
+      count: Number(actor.count) || 0,
+    };
+    const displayCount = Number(actor.displayCount);
+    if (Number.isFinite(displayCount) && displayCount > 0) out.displayCount = displayCount;
+    return out;
+  }
+
   function cloneFilterBag(src) {
     const bag = src || emptyFilterBag();
     return {
@@ -5151,8 +5167,17 @@
       tags: (bag.tags || []).slice(),
       streaming: (bag.streaming || []).slice(),
       types: (bag.types || []).slice(),
-      actors: (bag.actors || []).map((actor) => Object.assign({}, actor)),
-      similar: (bag.similar || []).map((film) => Object.assign({}, film)),
+      actors: (bag.actors || []).map(sanitizeActorFilter).filter(Boolean),
+      similar: (bag.similar || []).map((film) => {
+        if (!film || typeof film !== "object") return null;
+        const fid = film.id != null ? String(film.id) : "";
+        if (!fid) return null;
+        return {
+          id: fid,
+          title: String(film.title || ""),
+          tmdb: Number(film.tmdb) || 0,
+        };
+      }).filter(Boolean),
     };
   }
 
@@ -8195,9 +8220,23 @@
     unbindWatchMoreSentinel();
     if (!state.watchSheet) {
       teardownZufallCarousel();
-      document.body.classList.remove("watch-sheet-open");
+      document.body.classList.remove("watch-sheet-open", "zufall-sheet-open");
       watchSheetEl.hidden = true;
       watchSheetEl.innerHTML = "";
+      return;
+    }
+    let html;
+    try {
+      html = renderWatchSheetHtml();
+    } catch (err) {
+      console.warn("watch sheet render", err);
+      state.watchSheet = null;
+      state.zufallFilterSheet = false;
+      teardownZufallCarousel();
+      document.body.classList.remove("watch-sheet-open", "zufall-sheet-open");
+      watchSheetEl.hidden = true;
+      watchSheetEl.innerHTML = "";
+      showSnack("Ansicht konnte nicht geöffnet werden", "warn");
       return;
     }
     document.body.classList.add("watch-sheet-open");
@@ -8205,8 +8244,8 @@
     syncWatchSheetTop();
     const animateIn = watchSheetEl.hidden;
     teardownZufallCarousel();
+    watchSheetEl.innerHTML = html;
     watchSheetEl.hidden = false;
-    watchSheetEl.innerHTML = renderWatchSheetHtml();
     const panel = watchSheetEl.querySelector("[data-role=sheet-panel]");
     if (animateIn && panel && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       panel.classList.add("is-enter");
@@ -8600,7 +8639,7 @@
   }
 
   function hybridActorCount(actor) {
-    const ids = new Set(actor && actor.liveIdSet ? actor.liveIdSet : []);
+    const ids = new Set(actor && actor.liveIdSet instanceof Set ? actor.liveIdSet : []);
     if (actor && actor.name) {
       for (const film of allKnownFilms()) {
         if (nameMatchesActor(film, actor.name)) ids.add(filmId(film));
