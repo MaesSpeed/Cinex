@@ -5710,6 +5710,58 @@ body.on-login #app {
   font-size: 0.78rem;
 }
 
+.zufall-filter-sheet .linkish {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid rgba(0, 102, 179, 0.45);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--blue);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.zufall-filter-sheet .linkish:hover {
+  background: #f7fbff;
+}
+
+.zufall-filter-sheet .linkish:active {
+  background: #eef6fc;
+}
+
+.zufall-filter-zero .linkish {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  min-height: auto;
+  padding: 8px 0;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.zufall-filter-sheet-foot .btn-primary {
+  width: auto;
+  flex: 0 0 auto;
+  min-width: 9.5rem;
+}
+
+.zufall-filter-sheet-foot .btn-primary:disabled,
+.btn-primary:disabled {
+  background: #b8c5d0;
+  border-color: #a3b1bd;
+  color: #fff;
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+  box-shadow: none;
+}
+
 .zufall-skip {
   margin-top: 12px;
   padding: 8px 12px;
