@@ -13,7 +13,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=20261023a">
+  <link rel="stylesheet" href="styles.css?v=20261023b">
 </head>
 <body>
   <header class="site-header">
@@ -45,11 +45,20 @@
       </span>
       <span>Vorschläge</span>
     </button>
+    <button type="button" data-nav="historie" aria-label="Historie">
+      <span class="nav-historie-icon" data-role="footer-historie-icon" aria-hidden="true"></span>
+      <span>Historie</span>
+    </button>
   </nav>
+  <button type="button" id="scroll-top-btn" class="scroll-top-btn" hidden aria-label="Nach oben">
+    <span class="scroll-top-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 6v12M6 12l6-6 6 6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <span class="scroll-top-label">Nach oben</span>
+  </button>
   <div id="snackbar" class="snackbar" role="status" aria-live="polite" aria-atomic="true" hidden></div>
   <div id="modal" class="modal" hidden></div>
   <canvas id="confetti" aria-hidden="true"></canvas>
   <script src="config.js"></script>
-  <script src="app.js?v=20261023a"></script>
+  <script src="historie.js?v=20261023b"></script>
+  <script src="app.js?v=20261023b"></script>
 </body>
 </html>

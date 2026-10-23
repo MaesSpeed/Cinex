@@ -1502,11 +1502,14 @@
     settingsError: "",
     settingsReturnScreen: "lists",
     tagsReturnScreen: null,
+    historieInterval: "woche",
+    historieAnchor: Date.now(),
   };
 
   const app = document.getElementById("app");
   const headerActions = document.getElementById("header-actions");
   const footer = document.getElementById("site-footer");
+  const scrollTopBtn = document.getElementById("scroll-top-btn");
   const snackbar = document.getElementById("snackbar");
   const watchSheetEl = document.getElementById("watch-sheet");
   const modalEl = document.getElementById("modal");
@@ -5558,7 +5561,7 @@
     if (state.screen === "tag-edit") {
       items.push(`<button type="button" class="tag-save-head" data-act="tag-edit-save">Speichern</button>`);
     }
-    if ((state.screen === "discover" || state.screen === "lists" || state.screen === "settings") && state.profile) {
+    if ((state.screen === "discover" || state.screen === "lists" || state.screen === "historie" || state.screen === "settings") && state.profile) {
       const badge = cloudStatusHtml();
       if (badge) items.push(`<span data-role="cloud-status" class="cloud-status-slot">${badge}</span>`);
       if (state.screen !== "settings") items.push(accountMenuHtml());
@@ -5633,16 +5636,49 @@
     return headerH + contentH > window.innerHeight + 8;
   }
 
+  let scrollTopBoundList = null;
+
+  function scrollTopThreshold(list) {
+    if (!list) return window.innerHeight;
+    return Math.max(list.clientHeight, window.innerHeight * 0.85);
+  }
+
+  function updateScrollTopButton(scroller) {
+    if (!scrollTopBtn) return;
+    const onLists = state.screen === "lists" && scroller && scroller.matches("[data-role=film-list]");
+    if (!onLists) {
+      scrollTopBtn.hidden = true;
+      scrollTopBtn.classList.remove("is-visible");
+      return;
+    }
+    const y = scroller.scrollTop;
+    const show = y >= scrollTopThreshold(scroller);
+    scrollTopBtn.hidden = false;
+    scrollTopBtn.classList.toggle("is-visible", show);
+  }
+
+  function scrollListToTop(scroller) {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (scroller && scroller.scrollTo) {
+      scroller.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+    } else {
+      window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+    }
+  }
+
   function bindFilmListScroll() {
     const list = app.querySelector("[data-role=film-list]");
-    if (!list) return;
+    if (!list || list === scrollTopBoundList) return;
+    scrollTopBoundList = list;
     let last = list.scrollTop;
     list.addEventListener("scroll", () => {
       dismissWatchSwipeHint();
       const y = list.scrollTop;
       onScrollDir(y - last, list);
+      updateScrollTopButton(list);
       last = y;
     }, { passive: true });
+    updateScrollTopButton(list);
   }
 
   function syncPhoneFooter(opts) {
@@ -5658,6 +5694,11 @@
     }
     if (state.screen === "lists") {
       phoneFooterLocked = !contentOverflows();
+      setPhoneFooterOpen(true);
+      return;
+    }
+    if (state.screen === "historie") {
+      phoneFooterLocked = false;
       setPhoneFooterOpen(true);
       return;
     }
@@ -5687,6 +5728,7 @@
       state.watchSheet === "zufall" ? "zufall"
       : state.screen === "discover" ? "entdecken"
       : state.screen === "lists" ? "lists"
+      : state.screen === "historie" ? "historie"
       : ""
     );
     footer.querySelectorAll("[data-nav]").forEach((btn) => {
@@ -5701,6 +5743,7 @@
     }
     paintFooterZufallIcon();
     paintFooterListenIcon();
+    paintFooterHistorieIcon();
     if (isDesktopNav()) setPhoneFooterOpen(true);
   }
 
@@ -9583,6 +9626,31 @@
     icon.innerHTML = `<span class="nav-listen-card" aria-hidden="true">${listenIconRowsHtml()}</span>`;
   }
 
+  const HISTORIE_FOOTER_ICON = "icons/historie-icon-A.svg?v=20261023b";
+
+  function paintFooterHistorieIcon() {
+    const icon = footer && footer.querySelector("[data-role=footer-historie-icon]");
+    if (!icon) return;
+    icon.innerHTML = `<img src="${HISTORIE_FOOTER_ICON}" alt="" width="22" height="22" decoding="async">`;
+  }
+
+  function renderHistorie() {
+    if (!window.CinexHistorie) return `<p class="hint">Historie wird geladen …</p>`;
+    return CinexHistorie.renderScreen(state);
+  }
+
+  function initHistorieModule() {
+    if (!window.CinexHistorie) return;
+    CinexHistorie.init({
+      history,
+      videoHistory,
+      findFilm,
+      parseViewsList,
+      escapeHtml,
+      posterUrl,
+    });
+  }
+
   function watchSwipeHintSeen() {
     if (!state.user || !state.profile) return true;
     return !!loadJson(pkey("watchSwipeHint"), false);
@@ -11213,6 +11281,12 @@
     document.body.classList.toggle("on-home", state.screen === "discover" && state.discoverView !== "results");
     document.body.classList.toggle("on-discover", state.screen === "discover");
     document.body.classList.toggle("on-lists", state.screen === "lists");
+    document.body.classList.toggle("on-historie", state.screen === "historie");
+    if (state.screen !== "lists" && scrollTopBtn) {
+      scrollTopBtn.hidden = true;
+      scrollTopBtn.classList.remove("is-visible");
+      scrollTopBoundList = null;
+    }
     if (!onLogin) {
       document.body.classList.remove("login-focus");
       teardownLoginCarousel();
@@ -11246,6 +11320,11 @@
         observeListPostersSoon(app);
         enrichListCast(state.currentPicks);
       }
+    }
+    else if (state.screen === "historie") {
+      closeWatchSheet();
+      app.innerHTML = renderHistorie();
+      window.scrollTo(0, 0);
     }
     else if (state.screen === "lists") {
       const pinJust = state.pinJustWatched;
@@ -11982,6 +12061,13 @@
     }
     const act = t.dataset.act;
     if (act !== "film-menu" && !t.closest(".film-menu-pop")) closeFilmMenus();
+
+    if (act === "hist-interval" || act === "hist-prev" || act === "hist-next") {
+      if (window.CinexHistorie && CinexHistorie.handleAction(act, t, state)) {
+        render();
+      }
+      return;
+    }
 
     if (act === "toggle-pass") {
       const input = app.querySelector("[data-act=login-pass]");
@@ -13104,7 +13190,22 @@
       render();
       return;
     }
+    if (nav === "historie") {
+      closeWatchSheet();
+      state.screen = "historie";
+      state.expandedFilmId = null;
+      render();
+      return;
+    }
   });
+
+  if (scrollTopBtn) {
+    scrollTopBtn.addEventListener("click", () => {
+      const list = app.querySelector("[data-role=film-list]");
+      scrollListToTop(list || document.documentElement);
+      updateScrollTopButton(list);
+    });
+  }
 
   let lastTouchY = null;
   let swipeDrag = null;
@@ -13609,6 +13710,7 @@
   });
 
     seedIfNeeded();
+  initHistorieModule();
   state.cloudSyncOn = cloudSyncAvailable() && loadCloudPref();
   restoreSession();
   bindCloudLifecycle();
