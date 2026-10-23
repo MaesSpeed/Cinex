@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 const TAG_SCOPE_MIGRATION_VERSION = 1;
 
@@ -22,7 +23,6 @@ function migrateTagsScopeData(tags, filmTags) {
     else ids.forEach((tid) => usedOnFilm.add(String(tid)));
   });
 
-  const removedTagIds = new Set();
   const nextTags = [];
   (Array.isArray(tags) ? tags : []).forEach((tag) => {
     if (!tag || typeof tag !== "object" || tag.id == null) return;
@@ -30,19 +30,15 @@ function migrateTagsScopeData(tags, filmTags) {
     const onFilm = usedOnFilm.has(id);
     const onVideo = usedOnVideo.has(id);
     const scope = tagScopeOf(tag);
-    if (scope === "video" || (onVideo && !onFilm)) {
-      removedTagIds.add(id);
-      return;
-    }
-    nextTags.push(Object.assign({}, tag, { scope: "film" }));
+    let nextScope = "film";
+    if (onFilm) nextScope = "film";
+    else if (onVideo || scope === "video") nextScope = "video";
+    nextTags.push(Object.assign({}, tag, { scope: nextScope }));
   });
 
   const nextMap = {};
   Object.entries(map).forEach(([entityId, tagIds]) => {
-    if (isVideoEntityId(entityId)) return;
-    const cleaned = (Array.isArray(tagIds) ? tagIds : [])
-      .map(String)
-      .filter((tid) => !removedTagIds.has(tid));
+    const cleaned = (Array.isArray(tagIds) ? tagIds : []).map(String);
     if (cleaned.length) nextMap[entityId] = cleaned;
   });
 
@@ -69,17 +65,10 @@ function mergeFilmTagsWithScopeGuard(localBag, remoteBag) {
       merged[id] = vb !== undefined ? vb : va;
     }
   });
-  const migA = Number((a.profileMeta || {}).tagsScopeMigrated) || 0;
-  const migB = Number((b.profileMeta || {}).tagsScopeMigrated) || 0;
-  if (Math.max(migA, migB) >= TAG_SCOPE_MIGRATION_VERSION) {
-    Object.keys(merged).forEach((id) => {
-      if (isVideoEntityId(id)) delete merged[id];
-    });
-  }
   return merged;
 }
 
-test("migration keeps film tags and strips video-only tags", () => {
+test("migration sets scopes and keeps video tag assignments", () => {
   const tags = [
     { id: "tag-omma", name: "Omma" },
     { id: "tag-tut", name: "Tutorial" },
@@ -89,22 +78,42 @@ test("migration keeps film tags and strips video-only tags", () => {
     "v-1": ["tag-tut"],
   };
   const out = migrateTagsScopeData(tags, filmTags);
-  assert.equal(out.tags.length, 1);
-  assert.equal(out.tags[0].id, "tag-omma");
-  assert.equal(out.tags[0].scope, "film");
-  assert.deepEqual(out.filmTags, { t862: ["tag-omma"] });
+  assert.equal(out.tags.length, 2);
+  const byId = Object.fromEntries(out.tags.map((t) => [t.id, t]));
+  assert.equal(byId["tag-omma"].scope, "film");
+  assert.equal(byId["tag-tut"].scope, "video");
+  assert.deepEqual(out.filmTags, filmTags);
   assert.equal(out.profileMeta.tagsScopeMigrated, TAG_SCOPE_MIGRATION_VERSION);
 });
 
-test("merge does not resurrect video tag assignments after migration", () => {
+test("merge keeps video entity keys after scope migration", () => {
   const local = {
     profileMeta: { tagsScopeMigrated: 1 },
-    filmTags: { t1: ["tag-a"] },
+    filmTags: { t1: ["tag-a"], "v-local": ["tag-v"] },
   };
   const remote = {
     profileMeta: { tagsScopeMigrated: 0 },
     filmTags: { "v-remote": ["tag-old"], t1: ["tag-a"] },
   };
   const merged = mergeFilmTagsWithScopeGuard(local, remote);
-  assert.deepEqual(merged, { t1: ["tag-a"] });
+  assert.deepEqual(merged, {
+    t1: ["tag-a"],
+    "v-local": ["tag-v"],
+    "v-remote": ["tag-old"],
+  });
+});
+
+test("tag saves schedule debounced cloud sync", () => {
+  const src = readFileSync(new URL("../app.js", import.meta.url), "utf8");
+  const fnBodies = [
+    "function saveTags(list)",
+    "function saveFilmTags(map)",
+    "function saveTagCovers(list)",
+  ];
+  fnBodies.forEach((sig) => {
+    const start = src.indexOf(sig);
+    assert.ok(start >= 0, `missing ${sig}`);
+    const slice = src.slice(start, start + 280);
+    assert.match(slice, /scheduleDebouncedSync\(\)/, `${sig} must call scheduleDebouncedSync`);
+  });
 });
