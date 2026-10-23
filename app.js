@@ -5636,49 +5636,87 @@
     return headerH + contentH > window.innerHeight + 8;
   }
 
-  let scrollTopBoundList = null;
+  const listScrollTopUi = {
+    root: null,
+    onScroll: null,
+    tabKey: "",
+  };
 
-  function scrollTopThreshold(list) {
-    if (!list) return window.innerHeight;
-    return Math.max(list.clientHeight, window.innerHeight * 0.85);
+  function listScrollTabKey() {
+    if (state.screen !== "lists") return "";
+    return `${state.listsMode || "filme"}:${state.listTab || "watch"}`;
   }
 
-  function updateScrollTopButton(scroller) {
+  function findListScrollRoot() {
+    if (state.screen !== "lists") return null;
+    const list = app.querySelector(".lists-screen [data-role=film-list]");
+    if (!list || !(list instanceof HTMLElement)) return null;
+    return list;
+  }
+
+  function listScrollTopThreshold(scroller) {
+    const h = scroller.clientHeight || 0;
+    return Math.max(h, window.innerHeight * 0.85);
+  }
+
+  function teardownListScrollTop() {
+    if (listScrollTopUi.root && listScrollTopUi.onScroll) {
+      listScrollTopUi.root.removeEventListener("scroll", listScrollTopUi.onScroll);
+    }
+    listScrollTopUi.root = null;
+    listScrollTopUi.onScroll = null;
+    listScrollTopUi.tabKey = "";
+  }
+
+  function syncScrollTopButton() {
     if (!scrollTopBtn) return;
-    const onLists = state.screen === "lists" && scroller && scroller.matches("[data-role=film-list]");
-    if (!onLists) {
+    const root = findListScrollRoot();
+    if (state.screen !== "lists" || !root) {
       scrollTopBtn.hidden = true;
       scrollTopBtn.classList.remove("is-visible");
       return;
     }
-    const y = scroller.scrollTop;
-    const show = y >= scrollTopThreshold(scroller);
     scrollTopBtn.hidden = false;
+    const show = root.scrollTop >= listScrollTopThreshold(root);
     scrollTopBtn.classList.toggle("is-visible", show);
   }
 
-  function scrollListToTop(scroller) {
+  function scrollActiveListToTop() {
+    const root = listScrollTopUi.root && listScrollTopUi.root.isConnected
+      ? listScrollTopUi.root
+      : findListScrollRoot();
+    if (!root) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (scroller && scroller.scrollTo) {
-      scroller.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
-    } else {
-      window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
-    }
+    root.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+    window.requestAnimationFrame(() => syncScrollTopButton());
   }
 
   function bindFilmListScroll() {
-    const list = app.querySelector("[data-role=film-list]");
-    if (!list || list === scrollTopBoundList) return;
-    scrollTopBoundList = list;
-    let last = list.scrollTop;
-    list.addEventListener("scroll", () => {
+    const root = findListScrollRoot();
+    const tabKey = listScrollTabKey();
+    if (!root) {
+      teardownListScrollTop();
+      syncScrollTopButton();
+      return;
+    }
+    if (listScrollTopUi.root === root && listScrollTopUi.tabKey === tabKey && listScrollTopUi.onScroll) {
+      syncScrollTopButton();
+      return;
+    }
+    teardownListScrollTop();
+    listScrollTopUi.root = root;
+    listScrollTopUi.tabKey = tabKey;
+    let last = root.scrollTop;
+    listScrollTopUi.onScroll = () => {
       dismissWatchSwipeHint();
-      const y = list.scrollTop;
-      onScrollDir(y - last, list);
-      updateScrollTopButton(list);
+      const y = root.scrollTop;
+      onScrollDir(y - last, root);
+      syncScrollTopButton();
       last = y;
-    }, { passive: true });
-    updateScrollTopButton(list);
+    };
+    root.addEventListener("scroll", listScrollTopUi.onScroll, { passive: true });
+    syncScrollTopButton();
+    window.requestAnimationFrame(() => syncScrollTopButton());
   }
 
   function syncPhoneFooter(opts) {
@@ -7840,6 +7878,7 @@
     paintZufallChip();
     updateFooter();
     scheduleFooterSync();
+    bindFilmListScroll();
     if (state.expandedFilmId) enrichExpandedFilm(state.expandedFilmId);
   }
 
@@ -11282,10 +11321,12 @@
     document.body.classList.toggle("on-discover", state.screen === "discover");
     document.body.classList.toggle("on-lists", state.screen === "lists");
     document.body.classList.toggle("on-historie", state.screen === "historie");
-    if (state.screen !== "lists" && scrollTopBtn) {
-      scrollTopBtn.hidden = true;
-      scrollTopBtn.classList.remove("is-visible");
-      scrollTopBoundList = null;
+    if (state.screen !== "lists") {
+      teardownListScrollTop();
+      if (scrollTopBtn) {
+        scrollTopBtn.hidden = true;
+        scrollTopBtn.classList.remove("is-visible");
+      }
     }
     if (!onLogin) {
       document.body.classList.remove("login-focus");
@@ -11338,6 +11379,7 @@
         if (list) list.scrollTop = 0;
       } else restoreSameTabListScroll(keptListScroll);
       bindFilmListScroll();
+      window.requestAnimationFrame(() => bindFilmListScroll());
       observeListPostersSoon(app);
       if (state.listTab === "watch" && state.listsMode !== "videos") {
         window.requestAnimationFrame(() => maybeWatchlistSwipeHint());
@@ -13201,9 +13243,7 @@
 
   if (scrollTopBtn) {
     scrollTopBtn.addEventListener("click", () => {
-      const list = app.querySelector("[data-role=film-list]");
-      scrollListToTop(list || document.documentElement);
-      updateScrollTopButton(list);
+      scrollActiveListToTop();
     });
   }
 
