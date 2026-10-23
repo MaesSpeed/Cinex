@@ -7819,11 +7819,23 @@ button.tag-chip {
 }
 
 .hist-kpi-trio .hist-kpi-day {
-  font-size: 1rem !important;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 0.82rem !important;
+  line-height: 1.2;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  word-break: break-word;
+  hyphens: auto;
   max-width: 100%;
+  padding-inline: 2px;
+}
+
+.hist-kpi-trio .hist-kpi-sm {
+  padding-inline: 6px;
+}
+
+.hist-kpi-trio .hist-kpi-sub {
+  font-size: 0.68rem;
 }
 
 .hist-kpi-sm .hist-kpi-value {
