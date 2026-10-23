@@ -5656,7 +5656,11 @@
 
   function listScrollTopThreshold(scroller) {
     const h = scroller.clientHeight || 0;
-    return Math.max(h, window.innerHeight * 0.85);
+    const maxScroll = Math.max(0, scroller.scrollHeight - h);
+    if (maxScroll <= 0) return Infinity;
+    const byViewport = Math.max(100, Math.round(h * 0.38));
+    const byRange = Math.max(72, Math.round(maxScroll * 0.38));
+    return Math.min(byViewport, byRange, maxScroll);
   }
 
   function teardownListScrollTop() {
@@ -9665,12 +9669,57 @@
     icon.innerHTML = `<span class="nav-listen-card" aria-hidden="true">${listenIconRowsHtml()}</span>`;
   }
 
-  const HISTORIE_FOOTER_ICON = "icons/historie-icon-A.svg?v=20261023b";
+  const HISTORIE_FOOTER_ICON = "icons/historie-icon-A.svg?v=20261023c";
+
+  const actorProfileCache = loadJson("wdq.actorProfiles", {}) || {};
+
+  function actorProfileUrl(name) {
+    const key = foldSearch(name);
+    if (!key) return "";
+    const hit = actorProfileCache[key];
+    return hit && typeof hit === "string" ? hit : "";
+  }
+
+  let historieActorSeq = 0;
+
+  async function enrichHistorieActorProfiles() {
+    const screen = app.querySelector("[data-role=historie-screen]");
+    if (!screen || !remoteSearchAvailable()) return;
+    const names = [...screen.querySelectorAll("[data-actor-name]")]
+      .map((el) => el.getAttribute("data-actor-name"))
+      .filter(Boolean);
+    const need = names.filter((name) => !actorProfileUrl(name));
+    if (!need.length) return;
+    const seq = ++historieActorSeq;
+    await Promise.all(need.slice(0, 5).map(async (name) => {
+      const key = foldSearch(name);
+      if (!key || actorProfileCache[key]) return;
+      try {
+        const data = await proxyFetch("/search/person", { query: name });
+        if (seq !== historieActorSeq) return;
+        const match = (data.results || []).find((row) => foldSearch(row.name) === key)
+          || (data.results || [])[0];
+        if (match && match.profile_path) {
+          actorProfileCache[key] = `https://image.tmdb.org/t/p/w185${match.profile_path}`;
+          saveJson("wdq.actorProfiles", actorProfileCache);
+        }
+      } catch {
+        /* keep initials */
+      }
+    }));
+    if (seq !== historieActorSeq) return;
+    screen.querySelectorAll("[data-actor-name]").forEach((el) => {
+      const name = el.getAttribute("data-actor-name");
+      const url = actorProfileUrl(name);
+      if (!url || el.querySelector("img")) return;
+      el.innerHTML = `<img src="${escapeHtml(url)}" alt="" width="48" height="48" decoding="async" referrerpolicy="no-referrer">`;
+    });
+  }
 
   function paintFooterHistorieIcon() {
     const icon = footer && footer.querySelector("[data-role=footer-historie-icon]");
     if (!icon) return;
-    icon.innerHTML = `<img src="${HISTORIE_FOOTER_ICON}" alt="" width="22" height="22" decoding="async">`;
+    icon.innerHTML = `<img src="${HISTORIE_FOOTER_ICON}" alt="" width="24" height="24" decoding="async">`;
   }
 
   function renderHistorie() {
@@ -9687,6 +9736,7 @@
       parseViewsList,
       escapeHtml,
       posterUrl,
+      actorProfileUrl,
     });
   }
 
@@ -11366,6 +11416,7 @@
       closeWatchSheet();
       app.innerHTML = renderHistorie();
       window.scrollTo(0, 0);
+      window.requestAnimationFrame(() => enrichHistorieActorProfiles());
     }
     else if (state.screen === "lists") {
       const pinJust = state.pinJustWatched;
