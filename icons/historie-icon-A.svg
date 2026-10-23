@@ -1,0 +1,29 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <linearGradient id="enA" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="45%" stop-color="#f7fafc"/>
+      <stop offset="100%" stop-color="#e4eef6"/>
+    </linearGradient>
+    <linearGradient id="barG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a4f8a"/>
+      <stop offset="100%" stop-color="#0b3a63"/>
+    </linearGradient>
+    <linearGradient id="barT" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9fd0ec"/>
+      <stop offset="100%" stop-color="#5aa8d4"/>
+    </linearGradient>
+    <filter id="shA" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="0.45" stdDeviation="0.4" flood-color="#102a43" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+  <rect x="1.3" y="2.0" width="21.4" height="20.0" rx="3.6" fill="url(#enA)" stroke="#d4926a" stroke-width="0.95" filter="url(#shA)"/>
+  <rect x="3.4" y="19.05" width="17.2" height="0.55" rx="0.25" fill="#c5d6e4" opacity="0.85"/>
+  <rect x="4.0" y="12.6" width="2.35" height="6.45" rx="0.7" fill="url(#barG)"/>
+  <rect x="6.55" y="15.1" width="2.35" height="3.95" rx="0.7" fill="url(#barT)"/>
+  <rect x="10.0" y="9.4" width="2.35" height="9.65" rx="0.7" fill="url(#barG)"/>
+  <rect x="12.55" y="12.8" width="2.35" height="6.25" rx="0.7" fill="url(#barT)"/>
+  <rect x="16.0" y="5.6" width="2.35" height="13.45" rx="0.7" fill="url(#barG)"/>
+  <rect x="18.55" y="10.2" width="2.35" height="8.85" rx="0.7" fill="url(#barT)"/>
+  <rect x="16.35" y="5.9" width="0.7" height="4.2" rx="0.35" fill="#ffffff" opacity="0.28"/>
+</svg>
