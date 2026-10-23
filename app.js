@@ -1937,7 +1937,6 @@
       else ids.forEach((tid) => usedOnFilm.add(String(tid)));
     });
 
-    const removedTagIds = new Set();
     const nextTags = [];
     tags.forEach((tag) => {
       if (!tag || typeof tag !== "object" || tag.id == null) return;
@@ -1945,20 +1944,15 @@
       const onFilm = usedOnFilm.has(id);
       const onVideo = usedOnVideo.has(id);
       const scope = tagScopeOf(tag);
-      if (scope === "video" || (onVideo && !onFilm)) {
-        removedTagIds.add(id);
-        return;
-      }
-      const copy = Object.assign({}, tag, { scope: "film" });
-      nextTags.push(copy);
+      let nextScope = "film";
+      if (onFilm) nextScope = "film";
+      else if (onVideo || scope === "video") nextScope = "video";
+      nextTags.push(Object.assign({}, tag, { scope: nextScope }));
     });
 
     const nextMap = {};
     Object.entries(map).forEach(([entityId, tagIds]) => {
-      if (isVideoEntityId(entityId)) return;
-      const cleaned = (Array.isArray(tagIds) ? tagIds : [])
-        .map(String)
-        .filter((tid) => !removedTagIds.has(tid));
+      const cleaned = (Array.isArray(tagIds) ? tagIds : []).map(String);
       if (cleaned.length) nextMap[entityId] = cleaned;
     });
 
@@ -2465,13 +2459,6 @@
           merged[id] = vb !== undefined ? vb : va;
         }
       });
-      const migA = Number((a.profileMeta || {}).tagsScopeMigrated) || 0;
-      const migB = Number((b.profileMeta || {}).tagsScopeMigrated) || 0;
-      if (Math.max(migA, migB) >= TAG_SCOPE_MIGRATION_VERSION) {
-        Object.keys(merged).forEach((id) => {
-          if (isVideoEntityId(id)) delete merged[id];
-        });
-      }
       out.filmTags = merged;
     }
     out.profileMeta = (() => {
@@ -3403,6 +3390,7 @@
 
   function saveTags(list) {
     saveJson(pkey("tags"), list);
+    scheduleDebouncedSync();
   }
 
   function tagCovers() {
@@ -3423,6 +3411,7 @@
 
   function saveTagCovers(list) {
     saveJson(pkey("tagCovers"), list);
+    scheduleDebouncedSync();
   }
 
   function filmTags() {
@@ -3432,6 +3421,7 @@
 
   function saveFilmTags(map) {
     saveJson(pkey("filmTags"), map);
+    scheduleDebouncedSync();
   }
 
   function tagsFor(filmId) {
