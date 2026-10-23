@@ -190,8 +190,9 @@
       }
       byDay.set(day, slot);
 
-      const prev = byFilm.get(e.id) || {
-        complete: 0, partial: 0, partialSum: 0, score: 0, title: e.title, meta: e.meta, kind: e.kind,
+      const filmKey = deps.canonicalListFilmId ? deps.canonicalListFilmId(e.id) : e.id;
+      const prev = byFilm.get(filmKey) || {
+        complete: 0, partial: 0, partialSum: 0, score: 0, title: e.title, meta: e.meta, kind: e.kind, id: filmKey,
       };
       if (e.f >= 0.9999) prev.complete += 1;
       else {
@@ -202,7 +203,8 @@
       prev.title = e.title || prev.title;
       prev.meta = e.meta || prev.meta;
       prev.kind = e.kind || prev.kind;
-      byFilm.set(e.id, prev);
+      prev.id = filmKey;
+      byFilm.set(filmKey, prev);
     });
 
     const partialAvg = partial ? partialSum / partial : 0;
@@ -269,10 +271,8 @@
     if (!Number.isFinite(delta) || Math.abs(delta) < 0.05) {
       return soft ? `<p class="hist-trend hist-trend-soft">Keine Sichtungen in diesem Zeitraum</p>` : "";
     }
-    if (soft && delta < 0) {
-      const abs = fmtNum(Math.abs(delta), unit === "h" ? 1 : 0);
-      const suffix = unit === "h" ? ` ${unit}` : unit ? ` ${unit}` : "";
-      return `<p class="hist-trend hist-trend-soft"><span aria-hidden="true">▼</span> ${abs}${suffix} unter Ø</p>`;
+    if (soft) {
+      return `<p class="hist-trend hist-trend-soft">Keine Sichtungen in diesem Zeitraum</p>`;
     }
     const up = delta > 0;
     const good = invert ? !up : up;
@@ -290,11 +290,8 @@
     if (Math.abs(dc) < 0.05 && Math.abs(dp) < 0.05) {
       return softEmpty ? `<p class="hist-trend hist-trend-soft">Keine Sichtungen in diesem Zeitraum</p>` : "";
     }
-    if (softEmpty && dc <= 0 && dp <= 0) {
-      const parts = [];
-      if (Math.abs(dc) >= 0.05) parts.push(`<span class="is-down">▼ ${fmtNum(Math.abs(dc), 0)} kompl.</span>`);
-      if (Math.abs(dp) >= 0.05) parts.push(`<span class="is-down">▼ ${fmtNum(Math.abs(dp), 0)} teilw.</span>`);
-      if (parts.length) return `<p class="hist-trend hist-trend-split hist-trend-soft">${parts.join(" ")}</p>`;
+    if (softEmpty) {
+      return `<p class="hist-trend hist-trend-soft">Keine Sichtungen in diesem Zeitraum</p>`;
     }
     const parts = [];
     if (Math.abs(dc) >= 0.05) {
@@ -634,8 +631,10 @@
   function viewstreak(events) {
     const days = new Set(events.map((e) => startOfDay(e.at)));
     if (!days.size) return 0;
+    const today = startOfDay(Date.now());
+    const latest = Math.max(...days);
+    let cursor = days.has(today) ? today : latest;
     let streak = 0;
-    let cursor = startOfDay(Date.now());
     while (days.has(cursor)) {
       streak += 1;
       cursor = addDays(cursor, -1);
@@ -658,15 +657,15 @@
       }
     });
     let weekdays = 0;
-    const rangeCap = rangeEnd != null ? Math.min(rangeEnd, Date.now()) : null;
-    if (rangeStart != null && rangeCap != null) {
-      for (let t = startOfDay(rangeStart); t <= rangeCap; t = addDays(t, 1)) {
-        if (new Date(t).getDay() === bestIdx) weekdays += 1;
-      }
-    } else if (events.length) {
-      const min = events.reduce((m, e) => Math.min(m, e.at), events[0].at);
-      const max = events.reduce((m, e) => Math.max(m, e.at), events[0].at);
-      for (let t = startOfDay(min); t <= startOfDay(max); t = addDays(t, 1)) {
+    const rangeCap = rangeEnd != null ? Math.min(startOfDay(rangeEnd), startOfDay(Date.now())) : null;
+    const minEvent = events.length
+      ? events.reduce((m, e) => Math.min(m, e.at), events[0].at)
+      : null;
+    const countFrom = rangeStart != null && minEvent != null
+      ? Math.max(startOfDay(rangeStart), startOfDay(minEvent))
+      : (minEvent != null ? startOfDay(minEvent) : null);
+    if (countFrom != null && rangeCap != null) {
+      for (let t = countFrom; t <= rangeCap; t = addDays(t, 1)) {
         if (new Date(t).getDay() === bestIdx) weekdays += 1;
       }
     }
@@ -698,23 +697,48 @@
     `;
   }
 
+  function resolveTopFilm(id, meta) {
+    const listFilm = deps.listFilmOrPlaceholder ? deps.listFilmOrPlaceholder(id) : null;
+    const findFilm = deps.findFilm || (() => null);
+    const titleLoading = listFilm && String(listFilm.title || "").trim() === "Lädt…";
+    if (listFilm && listFilm.poster && !titleLoading) return listFilm;
+    const film = findFilm(id) || findFilm(meta && meta.id);
+    if (film && (film.poster || film.poster_path)) return film;
+    if (listFilm && !titleLoading) return listFilm;
+    return film || meta || listFilm;
+  }
+
+  function topFilmPosterSrc(film) {
+    const posterUrl = deps.posterUrl || (() => "");
+    if (!film) return "";
+    return posterUrl(film, "w92") || film.poster || "";
+  }
+
+  function calendarDaysInclusive(fromTs, toTs) {
+    const start = startOfDay(fromTs);
+    const end = startOfDay(toTs);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return 0;
+    return Math.floor((end - start) / 86400000) + 1;
+  }
+
+  function gesamtViewtimePerDayHtml(viewHours, rangeStart) {
+    if (!Number.isFinite(rangeStart) || rangeStart <= 0) return "";
+    const days = calendarDaysInclusive(rangeStart, Date.now());
+    if (days < 1) return "";
+    const avg = Number(viewHours) / days;
+    if (!Number.isFinite(avg) || avg <= 0) return "";
+    return `<p class="hist-kpi-sub">Ø ${fmtNum(avg, 1)} h / Tag</p>`;
+  }
+
   function topFilmsHtml(byFilm) {
-    const ranked = [...byFilm.entries()]
-      .map(([id, row]) => ({ id, ...row }))
-      .filter((row) => row.kind !== "video")
+    const ranked = [...byFilm.values()]
+      .filter((row) => row.kind !== "video" && row.score > 0)
       .sort((a, b) => b.score - a.score)
       .slice(0, 5);
     if (!ranked.length) return "";
-    const posterUrl = deps.posterUrl || (() => "");
-    const findFilm = deps.findFilm || (() => null);
     const rows = ranked.map((row, i) => {
-      const film = findFilm(row.id);
-      const meta = row.meta || film;
-      const poster = film
-        ? (posterUrl(film, "w92") || film.poster || "")
-        : meta
-          ? (posterUrl(meta, "w92") || meta.poster || "")
-          : "";
+      const film = resolveTopFilm(row.id, row.meta);
+      const poster = topFilmPosterSrc(film);
       const rankCls = i === 0 ? "gold" : i === 1 ? "silver" : i === 2 ? "bronze" : "plain";
       const total = row.complete + row.partial;
       const completeW = total ? (row.complete / total) * 100 : 100;
@@ -814,7 +838,7 @@
     const kpis = `
       <div class="hist-kpi-row">
         ${interval === "gesamt"
-          ? `<article class="hist-card hist-kpi hist-kpi-viewtime"><p class="hist-kpi-label">Viewtime</p><p class="hist-kpi-value">${fmtHours(stats.viewHours)}</p></article>`
+          ? `<article class="hist-card hist-kpi hist-kpi-viewtime"><p class="hist-kpi-label">Viewtime</p><p class="hist-kpi-value">${fmtHours(stats.viewHours)}</p>${gesamtViewtimePerDayHtml(stats.viewHours, range.start)}</article>`
           : kpiViewtime(stats, avg, interval)}
         ${kpiFilme(stats, avg, showTrend)}
       </div>
@@ -865,7 +889,7 @@
           <div class="hist-bar-legend"><span><i class="complete"></i> komplett</span><span><i class="partial"></i> teilweise</span></div>
         </article>
       `;
-      body += topFilmsHtml(stats.byFilm);
+      body += topFilmsHtml(statsForEvents(all.filter((e) => e.kind === "film")).byFilm);
       body += kpiTrioHtml(all, range);
       const d = new Date(range.start);
       body += genresHtml(all, `Seit ${d.getFullYear()}`);

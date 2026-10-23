@@ -581,6 +581,7 @@
         if (state.listTab === "seen") render();
         else refreshWatchList();
       } else if (state.screen === "done") render();
+      else if (state.screen === "historie") render();
     });
   }
 
@@ -9669,7 +9670,7 @@
     icon.innerHTML = `<span class="nav-listen-card" aria-hidden="true">${listenIconRowsHtml()}</span>`;
   }
 
-  const HISTORIE_FOOTER_ICON = "icons/historie-icon-A.svg?v=20261023c";
+  const HISTORIE_FOOTER_ICON = "icons/historie-icon-A.svg?v=20261023d";
 
   const actorProfileCache = loadJson("wdq.actorProfiles", {}) || {};
 
@@ -9733,6 +9734,8 @@
       history,
       videoHistory,
       findFilm,
+      listFilmOrPlaceholder,
+      canonicalListFilmId,
       parseViewsList,
       escapeHtml,
       posterUrl,
