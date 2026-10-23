@@ -9670,7 +9670,7 @@
     icon.innerHTML = `<span class="nav-listen-card" aria-hidden="true">${listenIconRowsHtml()}</span>`;
   }
 
-  const HISTORIE_FOOTER_ICON = "icons/historie-icon-A.svg?v=20261023d";
+  const HISTORIE_FOOTER_ICON = "icons/historie-icon-A.svg?v=20261023e";
 
   const actorProfileCache = loadJson("wdq.actorProfiles", {}) || {};
 

@@ -63,3 +63,56 @@ test("gesamt viewtime per day uses inclusive calendar days", () => {
   const html = gesamtViewtimePerDayHtml(3, todayStart);
   assert.match(html, /Ø 3,0 h \/ Tag/);
 });
+
+function loadHistorieModule(deps) {
+  const wrapped = src.replace("let deps = {};", "let deps = __deps;");
+  const fn = new Function("__deps", "window", `${wrapped}\nreturn window.CinexHistorie;`);
+  const CinexHistorie = fn(deps, {});
+  CinexHistorie.init(deps);
+  return CinexHistorie;
+}
+
+function parseViewsList(row) {
+  if (!row || typeof row !== "object") return [];
+  const raw = Array.isArray(row.views) ? row.views : (row.at ? [row.at] : []);
+  return raw.map((v) => {
+    if (typeof v === "number") return { at: v, f: 1 };
+    if (v && typeof v === "object") {
+      const at = Number(v.at);
+      const f = v.f != null ? Number(v.f) : 1;
+      return Number.isFinite(at) ? { at, f } : null;
+    }
+    return null;
+  }).filter(Boolean);
+}
+
+function canonicalListFilmId(id) {
+  const sid = String(id);
+  const n = Number(sid.replace(/^t/i, ""));
+  if (Number.isFinite(n) && n > 0) return `t${n}`;
+  return sid;
+}
+
+test("Filme KPI and Top 5 ignore video history views", () => {
+  const filmHistory = [
+    { id: "t680", title: "Pulp Fiction", at: Date.now() - 2000 },
+    { id: "t550", title: "Fight Club", at: Date.now() - 4000 },
+  ];
+  const videoHistory = [
+    { id: "v-seed-h1", title: "Recap", at: Date.now() - 1000 },
+    { id: "v-seed-h2", title: "Reel", at: Date.now() - 3000 },
+  ];
+  const CinexHistorie = loadHistorieModule({
+    history: () => filmHistory,
+    videoHistory: () => videoHistory,
+    findFilm: () => null,
+    parseViewsList,
+    canonicalListFilmId,
+  });
+  const model = CinexHistorie.buildModel({ historieInterval: "gesamt", historieAnchor: Date.now() });
+  const stats = model.stats;
+  assert.equal(stats.count, 4);
+  assert.equal(stats.films.complete, 2);
+  const top = [...stats.byFilm.values()].filter((row) => row.kind !== "video" && row.score > 0);
+  assert.equal(top.length, 2);
+});
