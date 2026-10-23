@@ -164,11 +164,20 @@
     return at >= start && at <= end;
   }
 
+  function filmOnlyEvents(events) {
+    return events.filter((e) => e.kind !== "video");
+  }
+
   function statsForEvents(events) {
     let viewMin = 0;
     let complete = 0;
     let partial = 0;
     let partialSum = 0;
+    let filmComplete = 0;
+    let filmPartial = 0;
+    let filmPartialSum = 0;
+    let filmFracSum = 0;
+    let filmCount = 0;
     const byDay = new Map();
     const byFilm = new Map();
 
@@ -179,6 +188,15 @@
       else {
         partial += 1;
         partialSum += e.f;
+      }
+      if (e.kind !== "video") {
+        filmCount += 1;
+        filmFracSum += e.f;
+        if (e.f >= 0.9999) filmComplete += 1;
+        else {
+          filmPartial += 1;
+          filmPartialSum += e.f;
+        }
       }
       const day = startOfDay(e.at);
       const slot = byDay.get(day) || { score: 0, complete: 0, partial: 0, partialSum: 0 };
@@ -209,12 +227,21 @@
 
     const partialAvg = partial ? partialSum / partial : 0;
     const avgFrac = events.length ? events.reduce((s, e) => s + e.f, 0) / events.length : 0;
+    const filmPartialAvg = filmPartial ? filmPartialSum / filmPartial : 0;
+    const filmAvgFrac = filmCount ? filmFracSum / filmCount : 0;
     return {
       viewHours: viewMin / 60,
       complete,
       partial,
       partialAvg,
       avgFrac,
+      films: {
+        complete: filmComplete,
+        partial: filmPartial,
+        partialAvg: filmPartialAvg,
+        avgFrac: filmAvgFrac,
+        count: filmCount,
+      },
       byDay,
       byFilm,
       count: events.length,
@@ -260,9 +287,9 @@
     const n = vals.length;
     return {
       viewHours: vals.reduce((s, v) => s + v.viewHours, 0) / n,
-      complete: vals.reduce((s, v) => s + v.complete, 0) / n,
-      partial: vals.reduce((s, v) => s + v.partial, 0) / n,
-      partialAvg: vals.reduce((s, v) => s + v.partialAvg, 0) / n,
+      complete: vals.reduce((s, v) => s + v.films.complete, 0) / n,
+      partial: vals.reduce((s, v) => s + v.films.partial, 0) / n,
+      partialAvg: vals.reduce((s, v) => s + v.films.partialAvg, 0) / n,
     };
   }
 
@@ -322,17 +349,19 @@
   }
 
   function kpiFilme(cur, avg, showTrend) {
-    const partialPct = cur.partial ? fmtPct(cur.partialAvg) : "0";
+    const films = cur.films || cur;
+    const partialPct = films.partial ? fmtPct(films.partialAvg) : "0";
     const avgPart = avg ? `Ø ${fmtNum(Math.round(avg.complete), 0)} komplett · ${fmtNum(Math.round(avg.partial), 0)} teilweise` : "";
+    const trendCur = { complete: films.complete, partial: films.partial };
     return `
       <article class="hist-card hist-kpi hist-kpi-filme">
         <p class="hist-kpi-label">Filme</p>
         <div class="hist-filme-main">
-          <p><strong>${fmtNum(cur.complete, 0)}</strong> komplett</p>
-          <p><strong>${fmtNum(cur.partial, 0)}</strong> teilweise <span class="hist-muted">zu Ø ${partialPct} %</span></p>
+          <p><strong>${fmtNum(films.complete, 0)}</strong> komplett</p>
+          <p><strong>${fmtNum(films.partial, 0)}</strong> teilweise <span class="hist-muted">zu Ø ${partialPct} %</span></p>
         </div>
         ${avgPart ? `<p class="hist-kpi-sub">${avgPart}</p>` : ""}
-        ${showTrend && avg ? trendFilmeHtml(cur, avg, cur.count === 0) : ""}
+        ${showTrend && avg ? trendFilmeHtml(trendCur, avg, films.count === 0) : ""}
       </article>
     `;
   }
@@ -463,19 +492,19 @@
   }
 
   function chartBarsWeeks(all, currentStart) {
-    const buckets = bucketWeeks(all);
+    const buckets = bucketWeeks(filmOnlyEvents(all));
     const cur = mondayOf(currentStart);
     const tail = [];
     for (let i = 5; i >= 0; i -= 1) tail.push(addDays(cur, -7 * i));
     return tail.map((k) => {
       const ev = buckets.get(k) || [];
       const st = statsForEvents(ev);
-      return barGroupHtml(`KW${isoWeek(k)}`, st.complete, st.partial, k === currentStart);
+      return barGroupHtml(`KW${isoWeek(k)}`, st.films.complete, st.films.partial, k === currentStart);
     }).join("");
   }
 
   function chartBarsMonths(all, currentStart) {
-    const buckets = bucketMonths(all);
+    const buckets = bucketMonths(filmOnlyEvents(all));
     const tail = [];
     for (let i = 5; i >= 0; i -= 1) {
       const d = new Date(startOfMonth(currentStart));
@@ -486,7 +515,7 @@
       const ev = buckets.get(k) || [];
       const st = statsForEvents(ev);
       const d = new Date(k);
-      return barGroupHtml(MONTH_SHORT[d.getMonth()], st.complete, st.partial, k === currentStart);
+      return barGroupHtml(MONTH_SHORT[d.getMonth()], st.films.complete, st.films.partial, k === currentStart);
     }).join("");
   }
 
@@ -495,7 +524,7 @@
     const d = new Date(end);
     d.setFullYear(d.getFullYear() + 1);
     const yearEnd = d.getTime();
-    const inYear = all.filter((e) => e.at >= yearStart && e.at < yearEnd);
+    const inYear = filmOnlyEvents(all).filter((e) => e.at >= yearStart && e.at < yearEnd);
     const buckets = bucketMonths(inYear);
     const months = [];
     for (let m = 0; m < 12; m++) {
@@ -506,17 +535,17 @@
     return show.map((k) => {
       const st = statsForEvents(buckets.get(k) || []);
       const md = new Date(k);
-      return barGroupHtml(MONTH_SHORT[md.getMonth()], st.complete, st.partial, md.getMonth() === new Date().getMonth() && md.getFullYear() === new Date().getFullYear());
+      return barGroupHtml(MONTH_SHORT[md.getMonth()], st.films.complete, st.films.partial, md.getMonth() === new Date().getMonth() && md.getFullYear() === new Date().getFullYear());
     }).join("");
   }
 
   function chartBarsYears(all) {
-    const buckets = bucketYears(all);
+    const buckets = bucketYears(filmOnlyEvents(all));
     const keys = [...buckets.keys()].sort((a, b) => a - b).slice(-3);
     return keys.map((k) => {
       const st = statsForEvents(buckets.get(k) || []);
       const y = new Date(k).getFullYear();
-      return barGroupHtml(String(y), st.complete, st.partial, y === new Date().getFullYear());
+      return barGroupHtml(String(y), st.films.complete, st.films.partial, y === new Date().getFullYear());
     }).join("");
   }
 
@@ -530,7 +559,7 @@
     let complete = 0;
     let partial = 0;
     let partialSum = 0;
-    events.forEach((e) => {
+    filmOnlyEvents(events).forEach((e) => {
       if (e.f >= 0.9999) complete += 1;
       else {
         partial += 1;
@@ -596,7 +625,7 @@
 
   function actorsHtml(events, periodLabel) {
     const map = new Map();
-    events.forEach((e) => {
+    filmOnlyEvents(events).forEach((e) => {
       if (!e.cast || !e.cast.length) return;
       e.cast.slice(0, 3).forEach((name) => {
         const row = map.get(name) || { name, score: 0 };
@@ -675,7 +704,8 @@
 
   function kpiTrioHtml(events, range) {
     const streak = viewstreak(collectEvents());
-    const avgFrac = events.length ? events.reduce((s, e) => s + e.f, 0) / events.length : 0;
+    const filmEv = filmOnlyEvents(events);
+    const avgFrac = filmEv.length ? filmEv.reduce((s, e) => s + e.f, 0) / filmEv.length : 0;
     const fav = favoriteDay(events, range ? range.start : null, range ? range.end : null);
     return `
       <div class="hist-kpi-trio">
