@@ -190,7 +190,9 @@
       }
       byDay.set(day, slot);
 
-      const prev = byFilm.get(e.id) || { complete: 0, partial: 0, partialSum: 0, score: 0, title: e.title, meta: e.meta };
+      const prev = byFilm.get(e.id) || {
+        complete: 0, partial: 0, partialSum: 0, score: 0, title: e.title, meta: e.meta, kind: e.kind,
+      };
       if (e.f >= 0.9999) prev.complete += 1;
       else {
         prev.partial += 1;
@@ -199,6 +201,7 @@
       prev.score += e.f;
       prev.title = e.title || prev.title;
       prev.meta = e.meta || prev.meta;
+      prev.kind = e.kind || prev.kind;
       byFilm.set(e.id, prev);
     });
 
@@ -261,8 +264,16 @@
     };
   }
 
-  function trendHtml(delta, unit, invert) {
-    if (!Number.isFinite(delta) || Math.abs(delta) < 0.05) return "";
+  function trendHtml(delta, unit, invert, opts) {
+    const soft = opts && opts.softEmpty;
+    if (!Number.isFinite(delta) || Math.abs(delta) < 0.05) {
+      return soft ? `<p class="hist-trend hist-trend-soft">Keine Sichtungen in diesem Zeitraum</p>` : "";
+    }
+    if (soft && delta < 0) {
+      const abs = fmtNum(Math.abs(delta), unit === "h" ? 1 : 0);
+      const suffix = unit === "h" ? ` ${unit}` : unit ? ` ${unit}` : "";
+      return `<p class="hist-trend hist-trend-soft"><span aria-hidden="true">▼</span> ${abs}${suffix} unter Ø</p>`;
+    }
     const up = delta > 0;
     const good = invert ? !up : up;
     const cls = good ? "is-up" : "is-down";
@@ -273,10 +284,18 @@
     return `<p class="hist-trend ${cls}"><span aria-hidden="true">${arrow}</span> ${abs}${suffix} ${vs}</p>`;
   }
 
-  function trendFilmeHtml(cur, avg) {
+  function trendFilmeHtml(cur, avg, softEmpty) {
     const dc = cur.complete - avg.complete;
     const dp = cur.partial - avg.partial;
-    if (Math.abs(dc) < 0.05 && Math.abs(dp) < 0.05) return "";
+    if (Math.abs(dc) < 0.05 && Math.abs(dp) < 0.05) {
+      return softEmpty ? `<p class="hist-trend hist-trend-soft">Keine Sichtungen in diesem Zeitraum</p>` : "";
+    }
+    if (softEmpty && dc <= 0 && dp <= 0) {
+      const parts = [];
+      if (Math.abs(dc) >= 0.05) parts.push(`<span class="is-down">▼ ${fmtNum(Math.abs(dc), 0)} kompl.</span>`);
+      if (Math.abs(dp) >= 0.05) parts.push(`<span class="is-down">▼ ${fmtNum(Math.abs(dp), 0)} teilw.</span>`);
+      if (parts.length) return `<p class="hist-trend hist-trend-split hist-trend-soft">${parts.join(" ")}</p>`;
+    }
     const parts = [];
     if (Math.abs(dc) >= 0.05) {
       const up = dc > 0;
@@ -293,7 +312,8 @@
     const intervalNames = { woche: "Woche", monat: "Monat", jahr: "Jahr" };
     const name = intervalNames[intervalLabel] || "";
     const avgLine = avg && name ? `<p class="hist-kpi-sub">Ø ${name} ${fmtHours(avg.viewHours)}</p>` : "";
-    const trend = avg && name ? trendHtml(cur.viewHours - avg.viewHours, "h") : "";
+    const soft = cur.count === 0;
+    const trend = avg && name ? trendHtml(cur.viewHours - avg.viewHours, "h", false, { softEmpty: soft }) : "";
     return `
       <article class="hist-card hist-kpi hist-kpi-viewtime">
         <p class="hist-kpi-label">Viewtime</p>
@@ -315,7 +335,7 @@
           <p><strong>${fmtNum(cur.partial, 0)}</strong> teilweise <span class="hist-muted">zu Ø ${partialPct} %</span></p>
         </div>
         ${avgPart ? `<p class="hist-kpi-sub">${avgPart}</p>` : ""}
-        ${showTrend && avg ? trendFilmeHtml(cur, avg) : ""}
+        ${showTrend && avg ? trendFilmeHtml(cur, avg, cur.count === 0) : ""}
       </article>
     `;
   }
@@ -426,13 +446,19 @@
     const ch = 100;
     const hC = Math.round((complete / max) * ch);
     const hP = Math.round((partial / max) * ch);
+    const showC = complete > 0 ? complete : "";
+    const showP = partial > 0 ? partial : "";
     return `
       <div class="hist-bar-group${highlight ? " is-hi" : ""}">
         <div class="hist-bar-pair">
-          <span class="hist-bar-val">${complete || ""}</span>
-          <div class="hist-bar complete" style="height:${hC}px"></div>
-          <span class="hist-bar-val light">${partial || ""}</span>
-          <div class="hist-bar partial" style="height:${hP}px"></div>
+          <div class="hist-bar-col complete">
+            ${showC ? `<span class="hist-bar-val">${showC}</span>` : ""}
+            <div class="hist-bar complete" style="height:${hC}px"></div>
+          </div>
+          <div class="hist-bar-col partial">
+            ${showP ? `<span class="hist-bar-val light">${showP}</span>` : ""}
+            <div class="hist-bar partial" style="height:${hP}px"></div>
+          </div>
         </div>
         <span class="hist-bar-label">${esc(label)}</span>
       </div>
@@ -441,13 +467,9 @@
 
   function chartBarsWeeks(all, currentStart) {
     const buckets = bucketWeeks(all);
-    const keys = [...buckets.keys()].sort((a, b) => a - b);
-    const tail = keys.slice(-6);
-    while (tail.length < 6 && tail.length) {
-      const first = tail[0];
-      tail.unshift(addDays(first, -7));
-    }
-    if (!tail.length) tail.push(mondayOf(currentStart));
+    const cur = mondayOf(currentStart);
+    const tail = [];
+    for (let i = 5; i >= 0; i -= 1) tail.push(addDays(cur, -7 * i));
     return tail.map((k) => {
       const ev = buckets.get(k) || [];
       const st = statsForEvents(ev);
@@ -457,9 +479,12 @@
 
   function chartBarsMonths(all, currentStart) {
     const buckets = bucketMonths(all);
-    const keys = [...buckets.keys()].sort((a, b) => a - b);
-    const tail = keys.slice(-6);
-    if (!tail.length) tail.push(startOfMonth(currentStart));
+    const tail = [];
+    for (let i = 5; i >= 0; i -= 1) {
+      const d = new Date(startOfMonth(currentStart));
+      d.setMonth(d.getMonth() - i, 1);
+      tail.push(startOfMonth(d.getTime()));
+    }
     return tail.map((k) => {
       const ev = buckets.get(k) || [];
       const st = statsForEvents(ev);
@@ -490,7 +515,7 @@
 
   function chartBarsYears(all) {
     const buckets = bucketYears(all);
-    const keys = [...buckets.keys()].sort((a, b) => a - b);
+    const keys = [...buckets.keys()].sort((a, b) => a - b).slice(-3);
     return keys.map((k) => {
       const st = statsForEvents(buckets.get(k) || []);
       const y = new Date(k).getFullYear();
@@ -498,28 +523,54 @@
     }).join("");
   }
 
+  function filmCountLabel(n) {
+    const v = Math.round(Number(n) || 0);
+    return v === 1 ? "1 Film" : `${fmtNum(v, 0)} Filme`;
+  }
+
   function genresHtml(events, periodLabel) {
     const map = new Map();
+    let complete = 0;
+    let partial = 0;
+    let partialSum = 0;
     events.forEach((e) => {
+      if (e.f >= 0.9999) complete += 1;
+      else {
+        partial += 1;
+        partialSum += e.f;
+      }
       const gs = e.genres && e.genres.length ? e.genres : ["Sonstige"];
       gs.forEach((g) => map.set(g, (map.get(g) || 0) + e.f));
     });
     const sorted = [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
     const total = sorted.reduce((s, [, v]) => s + v, 0) || 1;
+    const filmCount = complete + partial;
+    const partialPct = partial ? Math.round((partialSum / partial) * 100) : 0;
+    const breakdownShort = filmCount
+      ? `komplett ${complete} & teilweise ${partial}`
+      : "";
+    const breakdownLong = filmCount
+      ? `komplett ${complete} & teilweise ${partial}${partial ? ` <span class="hist-muted">(zu Ø ${partialPct} %)</span>` : ""}`
+      : "";
     let angle = 0;
-    const stops = sorted.map(([g, v], i) => {
-      const pct = v / total;
-      const c = GENRE_PALETTE[i % GENRE_PALETTE.length];
-      const start = angle;
-      angle += pct * 360;
-      return `${c} ${start}deg ${angle}deg`;
-    });
+    const stops = sorted.length
+      ? sorted.map(([g, v], i) => {
+        const pct = v / total;
+        const c = GENRE_PALETTE[i % GENRE_PALETTE.length];
+        const start = angle;
+        angle += pct * 360;
+        return `${c} ${start}deg ${angle}deg`;
+      })
+      : ["#e8eef4 0deg 360deg"];
     const legend = sorted.map(([g, v], i) => {
       const pct = Math.round((v / total) * 100);
       const c = GENRE_PALETTE[i % GENRE_PALETTE.length];
       return `<li><span class="hist-genre-swatch" style="background:${c}"></span>${esc(g)} <strong>${pct} %</strong></li>`;
     }).join("");
-    const filmCount = Math.round(events.reduce((s, e) => s + e.f, 0));
+    const centerMain = filmCount
+      ? `<strong>${fmtNum(filmCount, 0)}</strong> ${filmCount === 1 ? "Film" : "Filme"}`
+      : `<strong>0</strong> Filme`;
+    const centerSub = breakdownShort ? `<span class="hist-donut-breakdown">${breakdownShort}</span>` : "";
     return `
       <article class="hist-card">
         <header class="hist-card-head">
@@ -528,12 +579,22 @@
         </header>
         <div class="hist-genre-row">
           <div class="hist-donut" style="background:conic-gradient(${stops.join(",")})" role="img" aria-label="Genre-Verteilung">
-            <span class="hist-donut-center"><strong>${fmtNum(filmCount, 0)}</strong> Filme</span>
+            <span class="hist-donut-center">${centerMain}${centerSub}</span>
           </div>
-          <ul class="hist-genre-legend">${legend}</ul>
+          <ul class="hist-genre-legend">${legend || `<li class="hist-genre-empty">Noch keine Genre-Daten</li>`}</ul>
         </div>
+        ${breakdownLong ? `<p class="hist-genre-caption">${breakdownLong}</p>` : `<p class="hist-genre-caption hist-muted">Keine Sichtungen in diesem Zeitraum</p>`}
       </article>
     `;
+  }
+
+  function actorAvatarInner(name) {
+    const profileUrl = deps.actorProfileUrl ? deps.actorProfileUrl(name) : "";
+    if (profileUrl) {
+      return `<img src="${esc(profileUrl)}" alt="" width="48" height="48" decoding="async" referrerpolicy="no-referrer">`;
+    }
+    const initials = name.split(/\s+/).map((p) => p[0]).join("").slice(0, 2);
+    return esc(initials);
   }
 
   function actorsHtml(events, periodLabel) {
@@ -549,12 +610,13 @@
     const top = [...map.values()].sort((a, b) => b.score - a.score).slice(0, 5);
     if (!top.length) return "";
     const tiles = top.map((a, i) => {
-      const initials = a.name.split(/\s+/).map((p) => p[0]).join("").slice(0, 2);
+      const lastName = a.name.split(" ").pop() || a.name;
+      const count = Math.round(a.score);
       return `
         <div class="hist-actor${i === 0 ? " is-top" : ""}">
-          <div class="hist-actor-avatar" aria-hidden="true">${esc(initials)}</div>
-          <p class="hist-actor-name">${esc(a.name.split(" ").pop())}</p>
-          <p class="hist-actor-count">${fmtNum(Math.round(a.score), 0)} Filme</p>
+          <div class="hist-actor-avatar" data-actor-name="${esc(a.name)}" aria-hidden="true">${actorAvatarInner(a.name)}</div>
+          <p class="hist-actor-name" title="${esc(a.name)}">${esc(lastName)}</p>
+          <p class="hist-actor-count">${filmCountLabel(count)}</p>
         </div>
       `;
     }).join("");
@@ -596,8 +658,9 @@
       }
     });
     let weekdays = 0;
-    if (rangeStart != null && rangeEnd != null) {
-      for (let t = startOfDay(rangeStart); t <= rangeEnd; t = addDays(t, 1)) {
+    const rangeCap = rangeEnd != null ? Math.min(rangeEnd, Date.now()) : null;
+    if (rangeStart != null && rangeCap != null) {
+      for (let t = startOfDay(rangeStart); t <= rangeCap; t = addDays(t, 1)) {
         if (new Date(t).getDay() === bestIdx) weekdays += 1;
       }
     } else if (events.length) {
@@ -612,7 +675,7 @@
   }
 
   function kpiTrioHtml(events, range) {
-    const streak = viewstreak(events);
+    const streak = viewstreak(collectEvents());
     const avgFrac = events.length ? events.reduce((s, e) => s + e.f, 0) / events.length : 0;
     const fav = favoriteDay(events, range ? range.start : null, range ? range.end : null);
     return `
@@ -638,6 +701,7 @@
   function topFilmsHtml(byFilm) {
     const ranked = [...byFilm.entries()]
       .map(([id, row]) => ({ id, ...row }))
+      .filter((row) => row.kind !== "video")
       .sort((a, b) => b.score - a.score)
       .slice(0, 5);
     if (!ranked.length) return "";
@@ -645,7 +709,12 @@
     const findFilm = deps.findFilm || (() => null);
     const rows = ranked.map((row, i) => {
       const film = findFilm(row.id);
-      const poster = film ? (posterUrl(film, "w92") || film.poster || "") : "";
+      const meta = row.meta || film;
+      const poster = film
+        ? (posterUrl(film, "w92") || film.poster || "")
+        : meta
+          ? (posterUrl(meta, "w92") || meta.poster || "")
+          : "";
       const rankCls = i === 0 ? "gold" : i === 1 ? "silver" : i === 2 ? "bronze" : "plain";
       const total = row.complete + row.partial;
       const completeW = total ? (row.complete / total) * 100 : 100;
@@ -686,8 +755,8 @@
   function periodNavHtml(interval, anchor, range) {
     if (interval === "gesamt") {
       const d = new Date(range.start);
-      const label = `Seit Beginn (ab ${d.getDate().toString().padStart(2, "0")}.${(d.getMonth() + 1).toString().padStart(2, "0")}.${d.getFullYear()})`;
-      return `<p class="hist-period hist-period-gesamt">${esc(label)}</p>`;
+      const label = `(seit ${d.getDate().toString().padStart(2, "0")}.${(d.getMonth() + 1).toString().padStart(2, "0")}.${d.getFullYear()})`;
+      return `<p class="hist-since">${esc(label)}</p>`;
     }
     const prev = interval === "woche" ? addDays(anchor, -7)
       : interval === "monat" ? new Date(new Date(anchor).getFullYear(), new Date(anchor).getMonth() - 1, 1).getTime()
@@ -808,8 +877,8 @@
         <h2 class="screen-title historie-title">Historie</h2>
         <div class="historie-sticky" data-role="historie-sticky">
           <div class="hist-pills" role="tablist" aria-label="Zeitraum">${pills}</div>
-          ${periodNavHtml(interval, model.anchor, range)}
         </div>
+        ${periodNavHtml(interval, model.anchor, range)}
         <div class="historie-body">${body}</div>
       </section>
     `;
