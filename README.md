@@ -68,6 +68,10 @@ Lokal denselben Lauf (Schlüssel nur in der Shell, nicht in `config.js`):
 TMDB_API_KEY=… node scripts/build-films-catalog.mjs
 ```
 
+## Cloud-Sync
+
+Konten liegen im Worker `worker-sync/` (Cloudflare KV, Binding `CINEX_SYNC`). Die Seite spricht ihn über `window.SYNC_PROXY` an. Tokens werden bei Benutzung verlängert, pro Tag bleibt ein Stand 30 Tage lang wiederherstellbar, und ein Speichern, das Watchlist, Angesehen, Bewertungen oder Profile stark verkleinert, wird nachgefragt. Deploy und Reihenfolge stehen in `worker-sync/README.md`. Den Worker nicht aus diesem Repo heraus deployen, ohne die bestehende Namespace-Id zu behalten.
+
 ## Ablauf
 
 1. Anmelden oder registrieren (localStorage)

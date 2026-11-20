@@ -7,7 +7,10 @@
     "test:list-hydration:browser": "node --test scripts/test-list-hydration-browser.mjs",
     "test:view-entries": "node --test scripts/test-view-entries.mjs",
     "test:tag-scope": "node --test scripts/test-tag-scope.mjs",
-    "test:historie-followup": "node --test scripts/test-historie-followup.mjs"
+    "test:historie-followup": "node --test scripts/test-historie-followup.mjs",
+    "test:sync-safety": "node --test scripts/test-sync-safety.mjs",
+    "test:worker-sync": "node --test worker-sync/test/sync.test.mjs",
+    "test": "node --test scripts/test-known-sync.mjs scripts/test-sync-safety.mjs scripts/test-tag-scope.mjs scripts/test-view-entries.mjs scripts/test-historie-followup.mjs worker/test/proxy.test.mjs worker-sync/test/sync.test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.64.1"

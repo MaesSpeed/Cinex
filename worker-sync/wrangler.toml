@@ -1,0 +1,19 @@
+# Cloud sync for Wahl der Qual / Cinex (name+password login, opaque data blob).
+# Bindings and ids match the already deployed worker `cinex-sync`.
+# Deploy over it; do not create a new namespace and do not migrate keys.
+name = "cinex-sync"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[[kv_namespaces]]
+binding = "CINEX_SYNC"
+id = "5b9f11f5cad54b9a89883f66b83cb9dc"
+preview_id = "3b64921e5a044dc8b46e3a38e65d0b89"
+
+[vars]
+# Sliding lifetime: each authenticated use extends the token when the
+# remaining time falls under half of this window. Existing tok:<token>
+# values stay valid.
+TOKEN_TTL_SECONDS = "2592000"
+ALLOWED_ORIGINS = ""
+MAX_DATA_BYTES = "20971520"

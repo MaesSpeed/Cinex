@@ -1473,8 +1473,14 @@
     loginName: "",
     loginPass: "",
     loginError: "",
+    loginNotice: "",
     cloudSyncOn: false,
-    cloudStatus: "hidden", // hidden | ok | syncing | offline
+    cloudStatus: "hidden", // hidden | ok | syncing | offline | auth | shrink
+    authExpired: false,
+    authExpiredDialogShown: false,
+    shrinkDeclinedSig: "",
+    snapshotList: null,
+    snapshotError: "",
     authBusy: false,
     newTagName: "",
     newTagColor: "#0066B3",
@@ -1630,6 +1636,9 @@
         keys[key] = localStorage.getItem(key);
       }
     }
+    const tombKey = `wdq.profileTombstones.${user.id}`;
+    const tombRaw = localStorage.getItem(tombKey);
+    if (tombRaw != null) keys[tombKey] = tombRaw;
     return {
       format: "cinex-backup",
       version: 1,
@@ -1711,6 +1720,7 @@
     state.settingsError = "";
     state.screen = "settings";
     render();
+    if (cloudAccountLinked()) refreshSnapshots();
   }
 
   function renderSettings() {
@@ -1731,6 +1741,12 @@
     const err = state.settingsError
       ? `<p class="error settings-error">${escapeHtml(state.settingsError)}</p>`
       : "";
+    const authNote = state.authExpired
+      ? `<article class="card settings-auth-note">
+          <p>${escapeHtml(WDQSync.AUTH_EXPIRED_NOTICE)}</p>
+          <button type="button" class="btn btn-primary settings-btn" data-act="settings-reauth">Neu anmelden</button>
+        </article>`
+      : "";
     return `
       <h2 class="screen-title home-title settings-title">Einstellungen</h2>
       <section class="stack settings-stack">
@@ -1738,12 +1754,229 @@
           <h3 class="settings-konto-title">Konto: ${escapeHtml(user.login)}</h3>
           <p class="settings-konto-status">${escapeHtml(status)}</p>
         </article>
+        ${authNote}
         ${err}
         <button type="button" class="btn btn-primary settings-btn" data-act="settings-backup" ${state.settingsBusy ? "disabled" : ""}>Daten sichern</button>
         ${syncNowBtn}
         ${syncBtn}
+        ${linked ? renderSnapshotSection() : ""}
       </section>
     `;
+  }
+
+  function formatSnapshotLabel(snap) {
+    const ts = snap && snap.updatedAt ? new Date(snap.updatedAt) : null;
+    if (ts && Number.isFinite(ts.getTime())) {
+      return ts.toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+    }
+    const date = snap && snap.date ? String(snap.date) : "";
+    const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+    if (parts) return `${parts[3]}.${parts[2]}.${parts[1]}`;
+    return date || "unbekanntem Zeitpunkt";
+  }
+
+  function renderSnapshotSection() {
+    const list = state.snapshotList;
+    let body = "";
+    if (!list) {
+      body = `<p class="settings-snapshot-hint">${state.snapshotError ? escapeHtml(state.snapshotError) : "Stände werden geladen …"}</p>`;
+    } else if (!list.length) {
+      body = `<p class="settings-snapshot-hint">Noch kein früherer Stand. Der erste entsteht beim nächsten Speichern in die Cloud.</p>`;
+    } else {
+      body = `<div class="settings-restore-list">${list.map((snap) => {
+        const label = formatSnapshotLabel(snap);
+        const hint = snap.undo ? `<small>direkt vor der letzten Wiederherstellung</small>` : "";
+        return `<button type="button" class="settings-restore-btn" data-act="settings-restore" data-id="${escapeHtml(snap.id)}" ${state.settingsBusy ? "disabled" : ""}><span>Stand von ${escapeHtml(label)} wiederherstellen</span>${hint}</button>`;
+      }).join("")}</div>`;
+    }
+    return `
+      <article class="card settings-snapshots">
+        <h3 class="settings-konto-title">Frühere Stände</h3>
+        <p class="settings-snapshot-lead">Ein Stand pro Tag, 30 Tage lang. Wiederherstellen legt selbst einen neuen Stand an.</p>
+        ${body}
+      </article>
+    `;
+  }
+
+  async function refreshSnapshots() {
+    const session = loadCloudSession();
+    if (!session || !session.token) return;
+    try {
+      const res = await syncApi("/data/history", { token: session.token });
+      if (res.status === 401) {
+        noteAuthExpired();
+        state.snapshotList = [];
+        state.snapshotError = WDQSync.AUTH_EXPIRED_NOTICE;
+      } else if (!res.ok) {
+        state.snapshotList = [];
+        state.snapshotError = "Stände konnten nicht geladen werden.";
+      } else {
+        state.snapshotList = (res.data && res.data.snapshots) || [];
+        state.snapshotError = "";
+      }
+    } catch (err) {
+      state.snapshotList = [];
+      state.snapshotError = "Stände konnten nicht geladen werden.";
+    }
+    if (state.screen === "settings") render();
+  }
+
+  async function runRestore(id) {
+    const user = state.user;
+    const session = loadCloudSession();
+    if (!user || !session || !session.token || !id || state.settingsBusy) return;
+    state.settingsBusy = true;
+    state.settingsError = "";
+    render();
+    try {
+      const res = await syncApi("/data/restore", {
+        method: "POST",
+        token: session.token,
+        body: { id },
+      });
+      if (res.status === 401) {
+        noteAuthExpired();
+        return;
+      }
+      if (!res.ok || !res.data || res.data.data == null) {
+        state.settingsError = "Wiederherstellen fehlgeschlagen.";
+        return;
+      }
+      writeLocalSyncData(user.id, res.data.data);
+      const meta = loadSyncMeta(user.id);
+      meta.version = res.data.version;
+      meta.lastPullAt = Date.now();
+      meta.migrated = true;
+      saveSyncMeta(user.id, meta);
+      markPendingSync(user.id, false);
+      setCloudStatus("ok");
+      const profiles = profilesOf(user.id);
+      if (state.profile && !profiles.some((p) => p.id === state.profile.id)) {
+        state.profile = profiles[0] || null;
+        if (!state.profile) state.screen = "profiles";
+      }
+      persistSession();
+      showSnack("Stand wiederhergestellt.");
+      state.settingsBusy = false;
+      await refreshSnapshots();
+    } catch (err) {
+      state.settingsError = "Wiederherstellen fehlgeschlagen.";
+    } finally {
+      state.settingsBusy = false;
+      if (state.screen === "settings" || state.screen === "profiles") render();
+    }
+  }
+
+  async function askRestore(id) {
+    const snap = (state.snapshotList || []).find((row) => String(row.id) === String(id));
+    if (!snap || state.settingsBusy) return;
+    const label = formatSnapshotLabel(snap);
+    const yes = await askSafetyDialog({
+      kicker: "Sicherung",
+      title: "Stand wiederherstellen",
+      text: `Stand von ${label} wiederherstellen? Der aktuelle Cloud-Stand bleibt als Sicherung erhalten. Auf diesem Gerät wird dieser Stand geladen.`,
+      confirmLabel: "Wiederherstellen",
+      cancelLabel: "Abbrechen",
+    });
+    if (yes) await runRestore(id);
+  }
+
+  function beginReauth() {
+    const login = (state.user && state.user.login) || state.loginName || "";
+    if (state._safetyResolve) {
+      const resolve = state._safetyResolve;
+      state._safetyResolve = null;
+      resolve(false);
+    }
+    closeModal();
+    saveCloudSession(null);
+    state.authExpired = false;
+    state.authExpiredDialogShown = false;
+    state.user = null;
+    state.profile = null;
+    state.screen = "login";
+    state.cloudSyncOn = cloudSyncAvailable();
+    if (state.cloudSyncOn) saveCloudPref(true);
+    state.authMode = "login";
+    state.loginName = login;
+    state.loginPass = "";
+    state.loginError = "";
+    state.loginNotice = WDQSync.AUTH_EXPIRED_NOTICE;
+    state.cloudStatus = "hidden";
+    persistSession();
+    render();
+  }
+
+  function deleteProfileById(id) {
+    if (!state.user || id == null) return;
+    markAccountProfileTombstone(state.user.id, id);
+    saveProfiles(state.user.id, profilesOf(state.user.id).filter((p) => p.id !== id));
+    if (state.profile && state.profile.id === id) state.profile = null;
+    closeModal();
+    state.screen = "profiles";
+    persistSession();
+    scheduleDebouncedSync();
+    render();
+  }
+
+  async function confirmDeleteProfile(id) {
+    if (state._deleteProfileBusy) return;
+    const input = modalEl.querySelector("[data-act=del-pass]");
+    const value = input ? input.value : "";
+    const user = state.user;
+    if (!user || id == null) return;
+    const hint = (message) => {
+      const el = modalEl.querySelector(".hint");
+      if (el) el.textContent = message;
+    };
+    const session = loadCloudSession();
+    if (user.cloud) {
+      if (!value) {
+        hint("Passwort eingeben.");
+        return;
+      }
+      if (!session || !session.token) {
+        hint("Bitte neu anmelden, dann das Profil löschen.");
+        return;
+      }
+      if (!cloudSyncAvailable() || !isNetworkOnline()) {
+        hint("Passwort kann gerade nicht geprüft werden. Bitte mit Internet erneut versuchen.");
+        return;
+      }
+      state._deleteProfileBusy = true;
+      try {
+        const res = await syncApi("/verify", {
+          method: "POST",
+          token: session.token,
+          body: { name: user.login, password: value },
+        });
+        if (res.data && res.data.error === "invalid_credentials") {
+          hint("Passwort stimmt nicht.");
+          return;
+        }
+        if (res.status === 401) {
+          noteAuthExpired();
+          return;
+        }
+        if (res.status === 429) {
+          hint("Zu viele Versuche. Bitte kurz warten.");
+          return;
+        }
+        if (!res.ok) {
+          hint("Passwort konnte nicht geprüft werden. Bitte später erneut versuchen.");
+          return;
+        }
+      } catch (err) {
+        hint("Passwort kann gerade nicht geprüft werden. Bitte mit Internet erneut versuchen.");
+        return;
+      } finally {
+        state._deleteProfileBusy = false;
+      }
+    } else if (user.password != null && value !== user.password) {
+      hint("Passwort stimmt nicht.");
+      return;
+    }
+    deleteProfileById(id);
   }
 
   function openEnableSyncPasswordSheet() {
@@ -1858,7 +2091,8 @@
       list[idx] = user;
     }
     saveUsers(list);
-    Object.entries(obj.keys).forEach(([key, value]) => {
+    const stamped = WDQSync.restampBackupKeys(obj.keys, nowIso());
+    Object.entries(stamped).forEach(([key, value]) => {
       if (typeof key === "string" && key.startsWith("wdq.") && typeof value === "string") {
         localStorage.setItem(key, value);
       }
@@ -2069,6 +2303,8 @@
   function cloudStatusLabel(status) {
     if (status === "syncing") return "Synchronisiere …";
     if (status === "offline") return "Offline";
+    if (status === "auth") return "Neu anmelden";
+    if (status === "shrink") return "Rückfrage";
     if (status === "ok") return "Gesichert";
     return "";
   }
@@ -2076,6 +2312,8 @@
   function cloudStatusTitle(status) {
     if (status === "syncing") return "Synchronisiere …";
     if (status === "offline") return "Offline – wird später hochgeladen";
+    if (status === "auth") return WDQSync.AUTH_EXPIRED_NOTICE;
+    if (status === "shrink") return "Speichern braucht eine Bestätigung";
     if (status === "ok") return "Gesichert – alles online";
     return "";
   }
@@ -2091,12 +2329,16 @@
   }
 
   function cloudStatusHtml() {
-    if (!cloudSessionActive()) return "";
+    if (!cloudSessionActive() && state.cloudStatus !== "auth") return "";
     const status = state.cloudStatus;
     if (!status || status === "hidden") return "";
     const label = cloudStatusLabel(status);
-    const title = cloudStatusTitle(status);
-    return `<span class="cloud-status cloud-status--${status}" title="${title}" aria-live="polite" role="status"><span class="cloud-status-icon" aria-hidden="true">${ICONS.cloud}</span><span class="cloud-status-label">${label}</span></span>`;
+    const title = escapeHtml(cloudStatusTitle(status));
+    const interactive = status === "auth" || status === "shrink";
+    const act = status === "auth" ? "cloud-auth-open" : (status === "shrink" ? "cloud-shrink-open" : "");
+    const tag = interactive ? "button" : "span";
+    const type = interactive ? ` type="button" data-act="${act}"` : "";
+    return `<${tag}${type} class="cloud-status cloud-status--${status}" title="${title}" aria-live="polite" role="status"><span class="cloud-status-icon" aria-hidden="true">${ICONS.cloud}</span><span class="cloud-status-label">${label}</span></${tag}>`;
   }
 
   function paintCloudStatusBadge() {
@@ -2154,7 +2396,9 @@
         if (raw == null) return;
         let parsed;
         try { parsed = JSON.parse(raw); } catch { parsed = raw; }
-        if (suf === "ratings" && parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        if (suf === "filmTags") {
+          bag[suf] = WDQSync.sanitizeFilmTagsMap(parsed);
+        } else if (suf === "ratings" && parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
           const rich = loadJson(prefix + "ratingsSync", null);
           const src = rich && typeof rich === "object" ? rich : parsed;
           const next = {};
@@ -2170,9 +2414,9 @@
         } else if (suf === "known") {
           bag[suf] = normalizeKnownMap(parsed);
         } else if (Array.isArray(parsed)) {
-          bag[suf] = parsed.map((row) => stampItem(row, fallback));
+          bag[suf] = parsed.map((row) => stampItem(row));
         } else if (parsed && typeof parsed === "object") {
-          bag[suf] = stampItem(parsed, fallback);
+          bag[suf] = stampItem(parsed);
         } else {
           bag[suf] = parsed;
         }
@@ -2184,14 +2428,18 @@
       format: "cinex-sync",
       version: 1,
       userId,
-      profiles: list.map((p) => stampItem(p, fallback)),
+      profiles: list.map((p) => stampItem(p)),
       byProfile,
+      profileTombstones: loadJson(`wdq.profileTombstones.${userId}`, []),
       collectedAt: nowIso(),
     };
   }
 
   function writeLocalSyncData(userId, data) {
     if (!data || !userId) return;
+    if (Array.isArray(data.profileTombstones)) {
+      saveJson(`wdq.profileTombstones.${userId}`, data.profileTombstones);
+    }
     const profiles = Array.isArray(data.profiles) ? data.profiles.filter((p) => p && !p.deleted) : [];
     saveJson(`wdq.profiles.${userId}`, profiles.map((p) => {
       const copy = Object.assign({}, p);
@@ -2205,7 +2453,9 @@
       SYNC_PROFILE_SUFFIXES.forEach((suf) => {
         if (!(suf in bag)) return;
         let value = bag[suf];
-        if (suf === "ratings" && value && typeof value === "object" && !Array.isArray(value)) {
+        if (suf === "filmTags") {
+          saveJson(prefix + suf, WDQSync.sanitizeFilmTagsMap(value));
+        } else if (suf === "ratings" && value && typeof value === "object" && !Array.isArray(value)) {
           const plain = {};
           Object.keys(value).forEach((id) => {
             const cell = value[id];
@@ -2459,11 +2709,11 @@
         const vb = ub[id];
         if (Array.isArray(va) && Array.isArray(vb)) {
           merged[id] = [...new Set([...va, ...vb].map(String))];
-        } else {
-          merged[id] = vb !== undefined ? vb : va;
+        } else if (Array.isArray(vb) || Array.isArray(va)) {
+          merged[id] = Array.isArray(vb) ? vb.map(String) : va.map(String);
         }
       });
-      out.filmTags = merged;
+      out.filmTags = WDQSync.sanitizeFilmTagsMap(merged);
     }
     out.profileMeta = (() => {
       const ma = a.profileMeta && typeof a.profileMeta === "object" ? a.profileMeta : {};
@@ -2498,8 +2748,14 @@
       return localData;
     }
     if (!localData || localData.format !== "cinex-sync") return remote;
-    const profiles = mergeArrayById(localData.profiles, remote.profiles, "profiles")
-      .filter((p) => p && !p.deleted);
+    const profileMerge = WDQSync.mergeProfilesWithTombstones(
+      localData.profiles,
+      remote.profiles,
+      localData.profileTombstones,
+      remote.profileTombstones,
+    );
+    const profiles = profileMerge.profiles;
+    const dropped = new Set(profileMerge.droppedIds.map(String));
     const pids = new Set([
       ...Object.keys(localData.byProfile || {}),
       ...Object.keys(remote.byProfile || {}),
@@ -2507,6 +2763,7 @@
     ]);
     const byProfile = {};
     pids.forEach((pid) => {
+      if (dropped.has(String(pid))) return;
       byProfile[pid] = mergeProfileBags(
         (localData.byProfile || {})[pid],
         (remote.byProfile || {})[pid]
@@ -2517,6 +2774,7 @@
       version: 1,
       userId: localData.userId || remote.userId,
       profiles,
+      profileTombstones: profileMerge.profileTombstones,
       byProfile,
       collectedAt: nowIso(),
     };
@@ -2534,19 +2792,94 @@
     return false;
   }
 
-  async function pullCloudData(token) {
-    const { ok, status, data } = await syncApi("/data", { method: "GET", token });
-    if (!ok) throw new Error((data && data.error) || `GET /data failed (${status})`);
-    return data; // { version, updatedAt, data }
+  function httpError(status, data, fallback) {
+    const err = new Error((data && (data.message || data.error)) || fallback || `HTTP ${status}`);
+    err.status = status;
+    err.data = data;
+    return err;
   }
 
-  async function pushCloudData(token, baseVersion, payload) {
-    const { ok, status, data } = await syncApi("/data", {
-      method: "PUT",
-      token,
-      body: { baseVersion, data: payload },
+  function finishSyncMeta(user, version, moreSoon) {
+    const meta = loadSyncMeta(user.id);
+    meta.version = version;
+    meta.lastPullAt = Date.now();
+    meta.migrated = true;
+    saveSyncMeta(user.id, meta);
+    if (moreSoon) {
+      markPendingSync(user.id, true);
+      setCloudStatus("syncing");
+    } else {
+      markPendingSync(user.id, false);
+      setCloudStatus("ok");
+    }
+  }
+
+  function noteAuthExpired() {
+    state.authExpired = true;
+    if (state.user) markPendingSync(state.user.id, true);
+    setCloudStatus("auth");
+    if (state.screen === "login" || state.authExpiredDialogShown) return;
+    state.authExpiredDialogShown = true;
+    openAuthExpiredDialog();
+  }
+
+  function openSafetyDialog(opts) {
+    const confirmClass = opts.danger ? "btn btn-danger btn-confirm" : "btn btn-primary btn-confirm";
+    const idAttr = opts.id ? ` data-id="${escapeHtml(opts.id)}"` : "";
+    openModal(`
+      <div class="card modal-card safety-dialog" role="dialog" aria-modal="true" aria-labelledby="safety-title">
+        <p class="safety-kicker">${escapeHtml(opts.kicker || "Cloud")}</p>
+        <h2 id="safety-title">${escapeHtml(opts.title)}</h2>
+        <p class="safety-copy">${escapeHtml(opts.text)}</p>
+        <div class="modal-actions safety-actions">
+          <button type="button" class="${confirmClass}" data-act="${escapeHtml(opts.confirmAct || "safety-yes")}"${idAttr}>${escapeHtml(opts.confirmLabel)}</button>
+          <button type="button" class="btn btn-ghost" data-act="modal-close">${escapeHtml(opts.cancelLabel || "Abbrechen")}</button>
+        </div>
+      </div>
+    `);
+  }
+
+  function askSafetyDialog(opts) {
+    return new Promise((resolve) => {
+      state._safetyResolve = resolve;
+      openSafetyDialog(opts);
     });
-    return { ok, status, data };
+  }
+
+  function settleSafety(value) {
+    const resolve = state._safetyResolve;
+    state._safetyResolve = null;
+    closeModal();
+    if (resolve) resolve(value);
+  }
+
+  function openAuthExpiredDialog() {
+    openSafetyDialog({
+      kicker: "Anmeldung",
+      title: "Anmeldung abgelaufen",
+      text: WDQSync.AUTH_EXPIRED_NOTICE,
+      confirmLabel: "Neu anmelden",
+      cancelLabel: "Später",
+      confirmAct: "reauth-now",
+    });
+  }
+
+  function shouldPromptShrink(reason) {
+    return reason === "manual" || reason === "change" || reason === "start"
+      || reason === "visible" || reason === "pageshow" || reason === "periodic";
+  }
+
+  async function pullCloudData(token) {
+    const { ok, status, data } = await syncApi("/data", { method: "GET", token });
+    if (status === 401) throw httpError(401, data, "unauthorized");
+    if (!ok) throw httpError(status, data, `GET /data failed (${status})`);
+    return data;
+  }
+
+  async function pushCloudData(token, baseVersion, payload, opts) {
+    const body = { baseVersion, data: payload };
+    if (opts && opts.confirmShrink) body.confirmShrink = true;
+    return syncApi("/data", { method: "PUT", token, body });
   }
 
   async function syncAccount(user, { forceUpload = false, reason = "manual" } = {}) {
@@ -2554,7 +2887,7 @@
     if (!session || !session.token || !user) return { ok: false, reason: "no-session" };
     if (!isNetworkOnline()) {
       markPendingSync(user.id, true);
-      setCloudStatus("offline");
+      setCloudStatus(state.authExpired ? "auth" : "offline");
       return { ok: false, reason: "offline" };
     }
     if (state._syncInFlight) {
@@ -2568,40 +2901,81 @@
     try {
       const local = collectLocalSyncData(user.id);
       let remote = await pullCloudData(session.token);
+      state.authExpired = false;
       let merged = forceUpload && (remote.data == null)
         ? local
         : mergeSyncData(local, remote);
       if (forceUpload && remote.data == null) merged = local;
       let baseVersion = Number(remote.version) || 0;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const put = await pushCloudData(session.token, baseVersion, merged);
+      const remotePayload = remote.data;
+      const unchanged = !(forceUpload && remote.data == null) && WDQSync.syncPayloadEqual(merged, remotePayload);
+      if (unchanged) {
+        if (!WDQSync.syncPayloadEqual(local, remotePayload)) writeLocalSyncData(user.id, merged);
+        finishSyncMeta(user, baseVersion, Boolean(state._syncTimer) || state._syncDirtyDuringFlight);
+        return { ok: true, skipped: true, version: baseVersion, reason };
+      }
+      let confirmShrink = false;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const put = await pushCloudData(session.token, baseVersion, merged, { confirmShrink });
+        if (put.status === 401) {
+          noteAuthExpired();
+          return { ok: false, reason: "auth" };
+        }
         if (put.ok) {
           writeLocalSyncData(user.id, merged);
-          const meta = loadSyncMeta(user.id);
-          meta.version = put.data.version;
-          meta.lastPullAt = Date.now();
-          meta.migrated = true;
-          saveSyncMeta(user.id, meta);
-          const moreSoon = Boolean(state._syncTimer) || state._syncDirtyDuringFlight;
-          if (moreSoon) {
-            markPendingSync(user.id, true);
-            setCloudStatus("syncing");
-          } else {
-            markPendingSync(user.id, false);
-            setCloudStatus("ok");
-          }
+          state.shrinkDeclinedSig = "";
+          finishSyncMeta(user, put.data.version, Boolean(state._syncTimer) || state._syncDirtyDuringFlight);
           return { ok: true, version: put.data.version, reason };
         }
         if (put.status === 409 && put.data && put.data.current) {
           remote = put.data.current;
           merged = mergeSyncData(merged, remote);
           baseVersion = Number(remote.version) || 0;
+          confirmShrink = false;
+          if (WDQSync.syncPayloadEqual(merged, remote.data)) {
+            writeLocalSyncData(user.id, merged);
+            finishSyncMeta(user, baseVersion, Boolean(state._syncTimer) || state._syncDirtyDuringFlight);
+            return { ok: true, skipped: true, version: baseVersion, reason };
+          }
           continue;
         }
-        throw new Error((put.data && put.data.error) || `PUT /data failed (${put.status})`);
+        if (put.status === 422 && put.data && put.data.error === "shrink_rejected") {
+          const sig = JSON.stringify(put.data.losses || []);
+          if (confirmShrink) throw httpError(422, put.data, "shrink_rejected");
+          const declined = reason !== "manual" && state.shrinkDeclinedSig === sig;
+          if (!shouldPromptShrink(reason) || declined) {
+            markPendingSync(user.id, true);
+            setCloudStatus("shrink");
+            return { ok: false, reason: "shrink" };
+          }
+          const copy = WDQSync.shrinkDialogCopy(put.data.losses);
+          setCloudStatus("shrink");
+          const yes = await askSafetyDialog({
+            kicker: "Cloud",
+            title: copy.title,
+            text: copy.text,
+            confirmLabel: "Trotzdem speichern",
+            cancelLabel: "Abbrechen",
+            danger: true,
+          });
+          if (!yes) {
+            state.shrinkDeclinedSig = sig;
+            markPendingSync(user.id, true);
+            setCloudStatus("shrink");
+            return { ok: false, reason: "shrink" };
+          }
+          confirmShrink = true;
+          setCloudStatus("syncing");
+          continue;
+        }
+        throw httpError(put.status, put.data, `PUT /data failed (${put.status})`);
       }
       throw new Error("Sync-Konflikt: bitte erneut versuchen.");
     } catch (err) {
+      if (err && err.status === 401) {
+        noteAuthExpired();
+        return { ok: false, reason: "auth" };
+      }
       const msg = String(err && err.message || err || "");
       const offlineish = !isNetworkOnline()
         || /Failed to fetch|NetworkError|Load failed|network/i.test(msg);
@@ -2616,7 +2990,7 @@
       const dirty = state._syncDirtyDuringFlight;
       state._syncInFlight = false;
       state._syncDirtyDuringFlight = false;
-      if (dirty && user && isNetworkOnline() && !state._syncTimer) {
+      if (dirty && user && isNetworkOnline() && !state._syncTimer && !state.authExpired) {
         scheduleDebouncedSync();
       }
     }
@@ -2657,6 +3031,16 @@
   function markProfileTombstone(kind, id) {
     if (!state.user || !state.profile || id == null) return;
     markTombstone(state.user.id, state.profile.id, kind, id);
+  }
+
+  function markAccountProfileTombstone(userId, profileId) {
+    if (!userId || profileId == null) return;
+    const key = `wdq.profileTombstones.${userId}`;
+    const list = loadJson(key, []);
+    const row = { id: String(profileId), kind: "profile", deleted: true, updatedAt: nowIso(), at: Date.now() };
+    const next = (Array.isArray(list) ? list : []).filter((r) => !(r && String(r.id) === String(profileId)));
+    next.push(row);
+    saveJson(key, next);
   }
 
   function clearProfileTombstone(kind, id) {
@@ -2851,7 +3235,10 @@
       }
       setCloudStatus(isNetworkOnline() ? "ok" : "offline");
     } catch (err) {
-      // keep local session; soft fail
+      if (err && err.status === 401) {
+        noteAuthExpired();
+        return;
+      }
       console.warn("cloud afterAuth", err);
       const offlineish = !isNetworkOnline() || /Failed to fetch|NetworkError|Load failed|network/i.test(String(err && err.message || err || ""));
       if (offlineish) {
@@ -3058,8 +3445,8 @@
   }
 
   function saveHistory(list) {
-    const now = nowIso();
-    const stamped = (Array.isArray(list) ? list : []).map((row) => row && typeof row === "object" ? Object.assign({}, row, { updatedAt: now }) : row);
+    const prev = loadJson(pkey("history"), []);
+    const stamped = WDQSync.stampChangedRows(prev, list, nowIso());
     saveJson(pkey("history"), stamped);
     scheduleDebouncedSync();
   }
@@ -3080,7 +3467,7 @@
       entry = { id: hid, title: film.title, at: when, views: [when] };
     }
     rows.unshift(entry);
-    saveHistory(rows.slice(0, 300));
+    saveHistory(rows);
   }
 
   function removeLatestView(id) {
@@ -3200,8 +3587,8 @@
   }
 
   function saveVideoHistory(list) {
-    const now = nowIso();
-    const stamped = (Array.isArray(list) ? list : []).map((row) => row && typeof row === "object" ? Object.assign({}, row, { updatedAt: now }) : row);
+    const prev = loadJson(pkey("videoHistory"), []);
+    const stamped = WDQSync.stampChangedRows(prev, list, nowIso());
     saveJson(pkey("videoHistory"), stamped);
     scheduleDebouncedSync();
   }
@@ -3419,8 +3806,7 @@
   }
 
   function filmTags() {
-    const map = loadJson(pkey("filmTags"), {});
-    return map && typeof map === "object" && !Array.isArray(map) ? map : {};
+    return WDQSync.sanitizeFilmTagsMap(loadJson(pkey("filmTags"), {}));
   }
 
   function saveFilmTags(map) {
@@ -4115,6 +4501,11 @@
     modalEl.classList.remove("is-bottom");
     modalEl.hidden = true;
     modalEl.innerHTML = "";
+    if (state._safetyResolve) {
+      const resolve = state._safetyResolve;
+      state._safetyResolve = null;
+      resolve(false);
+    }
   }
 
   function openModal(html, opts) {
@@ -6482,6 +6873,7 @@
             <span class="login-cloud-knob"></span>
           </button>
         </label>` : ""}
+        ${state.loginNotice ? `<p class="login-auth-notice" role="status">${escapeHtml(state.loginNotice)}</p>` : ""}
         <p class="error" data-role="login-error"${state.loginError ? "" : " hidden"}>${escapeHtml(state.loginError)}</p>
         <div class="login-actions">
           <button type="submit" class="btn btn-primary login-submit" data-act="auth-submit" ${state.authBusy ? "disabled" : ""}>
@@ -6691,16 +7083,17 @@
     const plate = normalizePlate(state.addPlate);
     const cover = normalizeCover(state.addCover);
     let id = state.editingProfileId;
+    const touchedAt = nowIso();
     if (id) {
       const idx = list.findIndex((row) => row.id === id);
       if (idx < 0) return;
-      const copy = Object.assign({}, list[idx], { name, plate });
+      const copy = Object.assign({}, list[idx], { name, plate, updatedAt: touchedAt });
       if (cover) copy.cover = cover;
       else delete copy.cover;
       list[idx] = copy;
     } else {
       id = `p-${Date.now()}`;
-      const row = { id, name, plate };
+      const row = { id, name, plate, updatedAt: touchedAt };
       if (cover) row.cover = cover;
       list.push(row);
     }
@@ -6708,6 +7101,7 @@
     const favKey = `wdq.p.${state.user.id}.${id}.favorite`;
     if (cover && cover.id) saveJson(favKey, cover);
     else localStorage.removeItem(favKey);
+    scheduleDebouncedSync();
     state.editingProfileId = null;
     state.screen = "profiles";
     render();
@@ -12245,6 +12639,25 @@
       openEnableSyncPasswordSheet();
       return;
     }
+    if (act === "settings-reauth") {
+      beginReauth();
+      return;
+    }
+    if (act === "settings-restore") {
+      askRestore(t.dataset.id);
+      return;
+    }
+    if (act === "cloud-auth-open") {
+      openAuthExpiredDialog();
+      return;
+    }
+    if (act === "cloud-shrink-open") {
+      state.shrinkDeclinedSig = "";
+      const user = state.user;
+      if (!user) return;
+      syncAccount(user, { reason: "manual" }).catch((err) => console.warn("cloud shrink", err));
+      return;
+    }
     if (act === "settings-sync-now") {
       const user = state.user;
       if (!user || state.settingsBusy || !cloudAccountLinked()) return;
@@ -12256,7 +12669,8 @@
       }
       syncAccount(user, { reason: "manual" })
         .then((res) => {
-          if (res && res.ok) showSnack("Synchronisierung abgeschlossen.");
+          if (res && res.ok) showSnack(res.skipped ? "Alles schon gesichert." : "Synchronisierung abgeschlossen.");
+          else if (res && (res.reason === "auth" || res.reason === "shrink")) return;
           else showSnack("Synchronisierung fehlgeschlagen.", "warn");
         })
         .catch(() => showSnack("Synchronisierung fehlgeschlagen.", "warn"))
@@ -13071,6 +13485,12 @@
       closeAccountMenu();
       askLogout();
     }
+    if (t.dataset.act === "cloud-auth-open") openAuthExpiredDialog();
+    if (t.dataset.act === "cloud-shrink-open") {
+      state.shrinkDeclinedSig = "";
+      if (!state.user) return;
+      syncAccount(state.user, { reason: "manual" }).catch((err) => console.warn("cloud shrink", err));
+    }
   });
 
   modalEl.addEventListener("input", (event) => {
@@ -13172,30 +13592,16 @@
       confirmEnableCloudSync();
       return;
     }
+    if (t.dataset.act === "safety-yes") {
+      settleSafety(true);
+      return;
+    }
+    if (t.dataset.act === "reauth-now") {
+      beginReauth();
+      return;
+    }
     if (t.dataset.act === "delete-profile") {
-      const input = modalEl.querySelector("[data-act=del-pass]");
-      const value = input ? input.value : "";
-      const localPass = state.user && state.user.password;
-      if (localPass !== undefined && localPass !== null && value !== localPass) {
-        const hint = modalEl.querySelector(".hint");
-        if (hint) hint.textContent = "Passwort stimmt nicht.";
-        return;
-      }
-      if ((localPass === undefined || localPass === null) && state.user && state.user.cloud) {
-        // Cloud accounts no longer keep a local plaintext password; require a non-empty confirmation.
-        if (!value) {
-          const hint = modalEl.querySelector(".hint");
-          if (hint) hint.textContent = "Passwort eingeben.";
-          return;
-        }
-      }
-      const id = t.dataset.id;
-      saveProfiles(state.user.id, profilesOf(state.user.id).filter((p) => p.id !== id));
-      if (state.profile && state.profile.id === id) state.profile = null;
-      closeModal();
-      state.screen = "profiles";
-      persistSession();
-      render();
+      confirmDeleteProfile(t.dataset.id);
       return;
     }
     if (t.dataset.act === "tag-add-save") {
@@ -13208,7 +13614,7 @@
       saveTags(customTags().filter((x) => x.id !== id));
       const map = filmTags();
       for (const key of Object.keys(map)) {
-        map[key] = (map[key] || []).filter((x) => x !== id);
+        map[key] = Array.isArray(map[key]) ? map[key].filter((x) => x !== id) : [];
       }
       saveFilmTags(map);
       state.filters.tags = state.filters.tags.filter((x) => x !== id);
