@@ -14,6 +14,8 @@ Cloudflare Worker für den Cloud-Sync von Wahl der Qual (Name + Passwort, ein ve
 
 Bestehende Tokens ohne `expiresAt` bleiben gültig und werden beim nächsten Aufruf einmal verlängert.
 
+Ein wiederhergestellter Stand trägt `restoredAt`. Ältere Grabsteine und Zeilen davor gelten nicht mehr, damit andere Geräte den Stand übernehmen. Ein Profil, das mit einem Profil-Grabstein gelöscht wird, löst den Schrumpfschutz nicht aus.
+
 ## Endpunkte
 
 | Methode | Pfad | Auth | Hinweis |

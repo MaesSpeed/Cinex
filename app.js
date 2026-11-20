@@ -1764,15 +1764,16 @@
     `;
   }
 
+  function formatSnapshotDay(value) {
+    const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+    if (!parts) return "";
+    return `${parts[3]}.${parts[2]}.${parts[1]}`;
+  }
+
   function formatSnapshotLabel(snap) {
-    const ts = snap && snap.updatedAt ? new Date(snap.updatedAt) : null;
-    if (ts && Number.isFinite(ts.getTime())) {
-      return ts.toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
-    }
-    const date = snap && snap.date ? String(snap.date) : "";
-    const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-    if (parts) return `${parts[3]}.${parts[2]}.${parts[1]}`;
-    return date || "unbekanntem Zeitpunkt";
+    const day = formatSnapshotDay(snap && snap.date) || formatSnapshotDay(snap && snap.id);
+    if (day) return day;
+    return "unbekanntem Zeitpunkt";
   }
 
   function renderSnapshotSection() {
@@ -2431,6 +2432,7 @@
       profiles: list.map((p) => stampItem(p)),
       byProfile,
       profileTombstones: loadJson(`wdq.profileTombstones.${userId}`, []),
+      restoredAt: loadSyncMeta(userId).restoredAt || undefined,
       collectedAt: nowIso(),
     };
   }
@@ -2439,6 +2441,15 @@
     if (!data || !userId) return;
     if (Array.isArray(data.profileTombstones)) {
       saveJson(`wdq.profileTombstones.${userId}`, data.profileTombstones);
+    }
+    if (data.restoredAt) {
+      const meta = loadSyncMeta(userId);
+      const prev = meta.restoredAt ? Date.parse(meta.restoredAt) : 0;
+      const next = Date.parse(data.restoredAt);
+      if (!prev || (Number.isFinite(next) && next >= prev)) {
+        meta.restoredAt = data.restoredAt;
+        saveSyncMeta(userId, meta);
+      }
     }
     const profiles = Array.isArray(data.profiles) ? data.profiles.filter((p) => p && !p.deleted) : [];
     saveJson(`wdq.profiles.${userId}`, profiles.map((p) => {
@@ -2748,16 +2759,18 @@
       return localData;
     }
     if (!localData || localData.format !== "cinex-sync") return remote;
+    let local = localData;
+    if (WDQSync.restoreIsNewer(remote, local)) local = WDQSync.adoptRestoreEpoch(local, remote.restoredAt);
     const profileMerge = WDQSync.mergeProfilesWithTombstones(
-      localData.profiles,
+      local.profiles,
       remote.profiles,
-      localData.profileTombstones,
+      local.profileTombstones,
       remote.profileTombstones,
     );
     const profiles = profileMerge.profiles;
     const dropped = new Set(profileMerge.droppedIds.map(String));
     const pids = new Set([
-      ...Object.keys(localData.byProfile || {}),
+      ...Object.keys(local.byProfile || {}),
       ...Object.keys(remote.byProfile || {}),
       ...profiles.map((p) => String(p.id)),
     ]);
@@ -2765,17 +2778,19 @@
     pids.forEach((pid) => {
       if (dropped.has(String(pid))) return;
       byProfile[pid] = mergeProfileBags(
-        (localData.byProfile || {})[pid],
+        (local.byProfile || {})[pid],
         (remote.byProfile || {})[pid]
       );
     });
+    const restoredAt = WDQSync.newerRestoreStamp(local, remote);
     return {
       format: "cinex-sync",
       version: 1,
-      userId: localData.userId || remote.userId,
+      userId: local.userId || remote.userId,
       profiles,
       profileTombstones: profileMerge.profileTombstones,
       byProfile,
+      ...(restoredAt ? { restoredAt } : {}),
       collectedAt: nowIso(),
     };
   }
@@ -2826,14 +2841,18 @@
   function openSafetyDialog(opts) {
     const confirmClass = opts.danger ? "btn btn-danger btn-confirm" : "btn btn-primary btn-confirm";
     const idAttr = opts.id ? ` data-id="${escapeHtml(opts.id)}"` : "";
+    const adopt = opts.altLabel
+      ? `<button type="button" class="btn btn-primary" data-act="${escapeHtml(opts.altAct || "safety-adopt")}">${escapeHtml(opts.altLabel)}</button>`
+      : "";
+    const confirm = `<button type="button" class="${confirmClass}" data-act="${escapeHtml(opts.confirmAct || "safety-yes")}"${idAttr}>${escapeHtml(opts.confirmLabel)}</button>`;
+    const cancel = `<button type="button" class="btn btn-ghost" data-act="modal-close">${escapeHtml(opts.cancelLabel || "Abbrechen")}</button>`;
     openModal(`
       <div class="card modal-card safety-dialog" role="dialog" aria-modal="true" aria-labelledby="safety-title">
         <p class="safety-kicker">${escapeHtml(opts.kicker || "Cloud")}</p>
         <h2 id="safety-title">${escapeHtml(opts.title)}</h2>
         <p class="safety-copy">${escapeHtml(opts.text)}</p>
         <div class="modal-actions safety-actions">
-          <button type="button" class="${confirmClass}" data-act="${escapeHtml(opts.confirmAct || "safety-yes")}"${idAttr}>${escapeHtml(opts.confirmLabel)}</button>
-          <button type="button" class="btn btn-ghost" data-act="modal-close">${escapeHtml(opts.cancelLabel || "Abbrechen")}</button>
+          ${adopt}${confirm}${cancel}
         </div>
       </div>
     `);
@@ -2867,6 +2886,11 @@
   function shouldPromptShrink(reason) {
     return reason === "manual" || reason === "change" || reason === "start"
       || reason === "visible" || reason === "pageshow" || reason === "periodic";
+  }
+
+  function shrinkPromptIsBackground(reason) {
+    return reason === "periodic" || reason === "visible" || reason === "pageshow"
+      || reason === "hidden" || reason === "pagehide" || reason === "online" || reason === "flush";
   }
 
   async function pullCloudData(token) {
@@ -2942,7 +2966,7 @@
         if (put.status === 422 && put.data && put.data.error === "shrink_rejected") {
           const sig = JSON.stringify(put.data.losses || []);
           if (confirmShrink) throw httpError(422, put.data, "shrink_rejected");
-          const declined = reason !== "manual" && state.shrinkDeclinedSig === sig;
+          const declined = shrinkPromptIsBackground(reason) && state.shrinkDeclinedSig === sig;
           if (!shouldPromptShrink(reason) || declined) {
             markPendingSync(user.id, true);
             setCloudStatus("shrink");
@@ -2950,15 +2974,30 @@
           }
           const copy = WDQSync.shrinkDialogCopy(put.data.losses);
           setCloudStatus("shrink");
-          const yes = await askSafetyDialog({
+          const choice = await askSafetyDialog({
             kicker: "Cloud",
             title: copy.title,
             text: copy.text,
             confirmLabel: "Trotzdem speichern",
+            altLabel: "Cloud-Stand übernehmen",
+            altAct: "safety-adopt",
             cancelLabel: "Abbrechen",
             danger: true,
           });
-          if (!yes) {
+          if (choice === "adopt") {
+            const cloud = remote && remote.data && remote.data.format === "cinex-sync" ? remote.data : null;
+            if (cloud) merged = WDQSync.adoptCloudStand(local, cloud);
+            state.shrinkDeclinedSig = "";
+            confirmShrink = false;
+            if (cloud && WDQSync.syncPayloadEqual(merged, cloud)) {
+              writeLocalSyncData(user.id, merged);
+              finishSyncMeta(user, baseVersion, Boolean(state._syncTimer) || state._syncDirtyDuringFlight);
+              return { ok: true, adopted: true, version: baseVersion, reason };
+            }
+            setCloudStatus("syncing");
+            continue;
+          }
+          if (choice !== true) {
             state.shrinkDeclinedSig = sig;
             markPendingSync(user.id, true);
             setCloudStatus("shrink");
@@ -13594,6 +13633,10 @@
     }
     if (t.dataset.act === "safety-yes") {
       settleSafety(true);
+      return;
+    }
+    if (t.dataset.act === "safety-adopt") {
+      settleSafety("adopt");
       return;
     }
     if (t.dataset.act === "reauth-now") {

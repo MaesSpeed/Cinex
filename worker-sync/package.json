@@ -8,6 +8,6 @@
     "test": "node --test test/sync.test.mjs"
   },
   "devDependencies": {
-    "wrangler": "^3.114.17"
+    "wrangler": "^4.165.0"
   }
 }

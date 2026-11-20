@@ -6,6 +6,8 @@ import test from "node:test";
 const require = createRequire(import.meta.url);
 const {
   AUTH_EXPIRED_NOTICE,
+  adoptCloudStand,
+  adoptRestoreEpoch,
   mergeProfilesWithTombstones,
   restampBackupKeys,
   sanitizeFilmTagsMap,
@@ -138,6 +140,12 @@ test("app wires the safety helpers and drops the history cap", () => {
   assert.match(src, /syncApi\("\/verify"/);
   assert.match(src, /AUTH_EXPIRED_NOTICE/);
   assert.match(src, /confirmShrink/);
+  assert.match(src, /adoptRestoreEpoch/);
+  assert.match(src, /Cloud-Stand übernehmen/);
+  const labelAt = src.indexOf("function formatSnapshotLabel");
+  const labelSlice = src.slice(labelAt, labelAt + 420);
+  assert.match(labelSlice, /snap\.date/);
+  assert.doesNotMatch(labelSlice, /toLocaleString/);
   assert.match(src, /\/data\/history/);
   assert.match(src, /\/data\/restore/);
 });
@@ -152,4 +160,91 @@ test("shrink copy names the missing films", () => {
     "Auf diesem Gerät fehlt 1 Film. Wirklich so speichern?",
   );
   assert.match(shrinkDialogCopy([{ field: "data", lost: 1, nullData: true }]).text, /Kontodaten/);
+});
+
+function films(n, start = 0) {
+  const out = [];
+  for (let i = start; i < start + n; i += 1) {
+    out.push({ id: `t${i}`, updatedAt: "2026-10-01T00:00:00.000Z" });
+  }
+  return out;
+}
+
+test("another device adopts a restore instead of replaying old tombstones", () => {
+  const restoredAt = "2026-11-20T12:00:00.000Z";
+  const remote = {
+    format: "cinex-sync",
+    restoredAt,
+    profiles: [{ id: "p1", name: "Domi", updatedAt: "2026-10-01T00:00:00.000Z" }],
+    byProfile: { p1: { watchlist: films(20), _tombstones: [] } },
+  };
+  const local = {
+    format: "cinex-sync",
+    profiles: [{ id: "p1", name: "Domi", updatedAt: "2026-10-01T00:00:00.000Z" }],
+    byProfile: {
+      p1: {
+        watchlist: films(5),
+        _tombstones: films(15).map((row) => ({
+          id: row.id,
+          kind: "watchlist",
+          deleted: true,
+          updatedAt: "2026-11-20T09:00:00.000Z",
+        })),
+      },
+    },
+  };
+  const adopted = adoptRestoreEpoch(local, remote.restoredAt);
+  assert.equal(adopted.restoredAt, restoredAt);
+  assert.equal(adopted.byProfile.p1._tombstones.length, 0);
+  assert.equal(adopted.byProfile.p1.watchlist.length, 0);
+  const fresh = {
+    id: "t3",
+    kind: "watchlist",
+    deleted: true,
+    updatedAt: "2026-11-20T13:00:00.000Z",
+  };
+  const withFresh = adoptRestoreEpoch({
+    ...local,
+    byProfile: {
+      p1: {
+        watchlist: films(5),
+        _tombstones: adopted.byProfile.p1._tombstones.concat([fresh]),
+      },
+    },
+  }, restoredAt);
+  assert.deepEqual(withFresh.byProfile.p1._tombstones, [fresh]);
+  const kept = new Set([
+    ...withFresh.byProfile.p1.watchlist.map((row) => row.id),
+    ...remote.byProfile.p1.watchlist.map((row) => row.id),
+  ]);
+  withFresh.byProfile.p1._tombstones.forEach((row) => kept.delete(row.id));
+  assert.equal(kept.size, 19);
+  assert.equal(kept.has("t3"), false);
+  assert.equal(kept.has("t10"), true);
+});
+
+test("adopting the cloud stand keeps later additions and drops the shrink", () => {
+  const remote = {
+    format: "cinex-sync",
+    profiles: [{ id: "p1", name: "Domi", updatedAt: "2026-10-01T00:00:00.000Z" }],
+    byProfile: { p1: { watchlist: films(20), _tombstones: [] } },
+  };
+  const local = {
+    format: "cinex-sync",
+    profiles: [{ id: "p1", name: "Domi", updatedAt: "2026-10-01T00:00:00.000Z" }],
+    byProfile: {
+      p1: {
+        watchlist: films(5).concat([{ id: "t-new", updatedAt: "2026-11-20T15:00:00.000Z" }]),
+        _tombstones: films(15).map((row) => ({
+          id: row.id, kind: "watchlist", deleted: true, updatedAt: "2026-11-20T09:00:00.000Z",
+        })),
+      },
+    },
+  };
+  const adopted = adoptCloudStand(local, remote);
+  const ids = adopted.byProfile.p1.watchlist.map((row) => row.id);
+  assert.equal(ids.length, 21);
+  assert.equal(ids.includes("t-new"), true);
+  assert.equal(ids.includes("t10"), true);
+  assert.equal(adopted.byProfile.p1._tombstones.length, 0);
 });

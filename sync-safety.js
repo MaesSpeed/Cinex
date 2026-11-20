@@ -255,6 +255,107 @@
     return parts.slice(0, -1).join(", ") + " und " + parts[parts.length - 1];
   }
 
+  function rowTs(row) {
+    return tsOf(row && row.updatedAt) || tsOf(row && row.at) || 0;
+  }
+
+  function restoreIsNewer(remote, local) {
+    if (!remote || !remote.restoredAt) return false;
+    return tsOf(remote.restoredAt) > tsOf(local && local.restoredAt);
+  }
+
+  function newerRestoreStamp(a, b) {
+    return tsOf(a && a.restoredAt) >= tsOf(b && b.restoredAt)
+      ? (a && a.restoredAt) || ""
+      : (b && b.restoredAt) || "";
+  }
+
+  function stripBagBeforeRestore(bag, cut) {
+    var src = bag && typeof bag === "object" ? bag : {};
+    var out = {};
+    Object.keys(src).forEach(function (key) { out[key] = src[key]; });
+    out._tombstones = (Array.isArray(src._tombstones) ? src._tombstones : []).filter(function (row) {
+      return rowTs(row) > cut;
+    });
+    Object.keys(LIST_SUFFIXES).forEach(function (key) {
+      if (!Array.isArray(src[key])) return;
+      out[key] = src[key].filter(function (row) {
+        return row && typeof row === "object" && rowTs(row) > cut;
+      });
+    });
+    if (src.ratings && typeof src.ratings === "object" && !Array.isArray(src.ratings)) {
+      var ratings = {};
+      Object.keys(src.ratings).forEach(function (id) {
+        var cell = src.ratings[id];
+        var t = cell && typeof cell === "object" ? tsOf(cell.updatedAt) : 0;
+        if (t > cut) ratings[id] = cell;
+      });
+      out.ratings = ratings;
+    }
+    return out;
+  }
+
+  function adoptRestoreEpoch(local, restoredAt) {
+    var cut = tsOf(restoredAt);
+    if (!local || typeof local !== "object" || !cut) return local;
+    var bags = {};
+    Object.keys(local.byProfile || {}).forEach(function (pid) {
+      bags[pid] = stripBagBeforeRestore(local.byProfile[pid], cut);
+    });
+    return Object.assign({}, local, {
+      restoredAt: restoredAt,
+      profiles: (Array.isArray(local.profiles) ? local.profiles : []).filter(function (row) {
+        return row && rowTs(row) > cut;
+      }),
+      profileTombstones: (Array.isArray(local.profileTombstones) ? local.profileTombstones : []).filter(function (row) {
+        return rowTs(row) > cut;
+      }),
+      byProfile: bags,
+    });
+  }
+
+  function adoptCloudStand(local, remote) {
+    if (!remote || typeof remote !== "object") return local;
+    var base;
+    try { base = JSON.parse(JSON.stringify(remote)); } catch (err) { return remote; }
+    var lists = Object.keys(LIST_SUFFIXES);
+    var localBags = (local && local.byProfile) || {};
+    base.byProfile = base.byProfile && typeof base.byProfile === "object" ? base.byProfile : {};
+    Object.keys(localBags).forEach(function (pid) {
+      var localBag = localBags[pid] || {};
+      if (!base.byProfile[pid]) {
+        var created = {};
+        Object.keys(localBag).forEach(function (key) { created[key] = localBag[key]; });
+        created._tombstones = [];
+        base.byProfile[pid] = created;
+        return;
+      }
+      var remoteBag = base.byProfile[pid];
+      lists.forEach(function (key) {
+        var have = {};
+        (Array.isArray(remoteBag[key]) ? remoteBag[key] : []).forEach(function (row) {
+          if (row && row.id != null) have[String(row.id)] = true;
+        });
+        (Array.isArray(localBag[key]) ? localBag[key] : []).forEach(function (row) {
+          if (!row || row.id == null || have[String(row.id)]) return;
+          if (!Array.isArray(remoteBag[key])) remoteBag[key] = [];
+          remoteBag[key].push(row);
+        });
+      });
+    });
+    var seen = {};
+    (Array.isArray(base.profiles) ? base.profiles : []).forEach(function (row) {
+      if (row && row.id != null) seen[String(row.id)] = true;
+    });
+    if (!Array.isArray(base.profiles)) base.profiles = [];
+    (local && Array.isArray(local.profiles) ? local.profiles : []).forEach(function (row) {
+      if (!row || row.id == null || seen[String(row.id)]) return;
+      base.profiles.push(row);
+    });
+    if (local && tsOf(local.restoredAt) > tsOf(base.restoredAt)) base.restoredAt = local.restoredAt;
+    return base;
+  }
+
   function shrinkDialogCopy(losses) {
     var list = Array.isArray(losses) ? losses : [];
     var wiped = list.some(function (loss) { return loss && loss.nullData; });
@@ -290,5 +391,9 @@
     restampBackupKeys: restampBackupKeys,
     shrinkDialogCopy: shrinkDialogCopy,
     rowFingerprint: rowFingerprint,
+    restoreIsNewer: restoreIsNewer,
+    newerRestoreStamp: newerRestoreStamp,
+    adoptRestoreEpoch: adoptRestoreEpoch,
+    adoptCloudStand: adoptCloudStand,
   };
 });

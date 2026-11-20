@@ -13,7 +13,8 @@ import {
   randomHex,
   shrinkLosses,
   timingSafeEqualHex,
-} from "../src/index.js";
+} from "../src/lib.js";
+import * as workerEntry from "../src/index.js";
 
 function mockKv(initial = {}) {
   const store = new Map(Object.entries(initial));
@@ -109,6 +110,11 @@ async function putData(env, token, baseVersion, data, extra) {
     env,
   });
 }
+
+test("worker entry exports only the fetch handler", () => {
+  assert.deepEqual(Object.keys(workerEntry).sort(), ["default"]);
+  assert.equal(typeof workerEntry.default.fetch, "function");
+});
 
 test("CORS: allows prod + localhost, rejects others", () => {
   assert.equal(isAllowedOrigin("https://maesspeed.github.io"), true);
@@ -439,6 +445,83 @@ test("profile tombstones survive a client that forgets them", () => {
   const kept = guardProfiles(prev, newer);
   assert.equal(kept.profiles.length, 1);
   assert.equal(kept.profiles[0].id, "p2");
+});
+
+function listTombstones(rows, at) {
+  return rows.map((row) => ({ id: row.id, kind: "watchlist", deleted: true, updatedAt: at }));
+}
+
+test("a tombstoned profile delete does not ask again", async () => {
+  const env = envWith();
+  const token = await register(env, "profiles");
+  const two = cinexBlob({
+    profiles: [
+      { id: "p1", name: "Domi", updatedAt: "2026-10-01T00:00:00.000Z" },
+      { id: "p2", name: "Gast", updatedAt: "2026-10-01T00:00:00.000Z" },
+    ],
+  });
+  assert.equal((await putData(env, token, 0, two)).status, 200);
+  const bare = cinexBlob({
+    profiles: [{ id: "p1", name: "Domi", updatedAt: "2026-10-01T00:00:00.000Z" }],
+  });
+  const rejected = await putData(env, token, 1, bare);
+  assert.equal(rejected.status, 422);
+  assert.equal((await rejected.json()).losses[0].field, "profiles");
+  const one = cinexBlob({
+    profiles: [{ id: "p1", name: "Domi", updatedAt: "2026-10-01T00:00:00.000Z" }],
+    tombs: [{ id: "p2", kind: "profile", deleted: true, updatedAt: "2026-11-20T12:00:00.000Z" }],
+  });
+  const put = await putData(env, token, 1, one);
+  assert.equal(put.status, 200);
+});
+
+test("restore wins on the other device, including a small shrink", async () => {
+  const env = envWith({ SNAPSHOT_DAY: "2026-11-20" });
+  const token = await register(env, "multi");
+  const full = cinexBlob({ watchlist: films(100) });
+  const oldAt = "2026-11-20T09:00:00.000Z";
+  const trimmed = cinexBlob({ watchlist: films(92) });
+  trimmed.byProfile.p1._tombstones = listTombstones(films(8, 92), oldAt);
+  assert.equal((await putData(env, token, 0, full)).status, 200);
+  assert.equal((await putData(env, token, 1, trimmed)).status, 200);
+  const restored = await call("/data/restore", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: { id: "2026-11-20" },
+    env,
+  });
+  assert.equal(restored.status, 200);
+  const cloud = await restored.json();
+  assert.equal(cloud.data.byProfile.p1.watchlist.length, 100);
+  assert.ok(cloud.data.restoredAt);
+
+  const other = cinexBlob({ watchlist: films(92) });
+  other.byProfile.p1._tombstones = listTombstones(films(8, 92), oldAt);
+  const revert = await putData(env, token, cloud.version, other);
+  assert.equal(revert.status, 200);
+  const after = await call("/data", { headers: { Authorization: `Bearer ${token}` }, env });
+  const body = await after.json();
+  assert.equal(body.data.byProfile.p1.watchlist.length, 100);
+  assert.equal(body.data.restoredAt, cloud.data.restoredAt);
+
+  const heavy = cinexBlob({ watchlist: films(80) });
+  heavy.byProfile.p1._tombstones = listTombstones(films(20, 80), oldAt);
+  const blocked = await putData(env, token, body.version, heavy);
+  assert.equal(blocked.status, 200);
+  const kept = await call("/data", { headers: { Authorization: `Bearer ${token}` }, env });
+  const keptBody = await kept.json();
+  assert.equal(keptBody.data.byProfile.p1.watchlist.length, 100);
+
+  const freshAt = "2099-01-01T00:00:00.000Z";
+  const later = cinexBlob({ watchlist: films(97) });
+  later.byProfile.p1._tombstones = listTombstones(films(3, 97), freshAt);
+  const fresh = await putData(env, token, keptBody.version, later);
+  assert.equal(fresh.status, 200);
+  const finalBody = await call("/data", { headers: { Authorization: `Bearer ${token}` }, env });
+  const ids = (await finalBody.json()).data.byProfile.p1.watchlist.map((row) => row.id);
+  assert.equal(ids.length, 97);
+  assert.equal(ids.includes("t97"), false);
+  assert.equal(ids.includes("t0"), true);
 });
 
 test("verify checks the password and does not mint a token", async () => {
